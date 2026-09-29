@@ -1,0 +1,235 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+@font-face {
+  font-family: "Inter:Regular";
+  src: url("https://static.figma.com/font/Inter_1") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter:Medium";
+  src: url("https://static.figma.com/font/Inter_1") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter:Semi Bold";
+  src: url("https://static.figma.com/font/Inter_1") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter:Bold";
+  src: url("https://static.figma.com/font/Inter_1") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Inter:Extra Bold";
+  src: url("https://static.figma.com/font/Inter_1") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Roboto:Regular";
+  src: url("https://static.figma.com/font/Roboto_wdth_wght__3") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Roboto:Medium";
+  src: url("https://static.figma.com/font/Roboto_wdth_wght__3") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Roboto:SemiBold";
+  src: url("https://static.figma.com/font/Roboto_wdth_wght__3") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Plus Jakarta Sans:Regular";
+  src: url("https://static.figma.com/font/PlusJakartaSans_wght__2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Plus Jakarta Sans:Medium";
+  src: url("https://static.figma.com/font/PlusJakartaSans_wght__2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Plus Jakarta Sans:ExtraBold";
+  src: url("https://static.figma.com/font/PlusJakartaSans_wght__2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Noto Sans SC:Regular";
+  src: url("https://static.figma.com/font/NotoSansSC-VF_2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Noto Sans SC:DemiLight";
+  src: url("https://static.figma.com/font/NotoSansSC-VF_2") format("woff2");
+  font-weight: 350;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Noto Sans SC:Bold";
+  src: url("https://static.figma.com/font/NotoSansSC-VF_2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Noto Sans SC:Medium";
+  src: url("https://static.figma.com/font/NotoSansSC-VF_2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Roboto:Bold";
+  src: url("https://static.figma.com/font/Roboto_wdth_wght__3") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  scrollbar-width: none;
+}
+
+input,
+textarea {
+  outline: none;
+  background: transparent;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+/* ── Page transition keyframes ─────────────────────────────── */
+/* Tab switch: fade + subtle rise (180–220ms) */
+@keyframes _tab-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* Push (go deeper): slide in from right */
+@keyframes _push-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+/* Pop (back): slide in from left */
+@keyframes _pop-in {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+/* Onboarding step: stronger push, slightly slower */
+@keyframes _onboard-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.page-tab  { animation: _tab-in     200ms cubic-bezier(0.25,0.46,0.45,0.94) both; }
+.page-push { animation: _push-in    260ms cubic-bezier(0.25,0.46,0.45,0.94) both; }
+.page-pop  { animation: _pop-in     240ms cubic-bezier(0.25,0.46,0.45,0.94) both; }
+.page-onboard { animation: _onboard-in 300ms cubic-bezier(0.25,0.46,0.45,0.94) both; }
+
+/* ── Staggered list reveal ─────────────────────────────────── */
+@keyframes _item-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.stagger-item {
+  opacity: 0;
+  animation: _item-in 220ms cubic-bezier(0.25,0.46,0.45,0.94) forwards;
+}
+.stagger-item:nth-child(1) { animation-delay: 40ms; }
+.stagger-item:nth-child(2) { animation-delay: 90ms; }
+.stagger-item:nth-child(3) { animation-delay: 140ms; }
+.stagger-item:nth-child(4) { animation-delay: 190ms; }
+.stagger-item:nth-child(5) { animation-delay: 240ms; }
+.stagger-item:nth-child(6) { animation-delay: 280ms; }
+.stagger-item:nth-child(7) { animation-delay: 310ms; }
+.stagger-item:nth-child(8) { animation-delay: 340ms; }
+
+/* ── Breathing / shimmer for loading states ────────────────── */
+@keyframes _breathe {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.06); }
+}
+.breathe { animation: _breathe 1.6s ease-in-out infinite; }
+
+/* ── Number count-up ───────────────────────────────────────── */
+@keyframes _bar-grow {
+  from { width: 0%; }
+}
+.bar-grow { animation: _bar-grow 600ms cubic-bezier(0.25,0.46,0.45,0.94) both; }
+
+/* ── AI Analysis Orb ──────────────────────────────────────── */
+@keyframes _ai-orb {
+  0%, 100% { transform: scale(1); filter: blur(0.5px) brightness(1); }
+  50%       { transform: scale(1.07); filter: blur(0.5px) brightness(1.06); }
+}
+@keyframes _ai-halo {
+  0%        { transform: scale(0.92); opacity: 0.7; }
+  60%       { transform: scale(1.22); opacity: 0; }
+  100%      { transform: scale(0.92); opacity: 0; }
+}
+@keyframes _ai-step-pulse {
+  0%, 100%  { box-shadow: 0 0 0 0 rgba(79,126,245,0.5); }
+  50%       { box-shadow: 0 0 0 7px rgba(79,126,245,0); }
+}
+@keyframes _ai-orb-complete {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.14); filter: blur(0.5px) brightness(1.15); }
+  100% { transform: scale(1.08); filter: blur(0.5px) brightness(1.08); }
+}
+@keyframes _ai-gradient-shift {
+  0%   { background-position: 0% 30%; }
+  50%  { background-position: 100% 70%; }
+  100% { background-position: 0% 30%; }
+}
+.ai-orb          { animation: _ai-orb 3.6s cubic-bezier(0.45,0.05,0.55,0.95) infinite; }
+.ai-halo         { animation: _ai-halo 3.6s ease-out infinite; }
+.ai-halo-2       { animation: _ai-halo 3.6s ease-out infinite 1.4s; }
+.ai-step-pulse   { animation: _ai-step-pulse 1.5s ease-in-out infinite; }
+.ai-orb-complete { animation: _ai-orb-complete 0.7s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+
+/* ── Toast ─────────────────────────────────────────────────── */
+@keyframes _toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes _toast-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(8px); }
+}
+.toast-in  { animation: _toast-in  160ms ease-out both; }
+.toast-out { animation: _toast-out 180ms ease-in  both; }

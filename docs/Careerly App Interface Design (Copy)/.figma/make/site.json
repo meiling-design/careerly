@@ -1,0 +1,10 @@
+{
+  "description": "Offers a clear, well-structured interface for career management, helping users navigate job opportunities and professional growth efficiently.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
