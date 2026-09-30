@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/router/app_routes.dart';
+import '../../../core/errors/app_error.dart';
+import '../../../core/errors/error_handler.dart';
+import '../../../core/services/resume_file_picker.dart';
+import '../../../data/models/resume_file.dart';
 import '../../../design_system/components/components.dart';
 import '../../../design_system/tokens/tokens.dart';
 import '../../profile/state/resume_provider.dart';
@@ -53,11 +57,16 @@ import 'widgets/onboarding_progress_header.dart';
 ///    处理方式与注册页头像（**D58**）一致：**不新建图标资源**。
 ///    登记 **待裁决 · D72**。
 ///
-/// ## ⚠️ 「选择文件」当前是**提示**，不是死按钮
+/// ## 「选择文件」链路（**D67 已关闭**）
 ///
-/// 文件选择需要平台依赖，本轮（D52：纯 Mock、不引平台依赖）做不了。
-/// 点击后给一条可见说明，**不是**点了没反应。
-/// 缺口登记 **待裁决 · D67**（`docs/05_progress/TODO.md` §3.1）。
+/// ```text
+/// 选择文件 → ResumeFilePicker（平台网关，DI 注入，测试可换 Fake）
+///         → ResumeFileData（类型白名单在选择器层卡；10MB 上限在提交前卡）
+///         → ResumeProvider.submitFile → ResumeRepository.submitResumeFile
+///         → on-parsing（与「粘贴简历文本」同一条后续链路）
+/// ```
+///
+/// 用户取消选择**不是失败**，不做任何提示、停留原页。
 class OnboardingResumePage extends StatefulWidget {
   const OnboardingResumePage({super.key});
 
@@ -75,15 +84,54 @@ class _OnboardingResumePageState extends State<OnboardingResumePage> {
     });
   }
 
-  /// 「选择文件」—— 见类文档 D67。
-  void _onPickFile() {
-    CareerlyToast.show(
-      context,
-      message: '文件选择尚未接入，可先用「粘贴简历文本」',
-      icon: Icons.info_outline,
-      // Onboarding 没有底部导航，提示贴底即可。
-      bottomOffset: AppSpacing.xxl,
-    );
+  /// 「选择文件」—— 选 → 校验 → 提交 → 交给解析页（D67 已关闭）。
+  Future<void> _onPickFile() async {
+    final ResumeFilePicker picker = context.read<ResumeFilePicker>();
+    final ResumeProvider provider = context.read<ResumeProvider>();
+
+    final ResumeFileData? file;
+    try {
+      file = await picker.pick();
+    } catch (error, stackTrace) {
+      if (!mounted) return;
+      final AppError normalized = ErrorHandler.normalize(error, stackTrace);
+      CareerlyToast.show(
+        context,
+        message: normalized.message,
+        icon: Icons.error_outline,
+        bottomOffset: AppSpacing.xxl,
+      );
+      return;
+    }
+
+    // 用户取消：不是失败，不做任何提示。
+    if (!mounted || file == null) return;
+
+    // 大小上限在提交前卡（选择器无法按大小过滤）。
+    if (file.exceedsLimit) {
+      CareerlyToast.show(
+        context,
+        message: '文件超过 10MB 上限，请更换后重试',
+        icon: Icons.error_outline,
+        bottomOffset: AppSpacing.xxl,
+      );
+      return;
+    }
+
+    final bool ok = await provider.submitFile(file);
+    if (!mounted) return;
+
+    if (!ok) {
+      CareerlyToast.show(
+        context,
+        message: provider.submitError?.message ?? '提交失败，请重试',
+        icon: Icons.error_outline,
+        bottomOffset: AppSpacing.xxl,
+      );
+      return;
+    }
+
+    context.go(AppRoutes.onboardingParsing);
   }
 
   /// 「粘贴简历文本」—— 收文本 → 提交 → 交给解析页。
@@ -149,9 +197,7 @@ class _OnboardingResumePageState extends State<OnboardingResumePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       const _ResumeTitle(),
-                      _UploadCard(
-                        onTap: busy ? null : _onPickFile,
-                      ),
+                      _UploadCard(onTap: busy ? null : _onPickFile),
                       const _ExtractChecklist(),
                     ],
                   ),
@@ -202,7 +248,7 @@ class _ResumeTitle extends StatelessWidget {
 /// 与 `brandTint` / `brandGradientDown` 那种「同值不同义」的情形不同。
 ///
 /// ⚠️ 整卡可点：Figma 的文案是「点击或拖拽上传简历」，
-/// 静态原型只没接线而已。当前点击给提示（D67）。
+/// 点击 = 「选择文件」（D67 已关闭）。
 class _UploadCard extends StatelessWidget {
   const _UploadCard({required this.onTap});
 
@@ -226,16 +272,15 @@ class _UploadCard extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: AppColors.onboardingGlassFill,
-            borderRadius: BorderRadius.circular(_ResumeMetrics.uploadCardRadius),
+            borderRadius: BorderRadius.circular(
+              _ResumeMetrics.uploadCardRadius,
+            ),
           ),
           child: Column(
             children: <Widget>[
               const _UploadIconTile(),
               const SizedBox(height: AppSpacing.md),
-              const Text(
-                '点击或拖拽上传简历',
-                style: AppTypography.onboardingCardTitle,
-              ),
+              const Text('点击或拖拽上传简历', style: AppTypography.onboardingCardTitle),
               const SizedBox(height: _ResumeMetrics.uploadCardTextGap),
               const Text(
                 'PDF / Word · 最大 10MB',
@@ -388,10 +433,7 @@ class _ResumeActions extends StatelessWidget {
         children: <Widget>[
           OnboardingPrimaryButton(label: '选择文件', onPressed: onPickFile),
           const SizedBox(height: AppSpacing.sm),
-          OnboardingOutlineButton(
-            label: '粘贴简历文本',
-            onPressed: onPasteText,
-          ),
+          OnboardingOutlineButton(label: '粘贴简历文本', onPressed: onPasteText),
         ],
       ),
     );

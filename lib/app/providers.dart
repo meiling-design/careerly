@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
+import '../core/services/resume_file_picker.dart';
 import '../data/api/api.dart';
 import '../data/mock/mock.dart';
 import '../data/repositories/repositories.dart';
@@ -43,6 +44,13 @@ import 'state/app_provider.dart';
 /// [initialLocation] 只透传给路由，默认首页（见 `createAppRouter` 的说明）。
 List<SingleChildWidget> careerlyProviders({
   String initialLocation = AppRoutes.home,
+
+  /// 测试 / 调试用的**尾部覆盖**。
+  ///
+  /// `MultiProvider` 同类型查找时**后注册者胜出**，
+  /// 因此把 Fake / Stub 追加在列表末尾即可替换上面的生产实现，
+  /// 不必改动任何默认装配。生产代码**不要传**这个参数。
+  List<SingleChildWidget> overrides = const <SingleChildWidget>[],
 }) {
   // 真实后端开关：--dart-define=CAREERLY_USE_API=true 时，
   // 后端已建端点对应的接口（auth / analysis / resume / quota）改绑 API 实现，
@@ -72,7 +80,8 @@ List<SingleChildWidget> careerlyProviders({
     Provider<GrowthRepository>(create: (_) => MockGrowthRepository()),
     // Onboarding（Phase 4 批 1）。⚠️ 纯 Mock，不保存会话 —— 见 AuthRepository 的说明。
     Provider<AuthRepository>(
-      create: (_) => useApi ? ApiAuthRepository(apiClient) : MockAuthRepository(),
+      create: (_) =>
+          useApi ? ApiAuthRepository(apiClient) : MockAuthRepository(),
     ),
     // 「我的」职业资产（Phase 8 批 1）。
     Provider<CareerAssetsRepository>(
@@ -80,6 +89,9 @@ List<SingleChildWidget> careerlyProviders({
     ),
     // 「我的」身份资料（Phase 8 批 1）。
     Provider<ProfileRepository>(create: (_) => MockProfileRepository()),
+    // 「选择文件」的平台网关（D67 关闭）。走平台通道，
+    // Widget 测试里用 overrides 换成 Fake（不触发真通道）。
+    Provider<ResumeFilePicker>(create: (_) => const DefaultResumeFilePicker()),
 
     // -------------------------------------------------------------------------
     // Router
@@ -120,7 +132,8 @@ List<SingleChildWidget> careerlyProviders({
           AnalysisProvider(context.read<AnalysisRepository>()),
     ),
     ChangeNotifierProvider<AIProvider>(
-      create: (BuildContext context) => AIProvider(context.read<AIRepository>()),
+      create: (BuildContext context) =>
+          AIProvider(context.read<AIRepository>()),
     ),
     ChangeNotifierProvider<ResumeProvider>(
       create: (BuildContext context) =>
@@ -146,5 +159,10 @@ List<SingleChildWidget> careerlyProviders({
       create: (BuildContext context) =>
           UserProfileProvider(context.read<ProfileRepository>()),
     ),
+
+    // -------------------------------------------------------------------------
+    // 尾部覆盖（仅测试 / 调试）：同类型后注册者胜出。
+    // -------------------------------------------------------------------------
+    ...overrides,
   ];
 }

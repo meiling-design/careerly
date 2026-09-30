@@ -1,5 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:careerly/app/app.dart';
 import 'package:careerly/app/router/app_routes.dart';
+import 'package:careerly/core/services/resume_file_picker.dart';
+import 'package:careerly/data/models/resume_file.dart';
 import 'package:careerly/design_system/components/careerly_navigation_bar.dart';
 import 'package:careerly/design_system/tokens/app_motion.dart';
 import 'package:careerly/features/home/presentation/home_page.dart';
@@ -8,6 +12,8 @@ import 'package:careerly/features/onboarding/presentation/onboarding_parsing_pag
 import 'package:careerly/features/onboarding/presentation/onboarding_resume_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 
 /// Careerly Phase 4 批 2 —— Onboarding「提交简历 / 建立职业基线 / 确认」三屏。
 ///
@@ -17,6 +23,28 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// 视觉部分（光晕球的呼吸与扩散、虚线框、磨砂卡）不在此验证 ——
 /// 见 `docs/05_progress/CURRENT_STATUS.md` 的视觉定稿流程。
+
+/// 「选择文件」的测试替身 —— 不触发平台通道，返回构造好的结果。
+///
+/// 通过 [CareerlyApp.overrides] 尾部覆盖生产装配里的
+/// [DefaultResumeFilePicker]（同类型后注册者胜出）。
+class _FakeResumeFilePicker implements ResumeFilePicker {
+  _FakeResumeFilePicker(this._result);
+
+  final ResumeFileData? _result;
+
+  @override
+  Future<ResumeFileData?> pick() async => _result;
+}
+
+/// 构造一个合法的待提交文件（字节内容无意义，Mock 不解析）。
+ResumeFileData _fakeFile({int sizeBytes = 4}) => ResumeFileData(
+  name: '张三-产品经理.pdf',
+  extension: 'pdf',
+  sizeBytes: sizeBytes,
+  bytes: Uint8List.fromList(List<int>.filled(sizeBytes, 1)),
+);
+
 void main() {
   /// Mock 数据层的默认延迟是 600ms。
   Future<void> settleMock(WidgetTester tester) async {
@@ -90,18 +118,73 @@ void main() {
       expect(find.byType(CareerlyNavigationBar), findsNothing);
     });
 
-    testWidgets('「选择文件」给出未接入提示，且**不跳转**（D67 钉死）', (
+    testWidgets('「选择文件」选中文件 → 提交 → 进入「建立职业基线」页（D67 已关闭）', (
       WidgetTester tester,
     ) async {
-      await pumpAt(tester, AppRoutes.onboardingResume);
+      await tester.pumpWidget(
+        CareerlyApp(
+          initialLocation: AppRoutes.onboardingResume,
+          overrides: <SingleChildWidget>[
+            Provider<ResumeFilePicker>.value(
+              value: _FakeResumeFilePicker(_fakeFile()),
+            ),
+          ],
+        ),
+      );
+      await settleMock(tester);
+
+      await tester.tap(find.text('选择文件'));
+      // 选择（瞬时）→ 提交（Mock 600ms）→ 转场（300ms）。
+      await advance(tester, 2500);
+
+      expect(find.byType(OnboardingParsingPage), findsOneWidget);
+
+      // 收尾：走完整个时间线，别把挂起的定时器留给下一个测试。
+      await advance(tester, timelineTotalMs() + 2000);
+    });
+
+    testWidgets('「选择文件」用户取消 → 停留原页、无任何提示', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        CareerlyApp(
+          initialLocation: AppRoutes.onboardingResume,
+          overrides: <SingleChildWidget>[
+            Provider<ResumeFilePicker>.value(
+              value: _FakeResumeFilePicker(null),
+            ),
+          ],
+        ),
+      );
+      await settleMock(tester);
+
+      await tester.tap(find.text('选择文件'));
+      await advance(tester, 1500);
+
+      // 取消不是失败：不跳转、不出 Toast、不出错误。
+      expect(find.byType(OnboardingResumePage), findsOneWidget);
+      expect(find.byType(OnboardingParsingPage), findsNothing);
+      expect(find.byIcon(Icons.error_outline), findsNothing);
+    });
+
+    testWidgets('「选择文件」超过 10MB → 提示更换，且不提交不跳转', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        CareerlyApp(
+          initialLocation: AppRoutes.onboardingResume,
+          overrides: <SingleChildWidget>[
+            Provider<ResumeFilePicker>.value(
+              value: _FakeResumeFilePicker(
+                _fakeFile(sizeBytes: ResumeFileData.maxSizeBytes + 1),
+              ),
+            ),
+          ],
+        ),
+      );
+      await settleMock(tester);
 
       await tester.tap(find.text('选择文件'));
       await tester.pump();
       await advance(tester, 400);
 
-      expect(find.textContaining('文件选择尚未接入'), findsOneWidget);
-
-      // **不跳转** —— 这是 D67 的当前处置，不是一个「点了没反应」的死按钮。
+      expect(find.textContaining('超过 10MB'), findsOneWidget);
       expect(find.byType(OnboardingResumePage), findsOneWidget);
       expect(find.byType(OnboardingParsingPage), findsNothing);
 

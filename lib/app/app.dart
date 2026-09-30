@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 
 import '../core/constants/app_constants.dart';
 import '../design_system/theme/careerly_theme.dart';
@@ -22,7 +23,11 @@ import 'router/app_routes.dart';
 ///       └── AppRouter → CareerlyShell → 四个一级页面
 /// ```
 class CareerlyApp extends StatelessWidget {
-  const CareerlyApp({super.key, this.initialLocation = AppRoutes.home});
+  const CareerlyApp({
+    super.key,
+    this.initialLocation = AppRoutes.home,
+    this.overrides = const <SingleChildWidget>[],
+  });
 
   /// 启动时落在哪条路由。
   ///
@@ -38,10 +43,19 @@ class CareerlyApp extends StatelessWidget {
   /// 它只改「本次启动落哪」，**不改上面的默认值**。
   final String initialLocation;
 
+  /// 测试 / 调试用的 Provider 尾部覆盖（语义见 [careerlyProviders]）。
+  ///
+  /// 例如 Widget 测试里把走平台通道的 `ResumeFilePicker`
+  /// 换成返回固定文件的 Fake。生产代码**不要传**。
+  final List<SingleChildWidget> overrides;
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: careerlyProviders(initialLocation: initialLocation),
+      providers: careerlyProviders(
+        initialLocation: initialLocation,
+        overrides: overrides,
+      ),
       child: Builder(
         builder: (BuildContext context) {
           final GoRouter router = context.read<GoRouter>();
