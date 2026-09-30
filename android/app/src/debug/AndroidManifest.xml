@@ -4,4 +4,10 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- 开发期明文 HTTP 放行（本地后端为 http://10.0.2.2:8000）。
+         配置实体见 src/debug/res/xml/network_security_config.xml —— 该资源只存在于
+         debug 源集，且本属性只在 debug 构建合并进最终 manifest，
+         因此 release 的网络安全策略不受任何影响。 -->
+    <application android:networkSecurityConfig="@xml/network_security_config" />
 </manifest>

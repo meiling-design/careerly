@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  开发期网络安全配置 —— 【仅 debug 构建生效】
+
+  为什么需要它：
+    Android 9 (API 28) 起，`usesCleartextTraffic` 默认为 false，明文 HTTP 一律被拦。
+    本地后端跑在 http://10.0.2.2:8000（模拟器访问宿主机的固定地址），
+    不做放行则 debug 包连不上任何接口。
+
+  为什么放在 `src/debug/res/xml/`：
+    该资源只存在于 debug 源集，release 构建不包含它、也不引用它。
+    生产环境的网络安全策略【完全不受影响】—— 这正是 P0 的约束
+    「不为开发环境修改生产安全策略」。
+
+  注意：不要把它挪到 `src/main/res/xml/` 并被 main 的 manifest 引用，
+        否则等于给 release 包放行了明文 HTTP。
+-->
+<network-security-config>
+    <!-- 默认仍然禁止明文（fail-safe）：仅下列白名单域名例外。 -->
+    <base-config cleartextTrafficPermitted="false" />
+
+    <!-- 本地开发后端白名单 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Android 官方模拟器访问「宿主机 localhost」的固定地址 -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- Genymotion 模拟器的宿主机别名 -->
+        <domain includeSubdomains="false">10.0.3.2</domain>
+        <!-- 真机通过 `adb reverse tcp:8000 tcp:8000` 转发时使用 -->
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+
+        <!--
+          【真机走局域网 IP 联调时】需要在此追加一行，例如：
+              <domain includeSubdomains="false">192.168.1.23</domain>
+          更省事的替代方案（推荐）：保持 localhost 白名单不变，改用端口转发：
+              adb reverse tcp:8000 tcp:8000
+          然后 ApiClient 的 baseUrl 仍用 http://localhost:8000 即可，
+          无需为每台机器/每个网段改这个文件。
+        -->
+    </domain-config>
+</network-security-config>

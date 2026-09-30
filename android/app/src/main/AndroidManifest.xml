@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 联网权限：Careerly 的全部业务数据（认证 / 简历 / 分析 / 成长）都来自后端 API，
+         因此 release 与 debug 构建都需要。此前仅 debug/profile 源集（Flutter 默认注入，
+         供 hot reload 使用）声明了该权限，导致 release 包无网络能力。 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="careerly"
         android:name="${applicationName}"
