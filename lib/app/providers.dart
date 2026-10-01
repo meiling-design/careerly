@@ -60,8 +60,8 @@ List<SingleChildWidget> careerlyProviders({
   ApiClient? apiClient,
 }) {
   // 真实后端开关：--dart-define=CAREERLY_USE_API=true 时，
-  // 后端已建端点对应的接口（auth / analysis / resume / quota）改绑 API 实现，
-  // 其余接口在后端端点落地前（P4+）继续走 Mock。
+  // 后端已建端点对应的接口（auth / analysis / resume / quota / growth）
+  // 改绑 API 实现，其余接口在后端端点落地前（P4+）继续走 Mock。
   const bool useApi = ApiClient.useApi;
 
   final ApiClient client = apiClient ?? ApiClient();
@@ -84,7 +84,11 @@ List<SingleChildWidget> careerlyProviders({
       create: (_) =>
           useApi ? ApiResumeRepository(client) : MockResumeRepository(),
     ),
-    Provider<GrowthRepository>(create: (_) => MockGrowthRepository()),
+    // 成长足迹（P2-5）：后端 /api/v1/growth/* 已落地，随开关切真实 API。
+    Provider<GrowthRepository>(
+      create: (_) =>
+          useApi ? ApiGrowthRepository(client) : MockGrowthRepository(),
+    ),
     // Onboarding（Phase 4 批 1）。⚠️ 纯 Mock，不保存会话 —— 见 AuthRepository 的说明。
     Provider<AuthRepository>(
       create: (_) =>

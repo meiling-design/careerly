@@ -8,12 +8,13 @@
 ///             --dart-define=CAREERLY_API_BASE_URL=http://10.0.2.2:8000
 /// ```
 ///
-/// 当前只实现后端已建端点对应的接口（auth / analysis / resume / quota）；
-/// growth / home / career assets / ai / profile 在后端 P4+ 端点落地前
+/// 当前只实现后端已建端点对应的接口（auth / analysis / resume / quota /
+/// growth）；home / career assets / ai / profile 在后端端点落地前
 /// **继续走 Mock**，不在此预建。
 library;
 
 export 'api_analysis_repository.dart';
 export 'api_auth_repository.dart';
 export 'api_client.dart';
+export 'api_growth_repository.dart';
 export 'api_resume_repository.dart';
