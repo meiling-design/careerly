@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'app/app.dart';
 import 'app/router/app_debug_entry.dart';
+import 'data/api/api_client.dart';
+import 'data/api/token_store.dart';
 import 'data/mock/mock_config.dart';
 
 /// Careerly 启动入口。
@@ -33,8 +35,24 @@ import 'data/mock/mock_config.dart';
 /// ⚠️ 「App 究竟该从哪一屏启动」**是尚未裁决的产品问题（D54）**，
 /// [AppDebugEntry] 不回答它；[MockSettings] 的演示数据也**不是需求**
 /// （`CLAUDE.md` §7）—— 详见各自文件的说明。
-void main() {
+///
+/// ## 为什么 main 变成 async（P1-6 / 裁决 D-B）
+///
+/// 会话恢复是异步的（读 Keystore），且**必须在 `runApp` 之前**完成：
+/// 否则首帧发出的请求会带着「还没恢复」的空凭据，命中 401。
+/// 这里只做「恢复凭据」这一件事，**不**决定启动落在哪一屏（那是 D54）。
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MockSettings.applyDemoDataFromEnvironment();
-  runApp(CareerlyApp(initialLocation: AppDebugEntry.initialLocation));
+
+  final ApiClient apiClient = ApiClient(tokenStore: SecureTokenStore());
+  // 恢复失败不算错误：就是「没有已保存的会话」，正常走登录流程。
+  await apiClient.restoreSession();
+
+  runApp(
+    CareerlyApp(
+      initialLocation: AppDebugEntry.initialLocation,
+      apiClient: apiClient,
+    ),
+  );
 }

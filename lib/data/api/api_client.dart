@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../../core/errors/app_error.dart';
+import 'token_store.dart';
 
 /// Careerly 后端 HTTP 客户端。
 ///
@@ -18,11 +19,22 @@ import '../../core/errors/app_error.dart';
 /// {"success": false, "data": null, "error": {"code": "...", "message": "..."}, "meta": {...}}
 /// ```
 ///
-/// ## 会话（尊重 D52）
+/// ## 会话（裁决 **D-B**：安全持久化，D52 作废）
 ///
-/// JWT 只保存在**内存**里（本类的字段）——不引入
-/// shared_preferences / secure_storage。App 重启后需要重新登录，
-/// 「已登录则跳过 Onboarding」仍是未决项 **D54**，本类不越权解决。
+/// JWT 同时存在于**内存**（本类字段，请求时读取）与 **TokenStore**
+/// （Android Keystore / iOS Keychain，冷启动后恢复）。
+///
+/// ```text
+/// register / login  → setSession()    内存 + 落盘
+/// App 冷启动        → restoreSession()  读盘 → 内存
+/// 登出 / refresh 失效 → clearSession()   内存 + 删盘
+/// ```
+///
+/// 为什么不再是纯内存：D52 下每次冷启动都是「新用户」，成长时间轴与
+/// 「我的足迹」失去主体。详见 `token_store.dart` 的说明。
+///
+/// ⚠️ 「已登录则跳过 Onboarding 直接进首页」仍是未决项 **D54** ——
+/// 本类只负责**恢复凭据**，不越权决定启动落在哪一屏。
 ///
 /// ## baseUrl 配置
 ///
@@ -34,7 +46,7 @@ import '../../core/errors/app_error.dart';
 /// 默认值 `http://10.0.2.2:8000` 是 **Android 模拟器访问宿主机** 的固定地址；
 /// 真机联调时改成局域网 IP（如 `http://192.168.x.x:8000`）。
 class ApiClient {
-  ApiClient({String? baseUrl, http.Client? httpClient})
+  ApiClient({String? baseUrl, http.Client? httpClient, TokenStore? tokenStore})
       : baseUrl = _normalizeBaseUrl(
           baseUrl ??
               const String.fromEnvironment(
@@ -42,7 +54,10 @@ class ApiClient {
                 defaultValue: 'http://10.0.2.2:8000',
               ),
         ),
-        _http = httpClient ?? http.Client();
+        _http = httpClient ?? http.Client(),
+        // 默认内存：单测与「明确不持久化」的场景不受 D-B 影响。
+        // 生产装配（main.dart）显式传入 SecureTokenStore。
+        _tokenStore = tokenStore ?? InMemoryTokenStore();
 
   /// `CAREERLY_USE_API` 的 dart-define 键名（providers.dart 使用）。
   static const String useApiDefineKey = 'CAREERLY_USE_API';
@@ -63,24 +78,48 @@ class ApiClient {
   /// 实测单次分析约 210s，留足余量。
   static const Duration analysisTimeout = Duration(seconds: 300);
 
-  // ── 会话（内存态，见类注释「尊重 D52」） ──────────────────────────────
+  // ── 会话（内存态 + 持久化，见类注释「裁决 D-B」） ────────────────────
 
   String? _accessToken;
   String? _refreshToken;
+  final TokenStore _tokenStore;
 
   /// 当前是否持有访问令牌。
   bool get hasSession => _accessToken != null;
 
   /// 写入会话（register / login / refresh 成功后调用）。
-  void setSession({required String accessToken, String? refreshToken}) {
+  ///
+  /// 异步：同时落盘到 TokenStore。调用方**必须** await，
+  /// 否则冷启动恢复可能读到旧值。
+  Future<void> setSession({
+    required String accessToken,
+    String? refreshToken,
+  }) async {
     _accessToken = accessToken;
     if (refreshToken != null) _refreshToken = refreshToken;
+    await _tokenStore.save(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+    );
   }
 
-  /// 清除会话（401 不可恢复或登出时调用）。
-  void clearSession() {
+  /// 清除会话（登出，或 401 且 refresh 失败时调用）。
+  Future<void> clearSession() async {
     _accessToken = null;
     _refreshToken = null;
+    await _tokenStore.clear();
+  }
+
+  /// **冷启动恢复**：把已持久化的令牌读回内存。
+  ///
+  /// 返回 true 表示恢复成功（调用方可据此跳过登录）。
+  /// 只恢复凭据、**不**决定启动落在哪一屏 —— 那是 D54。
+  Future<bool> restoreSession() async {
+    final Tokens? restored = await _tokenStore.read();
+    if (restored == null || !restored.isValid) return false;
+    _accessToken = restored.accessToken;
+    _refreshToken = restored.refreshToken;
+    return true;
   }
 
   // ── HTTP verbs ──────────────────────────────────────────────────────
@@ -223,7 +262,7 @@ class ApiClient {
       if (envelope['success'] == true) {
         final Map<String, dynamic> data =
             envelope['data'] as Map<String, dynamic>;
-        setSession(
+        await setSession(
           accessToken: data['access_token'] as String,
           refreshToken: data['refresh_token'] as String?,
         );
@@ -232,7 +271,7 @@ class ApiClient {
     } catch (_) {
       // 刷新失败统一走下方清会话分支。
     }
-    clearSession();
+    await clearSession();
     return false;
   }
 

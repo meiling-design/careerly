@@ -3,7 +3,8 @@ import 'api_client.dart';
 
 /// 账号注册 / 登录的真实 API 实现（手机号身份，产品裁决 D85）。
 ///
-/// 成功后把 JWT 写入 [ApiClient] 的**内存**会话（尊重 D52：不落盘）。
+/// 成功后把 JWT 写入 [ApiClient] 会话 —— 内存 + 安全持久化（裁决 **D-B**），
+/// 因此冷启动后 [ApiClient.restoreSession] 能恢复身份。
 /// 接口返回 `void` —— 令牌是传输层的实现细节，调用方（State）不需要接触。
 class ApiAuthRepository implements AuthRepository {
   ApiAuthRepository(this._client);
@@ -24,7 +25,7 @@ class ApiAuthRepository implements AuthRepository {
         if (email != null && email.isNotEmpty) 'email': email,
       },
     );
-    _storeTokens(data);
+    await _storeTokens(data);
   }
 
   @override
@@ -33,12 +34,12 @@ class ApiAuthRepository implements AuthRepository {
       '/api/v1/auth/login',
       body: <String, dynamic>{'phone': phone},
     );
-    _storeTokens(data);
+    await _storeTokens(data);
   }
 
-  void _storeTokens(dynamic data) {
+  Future<void> _storeTokens(dynamic data) {
     final Map<String, dynamic> map = data as Map<String, dynamic>;
-    _client.setSession(
+    return _client.setSession(
       accessToken: map['access_token'] as String,
       refreshToken: map['refresh_token'] as String?,
     );

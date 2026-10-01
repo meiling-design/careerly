@@ -51,37 +51,44 @@ List<SingleChildWidget> careerlyProviders({
   /// 因此把 Fake / Stub 追加在列表末尾即可替换上面的生产实现，
   /// 不必改动任何默认装配。生产代码**不要传**这个参数。
   List<SingleChildWidget> overrides = const <SingleChildWidget>[],
+
+  /// 外部预建的 [ApiClient]（**P1-6 / D-B**）。
+  ///
+  /// 冷启动需要在 `runApp` **之前**完成 `restoreSession()`（异步读 Keystore），
+  /// 而这里是同步的 `List` 构建 —— 所以由 `main()` 建好并恢复完再传进来。
+  /// 不传则本函数自建一个（内存 TokenStore），行为与 P1-6 之前一致。
+  ApiClient? apiClient,
 }) {
   // 真实后端开关：--dart-define=CAREERLY_USE_API=true 时，
   // 后端已建端点对应的接口（auth / analysis / resume / quota）改绑 API 实现，
   // 其余接口在后端端点落地前（P4+）继续走 Mock。
   const bool useApi = ApiClient.useApi;
 
-  final ApiClient apiClient = ApiClient();
+  final ApiClient client = apiClient ?? ApiClient();
 
   return <SingleChildWidget>[
     // -------------------------------------------------------------------------
     // Data Source 层（默认 Mock；CAREERLY_USE_API=true 时部分换绑 API）
     // -------------------------------------------------------------------------
     Provider<ApiClient>(
-      create: (_) => apiClient,
+      create: (_) => client,
       dispose: (_, ApiClient c) => c.dispose(),
     ),
     Provider<HomeRepository>(create: (_) => MockHomeRepository()),
     Provider<AIRepository>(create: (_) => MockAIRepository()),
     Provider<AnalysisRepository>(
       create: (_) =>
-          useApi ? ApiAnalysisRepository(apiClient) : MockAnalysisRepository(),
+          useApi ? ApiAnalysisRepository(client) : MockAnalysisRepository(),
     ),
     Provider<ResumeRepository>(
       create: (_) =>
-          useApi ? ApiResumeRepository(apiClient) : MockResumeRepository(),
+          useApi ? ApiResumeRepository(client) : MockResumeRepository(),
     ),
     Provider<GrowthRepository>(create: (_) => MockGrowthRepository()),
     // Onboarding（Phase 4 批 1）。⚠️ 纯 Mock，不保存会话 —— 见 AuthRepository 的说明。
     Provider<AuthRepository>(
       create: (_) =>
-          useApi ? ApiAuthRepository(apiClient) : MockAuthRepository(),
+          useApi ? ApiAuthRepository(client) : MockAuthRepository(),
     ),
     // 「我的」职业资产（Phase 8 批 1）。
     Provider<CareerAssetsRepository>(

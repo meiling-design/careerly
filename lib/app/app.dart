@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
 import '../core/constants/app_constants.dart';
+import '../data/api/api_client.dart';
 import '../design_system/theme/careerly_theme.dart';
 import '../design_system/tokens/tokens.dart';
 import 'providers.dart';
@@ -27,6 +28,7 @@ class CareerlyApp extends StatelessWidget {
     super.key,
     this.initialLocation = AppRoutes.home,
     this.overrides = const <SingleChildWidget>[],
+    this.apiClient,
   });
 
   /// 启动时落在哪条路由。
@@ -49,12 +51,19 @@ class CareerlyApp extends StatelessWidget {
   /// 换成返回固定文件的 Fake。生产代码**不要传**。
   final List<SingleChildWidget> overrides;
 
+  /// 外部预建的 [ApiClient]（**P1-6 / D-B**）。
+  ///
+  /// `main()` 在 `runApp` 之前异步恢复会话（读 Keystore），
+  /// 恢复完的客户端从这里注入。不传则由 `careerlyProviders` 自建。
+  final ApiClient? apiClient;
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: careerlyProviders(
         initialLocation: initialLocation,
         overrides: overrides,
+        apiClient: apiClient,
       ),
       child: Builder(
         builder: (BuildContext context) {
