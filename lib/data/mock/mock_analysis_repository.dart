@@ -1,6 +1,8 @@
+import '../../core/errors/app_error.dart';
 import '../models/analysis_project.dart';
 import '../models/analysis_result.dart';
 import '../models/job.dart';
+import '../models/parsed_job.dart';
 import '../models/quota_state.dart';
 import '../repositories/analysis_repository.dart';
 import 'demo_analysis_fixture.dart';
@@ -51,6 +53,32 @@ class MockAnalysisRepository implements AnalysisRepository {
     await _config.simulate();
     // Baseline §5：免费用户 3 次完整分析。
     return QuotaState.free;
+  }
+
+  /// ⚠️ **明确抛「尚未接入」，不编造一条 JD。**
+  ///
+  /// 这里**没有**爬虫，也没有 JD 可返回。可选的两条路都不可接受：
+  ///
+  /// ```text
+  /// 返回空 ParsedJob  →  表单看起来「成功了」但 JD 框是空的，
+  ///                      用户点「开始分析」撞上「JD 不能为空」——
+  ///                      失败点被挪到两步之后，是 D108 的「失败无痕」；
+  /// 返回一段假 JD     →  CLAUDE.md §7 明令不得编造产品数据，
+  ///                      而且假 JD 与真抓到的 JD 在 UI 上无从分辨。
+  /// ```
+  ///
+  /// 因此与 `MockResumeRepository.setCurrentVersion` 同款处置：
+  /// **显式报错**，UI 走 Error 态把「尚未接入」如实说出来。
+  ///
+  /// 注意：**演示模式（`demoData`）也不例外** —— 这条路径的产出会被用户
+  /// 当作真实岗位送进分析，不是「看样例」的展示位。
+  @override
+  Future<ParsedJob> parseJobUrl(String url) async {
+    await _config.simulate();
+    throw const UnknownError(
+      message: '岗位链接抓取尚未接入',
+      detail: 'MockAnalysisRepository.parseJobUrl',
+    );
   }
 
   @override

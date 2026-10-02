@@ -4,6 +4,7 @@ import 'package:careerly/core/state/state.dart';
 import 'package:careerly/data/models/analysis_project.dart';
 import 'package:careerly/data/models/analysis_result.dart';
 import 'package:careerly/data/models/job.dart';
+import 'package:careerly/data/models/parsed_job.dart';
 import 'package:careerly/data/models/quota_state.dart';
 import 'package:careerly/data/models/resume_file.dart';
 import 'package:careerly/data/models/resume_profile.dart';
@@ -71,6 +72,12 @@ class StubAnalysisRepository implements AnalysisRepository {
 
   @override
   Future<QuotaState> fetchQuota() async => quota;
+
+  // ③ 岗位 URL：本文件不测抓取（见 `phase6_job_url_test.dart`），
+  // 但接口要求实现 —— 明确抛「未实现」，别假装成功。
+  @override
+  Future<ParsedJob> parseJobUrl(String url) async =>
+      throw UnimplementedError('测试桩不覆盖岗位链接抓取');
 
   @override
   Future<AnalysisProject> analyze({

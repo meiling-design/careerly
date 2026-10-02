@@ -10,6 +10,7 @@ export 'career_skill.dart';
 export 'growth_event.dart';
 export 'home_summary.dart';
 export 'job.dart';
+export 'parsed_job.dart';
 export 'project_experience.dart';
 export 'quota_state.dart';
 export 'resume_profile.dart';

@@ -19,6 +19,245 @@
 
 ---
 
+## Session 020 — 接通 work_agent 已有能力（③ 岗位 URL：抓取回填 JD 文本框 · **后端 + Flutter 双端**）
+
+**日期**：2026-10-02
+**阶段**：P4-③（「接通真实功能」工作流的第 4 项）
+**结论**：✅ **双端已交付 · ⚠️ 未验收**（真实端到端未跑：无设备 + 未接真实后端）
+
+> ⚠️ 本条与**产品侧 2026-10-02 的两条裁决**绑定：
+> 落点 =「抓取回填 JD 文本框」；范围 =「后端 + Flutter 一并做完」。
+> **落点不是**「让 `/analysis` 直接收 URL」——理由见 §1。
+
+---
+
+### 0. 开工前的报告（Session 019 §11 的停止点）
+
+Session 019 §11 明确写着：
+
+> **③ 岗位 URL 开工前必须先报告** —— 它是**新能力接线**（Job Agent 爬虫 → 分析入口），
+> 落在「分析」的哪个交互上尚未确认，**不自行决定**。
+
+本轮先出报告，产品侧裁决两项：
+
+```text
+① 落点 = 抓取回填 JD 文本框        （复用现有「粘贴岗位链接」表单，
+                                   抓到的 title 进岗位名、description 进 JD 框，
+                                   用户看得到、改得动，再走原有「开始分析」）
+② 范围 = 后端 + Flutter 一并做完
+```
+
+---
+
+### 1. 一个必须先说的**发现**：这条路径改前是坏的
+
+`analysis_page.dart` 的 `onConfirmUrl` 原来的实现是：
+
+```text
+校验 http/https → 岗位名 = 「岗位（域名）」→ _jdController.text = 那条 URL
+```
+
+也就是说，**JD 文本框里放的是链接本身**，点「开始分析」后
+`POST /api/v1/analysis` 收到的是 `rawJd: "https://www.zhipin.com/job/..."`。
+
+用户视角完全看不出异常：岗位胶囊出现了、「开始分析」可点、
+分析也真的会返回一个结果 —— 只是那个结果是拿一条网址解析出来的。
+
+**为什么不让 `/analysis` 直接收 URL**（三条，任一都够）：
+
+```text
+① 用户看不到抓到的 JD —— 抓错了无法校正，只会拿到一个莫名其妙的结果；
+② 爬取 30s+（SPA 站还要起 Playwright），叠加在本已 ~210s 的同步分析上；
+③ 契约 §2.1 明文：「后端必须走 GraphState.manual_job_texts 分支构造 JobPosting，
+   不得要求 URL」。
+```
+
+因此 URL 只影响「JD 文本从哪来」，**不改变分析链路**：
+`engine.run_analysis` 的 `job_urls=[]` 保持不动。
+
+---
+
+### 2. 后端（`work_agent` · 分支 `careerly-backend`）
+
+| 文件 | 改动 |
+|---|---|
+| `app/careerly/job_import.py` | **新增** —— `fetch_job_from_url()`：URL → `CrawlAgent` → `ParsedJob` |
+| `app/careerly/router.py` | 新增 `POST /api/v1/analysis/jobs/parse-url` |
+| `app/careerly/schemas.py` | `ParseJobUrlRequest` / `ParsedJob`（**工作区既有 WIP，本轮直接采用**，见 §6） |
+| `tests/test_p4_job_url.py` | **新增** 8 条 |
+
+**复用而非重写**：抓取能力全部来自既有的 `app/agents/adapters/*` + `CrawlAgent`，
+`job_import.py` 只做两件事 —— 把 URL 交进去、把 `JobPosting` 压成回填所需的三个字段。
+
+**唯一一处「CrawlAgent 返回空 = 失败」**：`CrawlAgent.run` 会吞掉每个适配器的异常
+并 `continue`（返回空 `JobList`）。对批量爬取那是合理容错；但对
+「用户贴了一条链接、在等一个结果」的场景，静默返回空就是 **D108 点名的「失败无痕」**。
+故此处把「一个岗位都没抓到」与「只抓到标题没有正文」**都升格为 502**。
+
+**不扣额度、不建任务**（`CLAUDE.md` §5.2）—— 测试里有一条专门钉这个。
+
+---
+
+### 3. Flutter 侧
+
+| 文件 | 改动 |
+|---|---|
+| `lib/data/models/parsed_job.dart` | **新增** `ParsedJob`（url / title / company / description） |
+| `lib/data/models/models.dart` | barrel 导出 |
+| `lib/data/repositories/analysis_repository.dart` | 接口新增 `parseJobUrl(String)` |
+| `lib/data/api/api_analysis_repository.dart` | 实现：`POST /api/v1/analysis/jobs/parse-url` |
+| `lib/data/api/api_client.dart` | 新增 `jobUrlParseTimeout`（90s） |
+| `lib/data/mock/mock_analysis_repository.dart` | 实现：**显式抛错**（D114） |
+| `lib/features/analysis/state/analysis_provider.dart` | `jobUrlState` + `parseJobUrl()` + `clearJobUrlState()` |
+| `lib/features/analysis/presentation/analysis_page.dart` | `onConfirmUrl` 改为抓取回填；URL 表单接四态 |
+
+设计上刻意保留的两点：
+
+```text
+① 抓取状态与 analysisState **分开** —— 混进去会让「分析中」的进度页
+   在用户还没开始分析时就弹出来；
+② parseJobUrl() **有返回值**（与 startAnalysis 不同）—— 回填要写两个
+   TextEditingController，而控制器归页面所有；调用方 await 拿到结果再落笔，
+   比监听状态变化少一个「状态已变、控制器还没填」的中间态。
+```
+
+**输入框四态**（`CLAUDE.md` §5.5）：
+
+```text
+Loading   输入框禁用 + 「正在抓取岗位信息…」转圈行 + 确认钮「抓取中…」不可点
+Error     输入框下方红字（CareerlyInput.errorText）+ 确认钮变「重试」
+Disabled  链接为空 / 抓取中 → 确认钮不可点（沿用 Figma disabled 灰）
+Empty     表单本身即空态（hint 可见），不另造空态 UI
+```
+
+**取消竞态**：抓取途中用户可能取消 / 切到历史分析，故 `await` 之后**双重确认**
+（`mounted` + `_addingUrl`）才落笔 —— 迟到的结果不得偷写进已关闭的表单。
+
+**顺手去掉的一处静默失败**：旧代码在不以 `http` 开头时**直接 `return`**（没有反馈）。
+现在本地不再预判链接合法性 —— 后端能补协议头（`zhipin.com/job/x` → `https://…`），
+也能给出可执行的中文提示，判断交给它一处做。
+
+---
+
+### 4. 测试结果（**当次真实输出**，2026-10-02）
+
+```text
+Flutter  flutter analyze                     → No issues found!
+         flutter test                        → 230 passed / 1 skipped(需真实后端，既有) / 0 failed
+         其中新增：
+           test/phase6_job_url_test.dart              10 条
+           test/data/api_analysis_repository_test.dart 5 条
+
+后端     pytest tests/test_p4_job_url.py      → 8 passed
+         pytest（全量，上一次会话实测）        → 116 passed / 1 failed
+           ⚠️ 那 1 条是 tests/test_matching.py::TestSkillOverlap::test_skill_synonyms
+              （`assert ('Kubernetes' in [] or False)`），落在
+              app/agents/matching_agent.py 的同义词 / 嵌入路径上，
+              与本轮改动的文件**无交集**，判定为**既有失败**，本轮未动。
+```
+
+**新增测试钉的是什么**（不是「返回 200」）：
+
+```text
+✅ JD 框 = 抓回来的正文          —— 直接把旧行为（JD 框 = 链接）钉死
+✅ 副本 title 进岗位名，不再用域名凑
+✅ 抓到的岗位走原始分析链路（rawJd = 正文 / title = 岗位名）
+✅ 抓取不扣额度、不建任务
+✅ 抓取中：转圈可见 / 输入框禁用 / 确认钮不可点
+✅ 失败：显示后端原文 + 「重试」；**不产生**一个 JD 为空的岗位
+✅ 取消后迟到结果作废
+✅ 打开表单时清掉上一次的失败红字
+✅ 契约层：body 是 {url}（不是 {title, rawJd}）+ 502/422 的文案原样上到 UI
+```
+
+---
+
+### 5. 修改文件
+
+```text
+Flutter（careerly）
+  M lib/data/api/api_analysis_repository.dart
+  M lib/data/api/api_client.dart
+  M lib/data/mock/mock_analysis_repository.dart
+  M lib/data/models/models.dart
+  M lib/data/repositories/analysis_repository.dart
+  M lib/features/analysis/presentation/analysis_page.dart
+  M lib/features/analysis/state/analysis_provider.dart
+  M test/phase6_analysis_progress_test.dart   （桩补 parseJobUrl）
+  M test/phase6_analysis_test.dart            （桩补 parseJobUrl）
+  ?? lib/data/models/parsed_job.dart
+  ?? test/data/api_analysis_repository_test.dart
+  ?? test/phase6_job_url_test.dart
+
+后端（work_agent）
+  M app/careerly/router.py
+  M app/careerly/schemas.py                   （采用工作区既有 WIP）
+  ?? app/careerly/job_import.py
+  ?? tests/test_p4_job_url.py
+```
+
+---
+
+### 6. 工作区里的既有 WIP（**未覆盖，如实记录**）
+
+开工时两个仓库的工作区都**不是干净的**，本轮的处理：
+
+```text
+work_agent/app/careerly/schemas.py
+  ParseJobUrlRequest / ParsedJob —— 上次会话为 ③ 起的头，没有路由、没有调用方。
+  本轮**直接采用**（字段设计与产品侧裁决的落点一致）：后端提交时一并带上，
+  否则 job_import.py 的 import 不成立。
+
+work_agent/docs/careerly/BACKEND_API_CONTRACT.md
+  P3-5a 的回写（§0.5.x 重编 + 3 个端点移入「已落地」）—— **与本轮无关**。
+  ⚠️ **未改动、未提交，原样留在工作区**（D109 的规矩）。
+  抓取端点因此**没有进契约文档** → 登记为 **D115**。
+```
+
+---
+
+### 7. 新发现 / 待裁决（本轮新增 D114–D116）
+
+| 编号 | 分类 | 问题 |
+|---|---|---|
+| **D114** | 【技术实现差异】 | Mock 下「岗位链接抓取」**必然报错**（不返回假 JD）—— 用户可见的能力缺口 |
+| **D115** | 【技术实现差异】 | 抓取端点**未写进** `BACKEND_API_CONTRACT.md`（该文件有未提交改动，不覆盖） |
+| **D116** | 【技术实现差异】 | 抓取失败被 `_mapError` 归成 `AIError`（用户文案正确，仅类型名语义不符） |
+
+详见 `TODO.md` §3.1。
+
+---
+
+### 8. 明确未做（**不是遗漏**）
+
+```text
+真实端到端联调（真机 + 真实后端 + 真实爬虫）  → 无设备；本轮只到契约层 + 桩
+ParsedJob.company 的展示                      → Figma 的岗位卡没有公司位；
+                                                字段留着是为了与后端契约对齐
+回填后自动聚焦 JD 框 / 自动展开 JD 表单        → Figma 无此交互，不自行发明
+抓取端点的限流 / 缓存                          → work_agent 既有限流策略即可，
+                                                本轮不为「以后可能用到」新加机制
+```
+
+---
+
+### 9. 下一步
+
+```text
+① 退出登录   ✅ 已提交（9d879c0）
+② 简历资产   ✅ 后端（S018）+ Flutter（S019）· ⚠️ 未验收
+④ 截图 OCR   ✅ 同 ② 一条链路 · ⚠️ 未验收
+③ 岗位 URL   ✅ 后端 + Flutter（S020）· ⚠️ 未验收
+   ↓
+「接通真实功能」清单上的 4 项**全部走完**。剩余：P3 Mock → 真实 API 的收尾、
+AI Chat（P3-4 已裁决本阶段不做）、以及**真实端到端联调**（四项共同的验收前提）
+```
+
+**停止点**：⛔ **不进入下一个单元**。等产品侧对 D114 / D115 裁决，
+以及 ①–④ 的合并验收（含真实端到端）。
+
+---
+
 ## Session 019 — 接通 work_agent 已有能力（② 简历资产入口 + ④ 截图 OCR · **Flutter 侧**）
 
 **日期**：2026-10-02

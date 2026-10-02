@@ -1,6 +1,7 @@
 import 'package:careerly/data/models/analysis_project.dart';
 import 'package:careerly/data/models/analysis_result.dart';
 import 'package:careerly/data/models/job.dart';
+import 'package:careerly/data/models/parsed_job.dart';
 import 'package:careerly/data/models/quota_state.dart';
 import 'package:careerly/data/models/resume_file.dart';
 import 'package:careerly/data/models/resume_profile.dart';
@@ -552,6 +553,12 @@ class StubAnalysisRepository implements AnalysisRepository {
     return quota;
   }
 
+  // ③ 岗位 URL：抓取链路的测试在 `phase6_job_url_test.dart`。
+  // 这里明确抛「未实现」，免得本文件里误走这条路的用例静默通过。
+  @override
+  Future<ParsedJob> parseJobUrl(String url) async =>
+      throw UnimplementedError('测试桩不覆盖岗位链接抓取');
+
   @override
   Future<AnalysisProject> analyze({
     required String title,
@@ -642,6 +649,9 @@ class FailingProjectsRepository implements AnalysisRepository {
 
   @override
   Future<QuotaState> fetchQuota() async => QuotaState.free;
+
+  @override
+  Future<ParsedJob> parseJobUrl(String url) async => throw error;
 
   @override
   Future<AnalysisProject> analyze({

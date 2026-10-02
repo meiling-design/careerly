@@ -11,6 +11,7 @@ import '../../../core/state/state.dart';
 import '../../../data/models/analysis_project.dart';
 import '../../../data/models/analysis_result.dart';
 import '../../../data/models/job.dart';
+import '../../../data/models/parsed_job.dart';
 import '../../../data/models/quota_state.dart';
 import '../../../data/models/resume_profile.dart';
 import '../../../design_system/components/components.dart';
@@ -130,12 +131,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       addingUrl: _addingUrl,
                       jobAdded: _jobAdded,
                       onAddJd: () => setState(() => _addingJd = true),
-                      onAddUrl: () => setState(() => _addingUrl = true),
+                      onAddUrl: () {
+                        // 打开空表单时清掉上一次抓取的失败红字 ——
+                        // 否则会被读成「这次输入就错了」。
+                        provider.clearJobUrlState();
+                        setState(() => _addingUrl = true);
+                      },
                       onCancelJd: () {
                         _jdController.clear();
                         setState(() => _addingJd = false);
                       },
                       onCancelUrl: () {
+                        provider.clearJobUrlState();
                         _urlController.clear();
                         setState(() => _addingUrl = false);
                       },
@@ -155,19 +162,36 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           _addingJd = false;
                         });
                       },
-                      onConfirmUrl: () {
+                      onConfirmUrl: () async {
                         final String value = _urlController.text.trim();
-                        if (!value.startsWith('http://') &&
-                            !value.startsWith('https://')) {
+                        if (value.isEmpty) return;
+                        // ③ 岗位 URL：抓取 → 回填 JD 文本框。
+                        //
+                        // ⚠️ 这条路径曾经是坏的：它把 URL **原样塞进 JD 框**，
+                        // 再当 `rawJd` 发给 `/analysis` —— 等于把一条网址当
+                        // 招聘描述去解析。现在改为先把链接交给后端的抓取端点
+                        // （复用 work_agent 已有的爬虫），拿到真实 JD 正文再回填。
+                        //
+                        // 本地不再预判链接合法性（旧代码在非 http 开头时**静默
+                        // return**，用户得不到任何反馈）。后端能补协议头
+                        // （`zhipin.com/job/x` → `https://…`）、也能给出可执行的
+                        // 中文提示，判断交给它一处做。
+                        final ParsedJob? parsed = await provider.parseJobUrl(
+                          value,
+                        );
+                        // 抓取途中用户可能点了取消、或切到了历史分析 ——
+                        // 那时不能把结果偷偷写进一个已经关掉的表单。
+                        if (!mounted || !_addingUrl) return;
+                        if (parsed == null) {
+                          // 失败：留在表单里显示原因 + 可重试
+                          //（`AnalysisProvider.jobUrlState` 供 UI 读错误）。
                           return;
                         }
-                        final Uri? uri = Uri.tryParse(value);
-                        if (uri == null || uri.host.isEmpty) return;
-                        if (_titleController.text.trim().isEmpty) {
-                          _titleController.text =
-                              '岗位（${uri.host.replaceFirst('www.', '')}）';
-                        }
-                        _jdController.text = value;
+                        final String title = parsed.title.trim();
+                        _titleController.text = title.isEmpty
+                            ? '新目标岗位'
+                            : title;
+                        _jdController.text = parsed.description;
                         setState(() {
                           _jobAdded = true;
                           _addingUrl = false;
@@ -394,6 +418,12 @@ class _FormView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final QuotaState? quota = provider.quota;
+    // 岗位链接抓取的 Loading / Error 两态（四态见 `CLAUDE.md` §5.5）：
+    // 抓取是**表单内**的异步动作，所以状态就渲染在 URL 表单里 ——
+    // 不遮全页、不弹 Sheet（用户还要看着自己粘的那条链接）。
+    final bool urlLoading =
+        provider.jobUrlState is AsyncLoading<ParsedJob>;
+    final String? urlError = provider.jobUrlState.errorOrNull?.message;
     // Figma：`px-5 space-y-4`（横向 20 / 块距 16）+ `pb 104`。
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 104),
@@ -408,6 +438,8 @@ class _FormView extends StatelessWidget {
             jobAdded: jobAdded,
             addingJd: addingJd,
             addingUrl: addingUrl,
+            urlLoading: urlLoading,
+            urlError: urlError,
             titleController: titleController,
             jdController: jdController,
             urlController: urlController,
@@ -606,6 +638,8 @@ class _JobsCard extends StatelessWidget {
     required this.jobAdded,
     required this.addingJd,
     required this.addingUrl,
+    required this.urlLoading,
+    required this.urlError,
     required this.titleController,
     required this.jdController,
     required this.urlController,
@@ -620,6 +654,13 @@ class _JobsCard extends StatelessWidget {
   final bool jobAdded;
   final bool addingJd;
   final bool addingUrl;
+
+  /// 岗位链接抓取中。
+  final bool urlLoading;
+
+  /// 岗位链接抓取失败的文案；`null` 表示无错误。
+  final String? urlError;
+
   final TextEditingController titleController;
   final TextEditingController jdController;
   final TextEditingController urlController;
@@ -683,9 +724,12 @@ class _JobsCard extends StatelessWidget {
               animation: urlController,
               builder: (BuildContext context, Widget? _) => _UrlPasteForm(
                 controller: urlController,
+                loading: urlLoading,
+                errorText: urlError,
                 onCancel: onCancelUrl,
                 onConfirm: onConfirmUrl,
-                canConfirm: urlController.text.trim().isNotEmpty,
+                canConfirm:
+                    !urlLoading && urlController.text.trim().isNotEmpty,
               ),
             )
           else
@@ -777,15 +821,39 @@ class _JdPasteForm extends StatelessWidget {
 
 /// 粘贴岗位链接展开表单。Figma L1375-1394：紫系同构，
 /// 说明行 11px `rgba(156,163,175,0.8)`。
+///
+/// ## 抓取（③ 岗位 URL）
+///
+/// 点「添加岗位」后后端会真的去抓这条链接（秒级到数十秒），
+/// 因此这一格必须自己交代四态（`CLAUDE.md` §5.5）：
+///
+/// ```text
+/// Loading   抓取中 → 输入框禁用 + 转圈行 + 确认钮变「抓取中…」且不可点
+/// Error     抓不到 → 输入框下方红字（CareerlyInput.errorText）+ 确认钮变「重试」
+/// Empty     表单本身就是空态（hint 可见），不额外造一个空态 UI
+/// Disabled  链接为空 / 抓取中 → 确认钮不可点（沿用 Figma 的 disabled 灰）
+/// ```
+///
+/// 抓取失败时**保留输入框内容**：用户要么改链接、要么重试，
+/// 不该被迫重新粘一遍。
 class _UrlPasteForm extends StatelessWidget {
   const _UrlPasteForm({
     required this.controller,
+    required this.loading,
+    required this.errorText,
     required this.onCancel,
     required this.onConfirm,
     required this.canConfirm,
   });
 
   final TextEditingController controller;
+
+  /// 抓取中。
+  final bool loading;
+
+  /// 抓取失败的文案；`null` 表示无错误。
+  final String? errorText;
+
   final VoidCallback onCancel;
   final VoidCallback onConfirm;
   final bool canConfirm;
@@ -819,24 +887,33 @@ class _UrlPasteForm extends StatelessWidget {
                   variant: CareerlyInputVariant.boxed,
                   tone: CareerlyInputTone.purple,
                   controller: controller,
+                  enabled: !loading,
+                  errorText: errorText,
                   hint: 'https://www.zhipin.com/job/...',
                   keyboardType: TextInputType.url,
                   textInputAction: TextInputAction.done,
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  '支持 Boss 直聘、拉勾、智联、猎聘等主流招聘平台链接',
-                  style: AppTypography.caption.copyWith(
-                    fontSize: 11,
-                    color: AppColors.helperTextFaint,
+                if (loading)
+                  const _UrlFetchingRow()
+                else
+                  Text(
+                    '支持 Boss 直聘、拉勾、智联、猎聘等主流招聘平台链接',
+                    style: AppTypography.caption.copyWith(
+                      fontSize: 11,
+                      color: AppColors.helperTextFaint,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
           _FormFooter(
             cancelLabel: '取消',
-            confirmLabel: '添加岗位',
+            // 按钮文案就是这条路的状态指示器：
+            // 抓取中 → 不可点；失败 → 用户看到的下一步动作是「重试」。
+            confirmLabel: loading
+                ? '抓取中…'
+                : (errorText == null ? '添加岗位' : '重试'),
             confirmColor: AppColors.primaryPurple,
             dividerColor: AppColors.primaryPurpleBorderFaint,
             canConfirm: canConfirm,
@@ -845,6 +922,39 @@ class _UrlPasteForm extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 「正在抓取岗位信息…」行。
+///
+/// 说明行位置上的临时替换 —— 抓取在这条路上是**秒级到数十秒**的等待，
+/// 没有它用户会以为按钮点空了（点了没反应 = D108 的「失败无痕」同类）。
+/// 小尺寸转圈沿用 [CareerlyAsyncStateView] 的写法（非确定型进度）。
+class _UrlFetchingRow extends StatelessWidget {
+  const _UrlFetchingRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        SizedBox(
+          width: 12,
+          height: 12,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.primaryPurple,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '正在抓取岗位信息…',
+          style: AppTypography.caption.copyWith(
+            fontSize: 11,
+            color: AppColors.primaryPurple,
+          ),
+        ),
+      ],
     );
   }
 }

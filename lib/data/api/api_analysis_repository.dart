@@ -1,6 +1,7 @@
 import '../../core/errors/app_error.dart';
 import '../models/analysis_project.dart';
 import '../models/job.dart';
+import '../models/parsed_job.dart';
 import '../models/quota_state.dart';
 import '../repositories/analysis_repository.dart';
 import 'api_client.dart';
@@ -42,6 +43,21 @@ class ApiAnalysisRepository implements AnalysisRepository {
     return (data as List<dynamic>)
         .map((dynamic e) => Job.fromJson(e as Map<String, dynamic>))
         .toList(growable: false);
+  }
+
+  @override
+  Future<ParsedJob> parseJobUrl(String url) async {
+    // 后端在这个请求里同步跑爬虫（SPA 站要起 Playwright），
+    // 必须用加长超时 —— 见 [ApiClient.jobUrlParseTimeout]。
+    //
+    // 失败（422 INVALID_URL / 502 JOB_FETCH_FAILED）由 [ApiClient]
+    // 的 envelope 分支抛成 AppError，后端的中文提示原样上到 UI。
+    final dynamic data = await _client.post(
+      '/api/v1/analysis/jobs/parse-url',
+      body: <String, dynamic>{'url': url},
+      timeout: ApiClient.jobUrlParseTimeout,
+    );
+    return ParsedJob.fromJson(data as Map<String, dynamic>);
   }
 
   @override

@@ -86,6 +86,14 @@ class ApiClient {
   /// 与分析同理，这只是 Flutter 侧的实现取值，不是产品规则。
   static const Duration resumeParseTimeout = Duration(seconds: 120);
 
+  /// 岗位链接抓取（`POST /api/v1/analysis/jobs/parse-url`）超时。
+  ///
+  /// 后端在**同一个请求内**跑爬虫，静态站秒级、SPA 站要起 Playwright
+  /// 且逐个适配器试过去，比列表 / 额度慢得多；30s 默认值在慢站点上会
+  /// 误报超时，而超时后重试等于再爬一次。取值与分析同理 ——
+  /// Flutter 侧的实现选择，不是产品规则。
+  static const Duration jobUrlParseTimeout = Duration(seconds: 90);
+
   // ── 会话（内存态 + 持久化，见类注释「裁决 D-B」） ────────────────────
 
   String? _accessToken;

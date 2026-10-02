@@ -4,6 +4,7 @@ import '../../../core/errors/error_handler.dart';
 import '../../../core/errors/app_error.dart';
 import '../../../core/state/state.dart';
 import '../../../data/models/analysis_project.dart';
+import '../../../data/models/parsed_job.dart';
 import '../../../data/models/quota_state.dart';
 import '../../../data/repositories/analysis_repository.dart';
 
@@ -50,6 +51,57 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   String get lastTitle => _lastTitle;
 
   String get lastJd => _lastJd;
+
+  /// 岗位链接抓取的状态（③ 岗位 URL）。
+  ///
+  /// 与 [analysisState] 分开：抓取**不是分析**，它不占额度、不建任务，
+  /// 结果只回填到表单里 —— 混进 [analysisState] 会让「分析中」的
+  /// 进度页在用户还没开始分析时就弹出来。
+  AsyncState<ParsedJob> _jobUrlState = const AsyncState<ParsedJob>.initial();
+
+  AsyncState<ParsedJob> get jobUrlState => _jobUrlState;
+
+  /// 抓取一条岗位链接，供表单回填 JD 文本框。
+  ///
+  /// ⚠️ **不扣额度**（`CLAUDE.md` §5.2：只有「开始分析」扣）、
+  /// **不建分析任务**。失败时把错误放进 [jobUrlState] 由 UI 展示，
+  /// 并返回 `null`。
+  ///
+  /// ## 为什么这个方法是「有返回值」的（与 [startAnalysis] 不同）
+  ///
+  /// 回填动作是**页面级的**：成功要把 title / description 写进两个
+  /// `TextEditingController`，而控制器归页面所有。让调用方 `await`
+  /// 拿到 [ParsedJob] 再决定，比让页面去监听状态变化更不容易出现
+  /// 「状态已变、控制器还没填」的中间态。
+  ///
+  /// 调用方**必须**在 `await` 之后重新确认表单是否还开着再落笔
+  /// （用户可能在抓取途中点了取消）—— 见 `analysis_page.dart`。
+  Future<ParsedJob?> parseJobUrl(String url) async {
+    _jobUrlState = const AsyncState<ParsedJob>.loading(message: '正在抓取岗位信息…');
+    notifyListeners();
+    try {
+      final ParsedJob parsed = await _repository.parseJobUrl(url);
+      _jobUrlState = AsyncState<ParsedJob>.success(parsed);
+      notifyListeners();
+      return parsed;
+    } catch (error, stackTrace) {
+      _jobUrlState = AsyncState<ParsedJob>.failure(
+        AppError.from(error, stackTrace),
+      );
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// 清空抓取状态（打开 / 取消 URL 表单时调用）。
+  ///
+  /// 不清的话，上一次失败的红字会留在新打开的空表单上，
+  /// 看起来像是这次输入就错了。
+  void clearJobUrlState() {
+    if (_jobUrlState is AsyncInitial<ParsedJob>) return;
+    _jobUrlState = const AsyncState<ParsedJob>.initial();
+    notifyListeners();
+  }
 
   /// 读取历史分析项目列表。
   Future<void> load() => execute(_repository.fetchProjects);
