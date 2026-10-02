@@ -60,8 +60,9 @@ List<SingleChildWidget> careerlyProviders({
   ApiClient? apiClient,
 }) {
   // 真实后端开关：--dart-define=CAREERLY_USE_API=true 时，
-  // 后端已建端点对应的接口（auth / analysis / resume / quota / growth）
-  // 改绑 API 实现，其余接口在后端端点落地前（P4+）继续走 Mock。
+  // 后端已建端点对应的接口（auth / analysis / resume / quota / growth /
+  // career assets / home summary / profile）改绑 API 实现，
+  // 其余接口（ai）在后端端点落地前继续走 Mock。
   const bool useApi = ApiClient.useApi;
 
   final ApiClient client = apiClient ?? ApiClient();
@@ -74,7 +75,10 @@ List<SingleChildWidget> careerlyProviders({
       create: (_) => client,
       dispose: (_, ApiClient c) => c.dispose(),
     ),
-    Provider<HomeRepository>(create: (_) => MockHomeRepository()),
+    Provider<HomeRepository>(
+      create: (_) =>
+          useApi ? ApiHomeSummaryRepository(client) : MockHomeRepository(),
+    ),
     Provider<AIRepository>(create: (_) => MockAIRepository()),
     Provider<AnalysisRepository>(
       create: (_) =>
@@ -94,12 +98,17 @@ List<SingleChildWidget> careerlyProviders({
       create: (_) =>
           useApi ? ApiAuthRepository(client) : MockAuthRepository(),
     ),
-    // 「我的」职业资产（Phase 8 批 1）。
+    // 「我的」职业资产（P3-5a）：后端 /api/v1/career/assets 已落地，随开关切真实 API。
     Provider<CareerAssetsRepository>(
-      create: (_) => MockCareerAssetsRepository(),
+      create: (_) => useApi
+          ? ApiCareerAssetsRepository(client)
+          : MockCareerAssetsRepository(),
     ),
-    // 「我的」身份资料（Phase 8 批 1）。
-    Provider<ProfileRepository>(create: (_) => MockProfileRepository()),
+    // 「我的」身份资料（P3-5a）：后端 /api/v1/profile 已落地，随开关切真实 API。
+    Provider<ProfileRepository>(
+      create: (_) =>
+          useApi ? ApiProfileRepository(client) : MockProfileRepository(),
+    ),
     // 「选择文件」的平台网关（D67 关闭）。走平台通道，
     // Widget 测试里用 overrides 换成 Fake（不触发真通道）。
     Provider<ResumeFilePicker>(create: (_) => const DefaultResumeFilePicker()),

@@ -9,12 +9,15 @@
 /// ```
 ///
 /// 当前只实现后端已建端点对应的接口（auth / analysis / resume / quota /
-/// growth）；home / career assets / ai / profile 在后端端点落地前
+/// growth / career assets / home summary / profile）；ai 在后端端点落地前
 /// **继续走 Mock**，不在此预建。
 library;
 
 export 'api_analysis_repository.dart';
 export 'api_auth_repository.dart';
+export 'api_career_assets_repository.dart';
 export 'api_client.dart';
 export 'api_growth_repository.dart';
+export 'api_home_summary_repository.dart';
+export 'api_profile_repository.dart';
 export 'api_resume_repository.dart';
