@@ -52,4 +52,19 @@ abstract interface class AuthRepository {
   /// 返回 `void`，语义与 [register] 相同：只有「这次提交成功 / 失败」，
   /// 没有可编造的返回数据（`CLAUDE.md` §7）。
   Future<void> login({required String phone});
+
+  /// 退出登录：结束当前会话。
+  ///
+  /// ## ⚠️ 为什么是 `void` 而不是「调用一个 logout 端点」
+  ///
+  /// 后端**没有 logout 端点** —— 令牌是无状态 JWT，且服务端**没有吊销表**
+  /// （`app/core/security.py` 明确记为缺口）。因此「退出」只能表达为
+  /// **客户端丢弃凭据**：清掉内存令牌 + 安全存储，使本机不再持有身份。
+  ///
+  /// 这**不是**绕过后端，而是当前认证模型的真实边界：
+  /// 被丢弃的 refresh token 在有效期内仍可被重放，属已知限制，
+  /// 与「正式认证通道（OTP）」一并归后端 P5，不在本层假装解决。
+  ///
+  /// 返回 `void`，语义同 [register]：只有「退出成功 / 失败」。
+  Future<void> logout();
 }

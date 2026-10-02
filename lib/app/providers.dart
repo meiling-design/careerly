@@ -10,6 +10,7 @@ import '../data/repositories/repositories.dart';
 import '../features/analysis/state/analysis_provider.dart';
 import '../features/ai/state/ai_provider.dart';
 import '../features/home/state/home_provider.dart';
+import '../features/onboarding/state/auth_provider.dart';
 import '../features/onboarding/state/onboarding_provider.dart';
 import '../features/profile/state/career_assets_provider.dart';
 import '../features/profile/state/growth_provider.dart';
@@ -142,6 +143,12 @@ List<SingleChildWidget> careerlyProviders({
     ChangeNotifierProvider<OnboardingProvider>(
       create: (BuildContext context) =>
           OnboardingProvider(context.read<AuthRepository>()),
+    ),
+    // 会话退出（D104 的客户端落点）。CLAUDE.md §6.3 早已列名 AuthProvider，
+    // 但直到「退出登录」出现前它没有真实用例，故一直未建。
+    ChangeNotifierProvider<AuthProvider>(
+      create: (BuildContext context) =>
+          AuthProvider(context.read<AuthRepository>()),
     ),
     ChangeNotifierProvider<HomeProvider>(
       create: (BuildContext context) =>

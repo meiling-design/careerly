@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../../../app/router/app_routes.dart';
 import '../../../app/router/back_navigation.dart';
 import '../../../design_system/components/components.dart';
 import '../../../design_system/tokens/tokens.dart';
+import '../../onboarding/state/auth_provider.dart';
 
 /// 设置页。属于「我的 → 齿轮」的二级页面，不是一级导航。
 class SettingsPage extends StatefulWidget {
@@ -18,8 +22,81 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _matchAlert = true;
   String _answerStyle = '行动导向';
 
+  /// 退出登录。
+  ///
+  /// ⚠️ 「先确认再退出」这一步是 **Flutter 侧补齐的交互**：
+  /// Figma 只画了按钮，**没有**退出确认层的规格。补它的理由与既有
+  /// `CareerlyBackGuard` 同型 —— 退出会丢弃本机身份（需重新登录），
+  /// 属不可逆操作，与 Back 的「未保存修改先确认」是同一类保护。
+  /// 该交互与文案**未经产品侧确认**，已在交付报告中登记为待裁决项。
+  Future<void> _onLogout(BuildContext context) async {
+    final bool confirmed = await _confirmLogout(context);
+    if (!confirmed || !context.mounted) return;
+
+    final AuthProvider auth = context.read<AuthProvider>();
+    final bool ok = await auth.logout();
+    if (!context.mounted) return;
+
+    if (!ok) {
+      CareerlyToast.show(
+        context,
+        message: auth.error?.message ?? '退出登录失败，请重试',
+        icon: Icons.error_outline,
+      );
+      auth.reset();
+      return;
+    }
+
+    // 退出的落点 = 登录页。⚠️ 这里**不**回答 D54（App 冷启动落在哪一屏）——
+    // 它只表达「用户主动登出后，本机没有身份，应回到登录入口」。
+    context.go(AppRoutes.onboardingSplash);
+  }
+
+  /// 退出确认弹层。返回用户是否确认退出。
+  Future<bool> _confirmLogout(BuildContext context) async {
+    final bool? confirmed = await CareerlyBottomSheet.show<bool>(
+      context,
+      tone: CareerlyBottomSheetTone.confirm,
+      // ⚠️ 必须用 [Builder] 拿**弹层自己的** context 来 pop：
+      // 弹层被 push 到根 Navigator，而非本页所在的分支 Navigator
+      // （`back_navigation.dart` 的 `CareerlyBackGuard.confirm` 同款写法）。
+      child: Builder(
+        builder: (BuildContext sheetContext) => Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Text('要退出登录吗？', style: AppTypography.title),
+              const SizedBox(height: AppSpacing.xs),
+              Text('退出后需要重新登录才能查看你的职业资产与成长记录。',
+                  style: AppTypography.bodySmall),
+              const SizedBox(height: AppSpacing.md),
+              CareerlyButton(
+                label: '退出登录',
+                variant: CareerlyButtonVariant.secondary,
+                onPressed: () => Navigator.of(sheetContext).pop(true),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              CareerlyButton(
+                label: '取消',
+                variant: CareerlyButtonVariant.neutral,
+                onPressed: () => Navigator.of(sheetContext).pop(false),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // 点 scrim / 系统 Back 收掉弹层时结果是 null —— 一律按「取消」处理。
+    return confirmed ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final AuthProvider auth = context.watch<AuthProvider>();
+
     return CareerlyScaffold(
       title: '设置',
       leading: IconButton(
@@ -79,7 +156,8 @@ class _SettingsPageState extends State<SettingsPage> {
           CareerlyButton(
             label: '退出登录',
             variant: CareerlyButtonVariant.neutral,
-            onPressed: () {},
+            // 退出中禁用（四态 Disabled）—— 避免重复触发。
+            onPressed: auth.isLoggingOut ? null : () => _onLogout(context),
           ),
         ],
       ),

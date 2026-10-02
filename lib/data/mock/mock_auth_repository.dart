@@ -46,4 +46,11 @@ class MockAuthRepository implements AuthRepository {
     // 同上 —— 注册 / 登录在 Mock 层的差别**只有入参**。
     await _config.simulate();
   }
+
+  @override
+  Future<void> logout() async {
+    // Mock 层**没有会话可清**（令牌是传输层的实现细节，见 AuthRepository 的范围说明）。
+    // 只模拟「一次网络往返」，让 UI 的 Loading / Error 两态仍可被走到。
+    await _config.simulate();
+  }
 }

@@ -37,6 +37,13 @@ class ApiAuthRepository implements AuthRepository {
     await _storeTokens(data);
   }
 
+  /// 退出登录 = **客户端丢弃凭据**（后端无 logout 端点，见接口注释）。
+  ///
+  /// [ApiClient.clearSession] 同时清内存令牌与安全存储，
+  /// 因此退出后冷启动 [ApiClient.restoreSession] 不会再恢复出身份。
+  @override
+  Future<void> logout() => _client.clearSession();
+
   Future<void> _storeTokens(dynamic data) {
     final Map<String, dynamic> map = data as Map<String, dynamic>;
     return _client.setSession(

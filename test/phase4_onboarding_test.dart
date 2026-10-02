@@ -507,6 +507,7 @@ class _RecordingAuthRepository implements AuthRepository {
   String? lastPhone;
   String? lastEmail;
   String? lastLoginPhone;
+  bool lastLogoutCalled = false;
 
   @override
   Future<void> register({
@@ -523,6 +524,11 @@ class _RecordingAuthRepository implements AuthRepository {
   Future<void> login({required String phone}) async {
     lastLoginPhone = phone;
   }
+
+  @override
+  Future<void> logout() async {
+    lastLogoutCalled = true;
+  }
 }
 
 /// 恒定失败的假 Repository（注册 / 登录两条链路都失败）。
@@ -538,6 +544,11 @@ class _FailingAuthRepository implements AuthRepository {
 
   @override
   Future<void> login({required String phone}) async {
+    throw const NetworkError(detail: 'test');
+  }
+
+  @override
+  Future<void> logout() async {
     throw const NetworkError(detail: 'test');
   }
 }
