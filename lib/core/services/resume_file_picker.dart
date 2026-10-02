@@ -22,7 +22,8 @@ import '../errors/app_error.dart';
 /// ## 职责边界
 ///
 /// 只做「选 → 读 → 收敛成 [ResumeFileData]」三件事：
-/// - 类型白名单（PDF / Word）在这里卡（选择器层就过滤掉不支持的类型）；
+/// - 类型白名单（`ResumeFileData.allowedExtensions`：文档 + 截图）在这里卡
+///   （选择器层就过滤掉不支持的类型）；
 /// - 大小上限**不在这里卡** —— 选择器无法按大小过滤，
 ///   由页面拿到文件后用 [ResumeFileData.exceedsLimit] 判断并提示；
 /// - **不提交** —— 提交走 `ResumeRepository.submitResumeFile`。

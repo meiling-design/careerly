@@ -17,9 +17,21 @@ import 'package:flutter/foundation.dart';
 ///
 /// ## 约束来源
 ///
-/// 类型白名单与大小上限来自 Figma `OnResume` 的页面文案
-/// （`src/App.tsx` L761「支持 PDF、Word 格式」/ L768「PDF / Word · 最大 10MB」）
-/// —— **不擅自扩展**（不加 txt / 图片，不放大上限）。
+/// 大小上限（10MB）来自 Figma `OnResume` 的页面文案
+/// （`src/App.tsx` L768「PDF / Word · 最大 10MB」）—— **不放大**。
+///
+/// 类型白名单**与后端 `POST /api/v1/resume` 的 `_ALLOWED_RESUME_SUFFIXES`
+/// 逐项一致**（2026-10-02）：白名单必须收敛到 **ResumeAgent 真能解析的格式**，
+/// 否则会放行必然被后端拒绝的类型。
+///
+/// ```text
+/// ✅ 文档：pdf / docx / txt
+/// ✅ 截图：png / jpg / jpeg / webp / bmp   ← 走 OCR（产品侧 2026-10-02 指令）
+/// ❌ doc   旧二进制格式，python-docx 读不了 —— 后端必拒，故不放行
+/// ```
+///
+/// ⚠️ 上传卡上的**文案**已同步改为「PDF / Word / 图片截图」
+/// —— 改法由产品侧 2026-10-02 拍板（`TODO.md` §3.1 · **D107**，已裁决）。
 @immutable
 class ResumeFileData {
   const ResumeFileData({
@@ -41,8 +53,17 @@ class ResumeFileData {
   /// 文件内容。解析 API 的 multipart 上传体。
   final Uint8List bytes;
 
-  /// Figma 允许的类型白名单（PDF / Word）。
-  static const Set<String> allowedExtensions = <String>{'pdf', 'doc', 'docx'};
+  /// 允许的类型白名单 —— 与后端 `_ALLOWED_RESUME_SUFFIXES` 逐项一致。
+  static const Set<String> allowedExtensions = <String>{
+    'pdf',
+    'docx',
+    'txt',
+    'png',
+    'jpg',
+    'jpeg',
+    'webp',
+    'bmp',
+  };
 
   /// Figma 文案的大小上限：10MB。
   static const int maxSizeBytes = 10 * 1024 * 1024;

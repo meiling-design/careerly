@@ -33,9 +33,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// ## 钉住什么
 ///
 /// 契约 `docs/careerly/BACKEND_API_CONTRACT.md` §1/§2 在**真实 HTTP** 上的
-/// 落地情况：register/login（手机号身份 D85）、简历基线、额度扣减、
-/// 分析全链路（含 C4 能力快照）、项目详情与岗位库、以及两类错误路径
-/// （无 token → [AuthError]；文件上传未实现 → 明确提示）。
+/// 落地情况：register/login（手机号身份 D85）、简历资产提交
+/// （`POST /api/v1/resume`，提交即解析落库）、额度扣减、分析全链路
+/// （含 C4 能力快照）、项目详情与岗位库、以及两类错误路径
+/// （无 token → [AuthError]；不支持的简历格式 → [ParseError]）。
 void main() {
   const bool enabled =
       bool.fromEnvironment('CAREERLY_REAL_BACKEND', defaultValue: false);
@@ -63,10 +64,14 @@ void main() {
       await auth.login(phone: phone);
       expect(client.hasSession, isTrue, reason: 'login 应写入会话');
 
-      // ── 2. 简历基线 ──────────────────────────────────────────────
+      // ── 2. 简历资产（POST /resume：提交即解析落库） ────────────────
       await resume.submitResumeText(_resumeText);
       final ResumeProfile profile = await resume.fetchProfile();
-      expect(profile.hasBaseline, isTrue, reason: '保存后应有基线');
+      expect(profile.hasBaseline, isTrue, reason: '提交后应有基线');
+      expect(profile.skills, isNotEmpty,
+          reason: 'POST /resume 应立即解析出结构化画像，不需先跑一次分析');
+      expect(profile.workExperiences, isNotEmpty,
+          reason: 'roles[] 应映射到 workExperiences（2026-10-02 字段映射修复）');
 
       // ── 3. 额度 ──────────────────────────────────────────────────
       final QuotaState quotaBefore = await analysis.fetchQuota();
@@ -118,14 +123,23 @@ void main() {
             bytes: Uint8List(0),
           ),
         ),
-        throwsA(
-          isA<AppError>().having(
-            (AppError e) => e.isRetryable,
-            'isRetryable',
-            isFalse,
+        throwsA(isA<AuthError>()),
+        reason: '简历资产提交同样要鉴权：无 token 必须被拒绝',
+      );
+
+      // 不支持的格式由后端拒绝（Flutter 白名单与后端逐项一致，
+      // 这里验证后端那一侧确实会挡下来）。
+      expect(
+        resume.submitResumeFile(
+          ResumeFileData(
+            name: 'legacy.doc',
+            extension: 'doc',
+            sizeBytes: 4,
+            bytes: Uint8List.fromList(<int>[1, 2, 3, 4]),
           ),
         ),
-        reason: '文件上传未实现应给出不可重试的明确提示',
+        throwsA(isA<ParseError>()),
+        reason: '.doc 是旧二进制格式，后端应回 UNSUPPORTED_FORMAT(422)',
       );
 
       client.dispose();

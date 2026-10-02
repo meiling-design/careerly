@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show immutable;
 import 'package:http/http.dart' as http;
 
 import '../../core/errors/app_error.dart';
@@ -78,6 +79,13 @@ class ApiClient {
   /// 实测单次分析约 210s，留足余量。
   static const Duration analysisTimeout = Duration(seconds: 300);
 
+  /// 简历资产提交（`POST /api/v1/resume`）超时。
+  ///
+  /// 后端在**同一个请求内同步**跑 ResumeAgent（LLM 抽取，图片还要 OCR），
+  /// 比列表 / 额度这类端点慢得多；用 30s 默认值会误报超时。
+  /// 与分析同理，这只是 Flutter 侧的实现取值，不是产品规则。
+  static const Duration resumeParseTimeout = Duration(seconds: 120);
+
   // ── 会话（内存态 + 持久化，见类注释「裁决 D-B」） ────────────────────
 
   String? _accessToken;
@@ -143,6 +151,32 @@ class ApiClient {
     );
   }
 
+  /// POST `multipart/form-data` 并解 envelope，返回 `data`。
+  ///
+  /// 简历资产入口（`POST /api/v1/resume`）用它上传文件 / 图片，
+  /// 或用 [fields] 传粘贴的文本 —— 后端该端点只收 multipart。
+  ///
+  /// ⚠️ **不要手动设置 `Content-Type`** —— multipart 的 `boundary` 由
+  /// `http.MultipartRequest` 生成，手写成 `application/json` 会让后端
+  /// 解析不出任何字段。本方法刻意不碰该请求头。
+  ///
+  /// ⚠️ 传入的是 [HttpMultipartFile]（原始字节）而不是 `http.MultipartFile`
+  /// —— 后者 `finalize()` 只能调用一次，而本类在 401 后会重试一次原请求。
+  Future<dynamic> postMultipart(
+    String path, {
+    Map<String, String> fields = const <String, String>{},
+    List<HttpMultipartFile> files = const <HttpMultipartFile>[],
+    Duration? timeout,
+  }) {
+    return _send(
+      'POST',
+      path,
+      multipartFields: fields,
+      multipartFiles: files,
+      timeout: timeout ?? defaultTimeout,
+    );
+  }
+
   /// PUT（JSON body）并解 envelope，返回 `data`。
   Future<dynamic> put(
     String path, {
@@ -163,10 +197,19 @@ class ApiClient {
     String method,
     String path, {
     Map<String, dynamic>? body,
+    Map<String, String>? multipartFields,
+    List<HttpMultipartFile>? multipartFiles,
     required Duration timeout,
     bool retriedAfterRefresh = false,
   }) async {
-    final http.Response response = await _rawSend(method, path, body, timeout);
+    final http.Response response = await _rawSend(
+      method,
+      path,
+      body,
+      timeout,
+      multipartFields: multipartFields,
+      multipartFiles: multipartFiles,
+    );
 
     Map<String, dynamic> envelope;
     try {
@@ -195,6 +238,8 @@ class ApiClient {
           method,
           path,
           body: body,
+          multipartFields: multipartFields,
+          multipartFiles: multipartFiles,
           timeout: timeout,
           retriedAfterRefresh: true,
         );
@@ -207,21 +252,49 @@ class ApiClient {
     String method,
     String path,
     Map<String, dynamic>? body,
-    Duration timeout,
-  ) async {
+    Duration timeout, {
+    Map<String, String>? multipartFields,
+    List<HttpMultipartFile>? multipartFiles,
+  }) async {
     final Uri uri = Uri.parse('$baseUrl$path');
-    final Map<String, String> headers = <String, String>{
-      'Content-Type': 'application/json; charset=utf-8',
+
+    // 除 Content-Type 外的公共头（multipart 的 boundary 由请求体生成，
+    // 不能手写 —— 见 postMultipart 的说明）。
+    final Map<String, String> commonHeaders = <String, String>{
       'Accept': 'application/json',
       if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
     };
 
-    final Future<http.Response> future = switch (method) {
-      'GET' => _http.get(uri, headers: headers),
-      'POST' => _http.post(uri, headers: headers, body: jsonEncode(body)),
-      'PUT' => _http.put(uri, headers: headers, body: jsonEncode(body)),
-      _ => throw ArgumentError('unsupported method: $method'),
-    };
+    final Future<http.Response> future;
+    if (multipartFields != null || multipartFiles != null) {
+      final http.MultipartRequest request = http.MultipartRequest(method, uri)
+        ..headers.addAll(commonHeaders)
+        ..fields.addAll(multipartFields ?? const <String, String>{});
+      for (final HttpMultipartFile file
+          in multipartFiles ?? const <HttpMultipartFile>[]) {
+        // 每次发送都重建 —— MultipartFile.finalize() 只能调用一次，
+        // 复用同一个实例会在 401 重试时抛 StateError。
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            file.field,
+            file.bytes,
+            filename: file.filename,
+          ),
+        );
+      }
+      future = _http.send(request).then(http.Response.fromStream);
+    } else {
+      final Map<String, String> headers = <String, String>{
+        'Content-Type': 'application/json; charset=utf-8',
+        ...commonHeaders,
+      };
+      future = switch (method) {
+        'GET' => _http.get(uri, headers: headers),
+        'POST' => _http.post(uri, headers: headers, body: jsonEncode(body)),
+        'PUT' => _http.put(uri, headers: headers, body: jsonEncode(body)),
+        _ => throw ArgumentError('unsupported method: $method'),
+      };
+    }
 
     try {
       return await future.timeout(timeout);
@@ -325,4 +398,28 @@ class ApiClient {
 
   /// 释放底层 http.Client（providers 的 dispose 调用）。
   void dispose() => _http.close();
+}
+
+/// `multipart/form-data` 上传的一份文件内容。
+///
+/// 只持有**原始字节**，不持有 `http.MultipartFile`：后者的 `finalize()`
+/// 只能调用一次，而 [ApiClient] 在 401 后会重试一次原请求
+/// —— 复用同一实例会在第二次发送时抛 `StateError`。
+/// 每次发送时用这里的字节重建，重试因此是安全的。
+@immutable
+class HttpMultipartFile {
+  const HttpMultipartFile({
+    required this.field,
+    required this.filename,
+    required this.bytes,
+  });
+
+  /// 表单字段名（后端 `UploadFile` 参数名，如 `file`）。
+  final String field;
+
+  /// 传给后端的文件名（后端据此判断扩展名）。
+  final String filename;
+
+  /// 文件内容。
+  final List<int> bytes;
 }

@@ -19,6 +19,663 @@
 
 ---
 
+## Session 019 — 接通 work_agent 已有能力（② 简历资产入口 + ④ 截图 OCR · **Flutter 侧**）
+
+**日期**：2026-10-02
+**阶段**：P4-②/④ 的 **Flutter 侧**（承接 Session 018 的后端交付）
+**结论**：✅ **Flutter 侧已交付 · ⚠️ 未验收**（后端在 Session 018 已交付）
+
+> ⚠️ 本条与 Session 018 合起来才是「②/④ 完成」。
+> **「已交付」≠「已验收」**：真实端到端（真机 + 真实后端）**本轮未跑**。
+
+---
+
+### 0. 本轮范围
+
+Session 018 的 §2.4 列了 5 项 Flutter 侧待办（F1–F5），本轮**全部做完**：
+
+```text
+F1  ApiClient.postMultipart()            ✅ 新增
+F2  submitResumeText / submitResumeFile
+      → POST /api/v1/resume              ✅
+F3  fetchProfile 字段映射修复             ✅（本轮最有价值的一条）
+F4  ResumeFileData.allowedExtensions 对齐后端   ✅
+F5  on-resume 上传卡文案含图片            ✅（产品侧当场拍板，见 D107）
+```
+
+---
+
+### 1. F1 — `ApiClient.postMultipart()`
+
+`_rawSend` 此前**只有 JSON 分支**（全部 `jsonEncode`），无法发 multipart。
+
+| 改动 | 说明 |
+|---|---|
+| `postMultipart(path, fields:, files:)` | 新增公开方法；`_send` / `_rawSend` 增加 multipart 通道 |
+| `HttpMultipartFile`（新类） | 只持有**原始字节**，不持有 `http.MultipartFile` |
+
+**两个坑，都是踩过才写的**：
+
+```text
+① 不能手写 Content-Type —— boundary 由 http.MultipartRequest 生成。
+   手写成 application/json 会让后端解析不出任何字段。
+   故 multipart 分支刻意**不加** JSON 头（只带 Accept / Authorization）。
+② MultipartFile.finalize() **只能调用一次** —— 而本类在 401 后会重试一次原请求。
+   直接传 http.MultipartFile 会在第二次发送时抛 StateError。
+   → 传原始字节，每次发送重建。已用单测钉住（见 §4）。
+```
+
+**超时**：新增 `ApiClient.resumeParseTimeout = 120s`。
+该端点在后端**同一请求内同步**跑 ResumeAgent（LLM + 可能的 OCR），
+30s 默认值会误报超时。这是 Flutter 侧实现取值，**不是产品规则**
+（与既有 `analysisTimeout = 300s` 同型）。
+
+---
+
+### 2. F2 — 提交改走 `POST /api/v1/resume`
+
+```text
+改前：submitResumeText → PUT  /api/v1/resume     （只存文本，不解析 → profile 恒空）
+      submitResumeFile → 直接抛「未接入」        （死路）
+改后：两者 → POST /api/v1/resume（multipart）
+      文本走 fields{'text'}，文件走 files[{'file'}]，图片由后端 OCR
+```
+
+后端该端点在同一请求内跑完 ResumeAgent 并把 `profile` 落库 ——
+**提交即解析**。因此 `buildBaseline()` 保持 `= fetchProfile()`（GET 读回），
+不再有第二次 LLM 解析。
+
+⚠️ **两屏的时序影响**：解析发生在「提交简历」页（按钮禁用期间），
+「建立职业基线」页只做读回。该页的 8.9s 时间线本就长于读回耗时，
+`_maybeAdvance()` 要求两条时钟都到点，故**视觉无回归**。
+
+---
+
+### 3. F3 — `fetchProfile` 字段映射修复（**本轮修的真实 Bug**）
+
+改造前按 `workExperiences` / `projectExperiences` / `awards` 去读，
+但后端存的是引擎 `ResumeProfile.model_dump()`：
+
+```text
+name / email / phone / skills / experience_years /
+roles / projects / education / certifications / raw_text
+```
+
+**只有 `skills` 命中**。而 `roles` / `projects` 才是真名：
+
+| Flutter 字段 | 改前读 | 改后读（对齐后端） |
+|---|---|---|
+| `workExperiences` | `profile['workExperiences']` → **恒 0** | `profile['roles']`（字符串数组） |
+| `projectExperiences` | `profile['projectExperiences']` → **恒 0** | `profile['projects'][].name`（对象数组取 name） |
+| `skills` | `profile['skills']` ✅ | 不变 |
+| `awards` | `profile['awards']` → 恒 0 | **仍为空** —— 后端 `assets.py` 明确 awards「not parsed」（**D110 未决**） |
+| `capabilities` | `profile['capabilities']` → 恒空 | 仍为空 —— 画像里没有能力分值 |
+
+**这一条同时修好了两个页面**（都用 `ResumeProfile`）：
+
+```text
+onboarding_confirm_page.dart  「确认职业信息」汇总卡四行
+analysis_page.dart            「当前简历」卡的 3 个统计（N项核心能力 / N段经历 / N个项目）
+```
+
+> 修前：走完 Onboarding、还没做过分析的新用户，四行里三行恒为 0
+> —— 这正是 Session 018 §2.1 记的「职业资产永远为空」。
+> 修的是**读取端**；写入端（`POST /resume` 落 profile）由 Session 018 完成。
+
+另：`_stringList` 现在会丢弃空白项（LLM 可能抽出空 role / 空 skill，
+保留会让确认页的条数把空条目也算进去）。
+
+---
+
+### 4. F4 — 文件白名单与后端逐项对齐
+
+```text
+Flutter 改前：pdf / doc / docx
+Flutter 改后：pdf / docx / txt / png / jpg / jpeg / webp / bmp
+后端         ：.pdf .docx .txt .png .jpg .jpeg .webp .bmp   ← 逐项一致
+```
+
+- ➕ **加图片**：产品侧指令「截图 OCR 属于本轮」（Session 018 §0）。
+- ➕ **加 txt**：后端本就支持，Flutter 漏了。
+- ➖ **去掉 `.doc`**：旧二进制格式，python-docx 读不了，**后端必拒**
+  —— 放行等于「可选但必然失败」。**这是一处用户可见的能力收窄**，
+  已登记 **D112**。
+
+---
+
+### 5. F5 — 上传卡文案（**D107 已裁决**）
+
+产品侧 2026-10-02 当场拍板，两处文案含图片：
+
+```text
+标题（对应 App.tsx L761）
+  支持 PDF、Word 格式，…       → 支持 PDF、Word、图片格式，…
+卡内（对应 App.tsx L768）
+  PDF / Word · 最大 10MB       → PDF / Word / 图片截图 · 最大 10MB
+```
+
+「AI 将自动提取」清单**不动** —— 它本就列了「技能与证书 / 获奖与荣誉」两项。
+
+---
+
+### 6. 实测结果（**当次真实输出**，2026-10-02）
+
+```bash
+cd /g/ai_agent/careerly
+flutter analyze  →  No issues found!          (8.0s / 复核 119.1s)
+flutter test     →  All tests passed!（215 / 215 + 1 skipped）
+```
+
+**用例数 216 已独立复算**（`grep -c "testWidgets(\|test(" test/*.dart test/*/*.dart` = 216，
+减 1 条 `real_backend_integration_test` 默认 skip → 215 passed）。
+
+**新增用例**：`test/data/api_resume_repository_test.dart`（**7 例**）
+
+```text
+✅ submitResumeText 走 multipart 的 text 字段（不是 JSON body）
+✅ submitResumeFile 走 multipart 的 file 字段并带原始字节
+✅ Content-Type 由 http 生成（含 boundary），不被手写覆盖   ← 钉住坑 ①
+✅ roles / projects[].name / skills 映射正确                ← 钉住 F3
+✅ 后端 null → ResumeProfile.empty
+✅ 有画像但文本为空 → 仍视为无基线
+✅ allowedExtensions 与后端逐项一致，且不含 .doc
+```
+
+> ⚠️ **真实端到端未跑**（无 Android 设备 + 未启动后端）。
+> 本轮证明的是**契约层**：端点、传输形态、字段映射、错误归一化
+> —— 全部在 Fake backend 上钉死，**未证明**在真实后端上跑得通。
+
+---
+
+### 7. 修改文件（Flutter 侧）
+
+```text
+ M lib/data/api/api_client.dart              postMultipart + HttpMultipartFile + resumeParseTimeout
+ M lib/data/api/api_resume_repository.dart   提交改走 POST；fetchProfile 映射修复
+ M lib/data/models/resume_file.dart          白名单对齐后端 + 注释更新
+ M lib/core/services/resume_file_picker.dart 注释更新（白名单范围）
+ M lib/features/onboarding/presentation/onboarding_resume_page.dart   文案（D107）
+ M test/phase4_batch2_test.dart              断言跟随文案改
+ M test/real_backend_integration_test.dart   两处过期断言修正（见 §8）
+ + test/data/api_resume_repository_test.dart 7 例（新建）
+```
+
+---
+
+### 8. 顺带修正的一处**过期断言**（不是本轮功能）
+
+`real_backend_integration_test.dart` §7 原断言：
+
+```text
+submitResumeFile(匿名) → 期望「不可重试」的 AppError
+reason: '文件上传未实现应给出不可重试的明确提示'
+```
+
+F2 之后「未实现」不再是事实。已改为两条与新现实一致的断言：
+
+```text
+① 匿名提交简历 → AuthError（简历资产提交同样要鉴权）
+② 已登录提交 .doc → ParseError（后端回 UNSUPPORTED_FORMAT 422）
+```
+
+> ⚠️ 该文件**默认 skip**，不影响 `flutter test` 全量；但它是一份会被人
+> 照着跑的联调清单，**留着过期断言比没有更糟**。
+
+---
+
+### 9. 待裁决（本轮新增）
+
+| 编号 | 分类 | 问题 |
+|---|---|---|
+| **D112** | 【技术实现差异】 | Flutter 白名单**去掉 `.doc`**（用户可见的能力收窄）。理由：后端必拒。待确认是否接受 |
+| **D113** | 【视觉/交互差异】 | `onboarding_confirm_page` 的 Empty 文案写着「**Mock 数据源**默认返回空档案…」，真实 API 下该措辞不再成立 |
+
+**本轮已当场裁决、无需再议**（记录备查）：
+
+```text
+✅ D107 上传卡文案含图片 —— 采用 AI 侧草稿（产品侧 2026-10-02 选「用草稿改掉」）
+```
+
+**仍未决**：D110（获奖经历数据源）—— 本轮**未自行 invent**，`awards` 保持空。
+
+---
+
+### 10. 明确未做（**不是遗漏**）
+
+```text
+真实端到端联调（真机 + 真实后端）   → 无设备；本轮只到契约层
+③ 岗位 URL 接线                     → 未开工（见下）
+D110 获奖经历映射                   → 无数据源，不自行 invent
+能力画像 capabilities 的填充        → 画像里没有分值来源
+```
+
+---
+
+### 11. 下一步
+
+```text
+① ✅ 已提交（9d879c0）· ②④ ✅ Flutter 侧本轮交付 · ③ ⛔ 未开工
+```
+
+**③ 岗位 URL 开工前必须先报告** —— 它是**新能力接线**（Job Agent 爬虫 → 分析入口），
+落在「分析」的哪个交互上尚未确认，**不自行决定**（Session 018 §8 的停止点仍然有效）。
+
+同时：后端 `work_agent` 那 6 个文件（Session 018 §6）**仍未提交**。
+
+---
+
+## Session 018 — 接通 work_agent 已有能力（① 退出登录 · ② 统一简历资产入口 + ④ 截图 OCR）
+
+**日期**：2026-10-02
+**阶段**：P4-①/②（**不是**新 Phase —— 见「本轮任务的定性」）
+**结论**：⏸ **进行中 · 暂停**（后端①②④ 已交付并自测通过；**Flutter 侧未开工**）
+
+> ⚠️ 本条是**中途记录**，不是一个交付收口。恢复时**不要**把它当作
+> 「②已验收」——它只到「后端改完 + 后端测试绿」。
+
+---
+
+### 0. 本轮任务的定性（用户原话，2026-10-02）
+
+```text
+「请逐步将 G:\ai_agent\work_agent 里的已经存在的能力全部接出来。
+  你现在截图中的简历上传、截图 OCR、岗位输入、退出登录，
+  都属于这条『接通真实功能』的工作，而不是重新搭建 Agent。」
+```
+
+**因此本轮的边界是「接线」，不是「造能力」。** work_agent 里已经跑得通的
+`ResumeAgent` / DecisionGraph / 爬虫 / 额度 / 认证一律**复用**，
+Careerly 只负责把它们接到 App 的界面上。
+
+用户指定的顺序：
+
+```text
+① Logout 改动 → commit，建立干净 Git 安全点
+② 简历上传 → 建立统一「简历输入 → 解析 → ResumeProfile → 职业资产」链路
+④ 截图 OCR → 接入同一套简历解析链路，不再单独造一套 Profile
+③ 岗位 URL → 把已有 Job Agent 爬虫能力接到 Careerly 的分析入口
+然后 → P3 Mock → 真实 API → AI Chat → 完整功能闭环
+```
+
+附加的硬约束（用户原话）：
+
+> 「不允许文件上传、文本粘贴、OCR 各自维护一套 Profile 写入逻辑。」
+> 「请不要为了兼容当前 POST /analysis 而把文件上传逻辑硬塞进 /analysis。」
+
+---
+
+### 1. ① 退出登录 —— ✅ 已交付 · 已提交
+
+**提交**：`9d879c0 feat(auth): 退出登录接通真实功能`（8 文件，+399 / −1）
+
+#### 背景
+
+`settings_page.dart` 的「退出登录」是 `onPressed: () {}` —— **死按钮**。
+
+#### 关键事实：后端**没有 logout 端点**
+
+`app/core/security.py` 明确记录了这个缺口：令牌是无状态 JWT，
+服务端**没有吊销表**。因此「退出」只能表达为**客户端丢弃凭据**
+（内存令牌 + 安全存储），而不是「让服务端的某个令牌失效」。
+
+这一点写进了 `AuthRepository.logout()` 的文档注释，避免下一个会话
+误以为「漏调了一个端点」。
+
+#### 改动
+
+| 层 | 文件 | 改动 |
+|---|---|---|
+| 契约 | `lib/data/repositories/auth_repository.dart` | `+ Future<void> logout()` |
+| Mock | `lib/data/mock/mock_auth_repository.dart` | `+ logout()`（只模拟延迟） |
+| API | `lib/data/api/api_auth_repository.dart` | `+ logout() => _client.clearSession()` |
+| 状态 | `lib/features/onboarding/state/auth_provider.dart` | **新建**（见下） |
+| 装配 | `lib/app/providers.dart` | 注册 `AuthProvider` |
+| UI | `lib/features/profile/presentation/settings_page.dart` | 按钮接线 + 确认弹层 + 失败 Toast + 禁用态 |
+| 测试 | `test/auth_logout_test.dart` | **新建**，7 例 |
+
+#### 为什么现在才建 `AuthProvider`（`CLAUDE.md` §6.3）
+
+`providers.dart` 里原有一句注释：
+
+> 「等到真的需要『当前用户是谁』时再建 AuthProvider，届时它才是死代码的反面。」
+
+在退出登录出现之前，Flutter 侧**没有任何**结束会话的入口 —— 建了就是空 Provider，
+而 §6.3 明令禁止预建占位 Provider。退出登录是第一个真实用例。
+
+⚠️ 它**只**承载「这次退出操作的状态」，**不持有登录态** ——
+令牌的持有者是 `ApiClient`，不制造第二个会话真相源。
+
+#### ⚠️ Flutter 侧补齐、**未经产品侧确认**的交互
+
+Figma **只有按钮，没有退出确认层**。补它的理由与既有 `CareerlyBackGuard`
+同型：退出会丢弃本机身份（需重新登录），属不可逆操作。
+文案与交互 → 登记 **D106**。
+
+---
+
+### 2. ② 统一简历资产入口 —— 后端 ✅ 已交付 / Flutter ⛔ 未开工
+
+#### 2.1 盘点结果：简历**有三条互不相通的写入路径**
+
+这是本轮最重要的发现。改造前：
+
+```text
+POST /api/v1/resume/upload   (app/api/router_app.py:153)
+      → 写 data/resumes/{resume_id}.json        ❌ 不进 careerly_resumes，不建立基线
+PUT  /api/v1/resume          (app/careerly/router.py:200)
+      → 只写 careerly_resumes.text              ❌ 明令不碰 profile
+POST /api/v1/analysis        (app/careerly/router.py:124)
+      → 写 careerly_resumes.profile             ⚠️ 必须跑一次完整分析
+```
+
+**后果**：一个走完 Onboarding、还没做过分析的**新用户**，
+`careerly_resumes.profile` 恒为 `{}` →「我的 → 职业资产」永远是空的。
+
+而这恰恰与 `CLAUDE.md` §5.1 冲突：
+
+> 首次 Onboarding 的目的不是完成一次分析，而是**建立用户的职业基线**。
+
+「建立基线」和「必须跑一次分析才有资产」这两件事**不能同时成立**。
+
+#### 2.2 用户裁决（2026-10-02）
+
+| 问题 | 裁决 |
+|---|---|
+| 新入口解析出的 profile 要不要直接落库？ | ✅ **上传即落 profile** |
+| 图片 OCR 依赖怎么办？ | ✅ **现在装依赖，图片一次做完** |
+
+第 1 条意味着**改写** `careerly/router.py` 原有的
+「`POST /analysis` 是唯一解析方」注记（profile 写入者 1 → 2）——
+已在源码里注明修订日期与理由。
+
+#### 2.3 落地方案（后端 —— 已完成）
+
+新增 **`POST /api/v1/resume`** = 简历资产**唯一推荐入口**，
+三种输入方式在此汇合：
+
+```text
+Resume Input (text | pdf/docx/txt | image)
+   → ResumeAgent            ← 复用既有解析器，一行没重写
+   → ResumeProfile
+   → careerly_resumes (text + profile)   ← 唯一的职业资产存储
+```
+
+| 文件 | 改动 |
+|---|---|
+| `app/agents/resume_agent.py` | ① 加图片分支 `_extract_image`；② OCR 配置统一到 `_configure_tesseract` / `_apply_tessdata` / `_ocr_language`；③ 新增 `ResumeExtractionError`；④ 新增 `self.raw_text`（完整文本，profile.raw_text 是截断版） |
+| `app/careerly/router.py` | 新增 `POST /resume`（multipart: `file` 或 `text`）；修订 `PUT /resume` 的 single-writer 注记；模块头端点表 |
+| `requirements.txt` | `+ pytesseract` `+ pdf2image` `+ Pillow` `+ python-multipart` |
+| `.gitignore` | 忽略 `app/data/tessdata/*.traineddata` |
+| `app/data/tessdata/README.md` | **新建** —— 语言包怎么装 / 为什么 / 降级行为 |
+| `tests/test_p4_resume_asset.py` | **新建**，13 例 |
+
+**端点分工（落进源码注释）**：
+
+```text
+POST /api/v1/resume   提交一份简历资产（文件 / 图片 / 文本） → 立即解析 → 写 text + profile
+PUT  /api/v1/resume   仅更新基线文本（P3 preview，无解析）   → 只写 text
+```
+
+两者**都不扣分析额度**（`CLAUDE.md` §5.2）、**都不建分析任务**（它不是分析）。
+
+**降级纪律**（沿用 `POST /analysis` 的既有做法）：解析偶尔会降级成
+「只有 raw_text 的空壳」，此时**保留旧 profile**、只更新文本 ——
+否则用户上传一次解析失败的简历，「职业资产」会突然清零。
+
+#### 2.4 ⛔ Flutter 侧：**完全未开工**
+
+已确认要改但**一行都没改**：
+
+| # | 文件 | 要改什么 |
+|---|---|---|
+| F1 | `lib/data/api/api_client.dart` | 新增 `postMultipart()`。**实测现在只有 JSON**（`_rawSend` 全部 `jsonEncode`） |
+| F2 | `lib/data/api/api_resume_repository.dart` | `submitResumeFile` / `submitResumeText` 改走 `POST /api/v1/resume` |
+| F3 | `lib/data/api/api_resume_repository.dart` | 修 `fetchProfile` 的字段映射（见「新发现 ②」） |
+| F4 | `lib/data/models/resume_file.dart` | `allowedExtensions` 扩展（图片 + txt，去掉 `.doc`） |
+| F5 | `lib/features/onboarding/presentation/onboarding_resume_page.dart` | 上传卡文案「PDF / Word · 最大 10MB」需含图片（见 **D107**） |
+
+⚠️ F1 有一个已知坑：**multipart 不能手动设 `Content-Type`**
+（boundary 由 http 包生成），否则后端解析失败。
+
+---
+
+### 3. ④ 截图 OCR —— 后端 ✅ 已交付（与 ② 同一次改动）/ Flutter ⛔ 未开工
+
+「截图 OCR」在实现上**不是新功能**，而是 ② 的**第三种输入方式**：
+图片 → OCR → 文本 → **同一个** `ResumeAgent` → **同一个** `save_resume`。
+不存在第二套 Profile 逻辑 —— 这正是用户要求的。
+
+#### 环境（已在本机装好，实测通过）
+
+| 项 | 状态 |
+|---|---|
+| `pytesseract` / `pdf2image` / `Pillow` | ✅ 已装进 `work_agent/venv` |
+| Tesseract 二进制 | ✅ **本机原本就装了** `5.4.0.20240606`（`C:\Program Files\Tesseract-OCR\`），只是不在 `PATH` |
+| `chi_sim` 语言包 | ⚠️ **官方安装包没有** → 已下载 `tessdata_fast` 版到 `app/data/tessdata/`（~2.5MB，**不进 git**） |
+
+**踩到的两个坑**（写进 `resume_agent.py` 注释，避免复踩）：
+
+```text
+1. `--tessdata-dir "<path>"` 不可用 —— pytesseract 按空白切分 config，
+   引号不会被剥掉 → 报 `Error opening data file "...tessdata"/chi_sim.traineddata`
+   ✅ 改用 TESSDATA_PREFIX 环境变量
+2. TESSDATA_PREFIX 必须指向 **tessdata 目录本身**，不是它的父目录
+   （指父目录会去找 <prefix>/chi_sim.traineddata 而失败）
+3. `chi_sim` 模型本身能识别拉丁字符 → 不要拼 `chi_sim+eng`
+   （拼了反而要求两个语言包在同一个 tessdata 目录下）
+```
+
+#### 降级行为
+
+- 没有 `chi_sim.traineddata` → 回落 `eng`（中文丢，英文技术词仍在），**不整体失败**
+- 没有 tesseract 二进制 / Pillow → 抛 `OCR_UNAVAILABLE`，**明确报错**
+- 图里一个字都读不出 → 抛 `EMPTY_EXTRACTION`，**不再静默返回空基线**
+
+最后一条是一处**有意的行为变更**：旧 `_ocr_extract` 在依赖缺失时返回 `""`，
+用户会拿到一份空基线却看不到任何错误（典型的「失败无痕」）。
+现改为显式错误 —— 该改动**同样影响** `POST /api/v1/resume/upload`
+（扫描件 PDF 无 OCR 时 200+空 → 500 PARSE_ERROR）。登记 **D108**。
+
+---
+
+### 4. 新发现（本轮才暴露，与既有文档不符）
+
+| # | 发现 | 影响 |
+|---|---|---|
+| ① | 简历有**三条互不相通的写入路径**（§2.1） | 这就是「职业资产永远为空」的根因 |
+| ② | **`ApiResumeRepository.fetchProfile` 读错了字段键** | 见下，**既有 Bug，非本轮引入** |
+| ③ | `.doc` / `.txt` 白名单**两边不一致** | Flutter 放行 `.doc`，后端必拒 |
+| ④ | `BACKEND_API_CONTRACT.md` §0.5.2 记「文件上传 Flutter 明确不接」 | 与用户本轮指令冲突 → **D109** |
+| ⑤ | OCR 依赖此前**一项都没装**，`requirements.txt` 也未列 | 已修 |
+| ⑥ | `test_skill_synonyms` **预存在失败** | 非本轮引入（已用 `git stash` 验证，见 §5） |
+
+#### 关于新发现 ②（**这条最值得下一个会话先看**）
+
+```dart
+// lib/data/api/api_resume_repository.dart:76-85 （改造前）
+workExperiences:   _stringList(profile['workExperiences']),
+projectExperiences:_stringList(profile['projectExperiences']),
+skills:            _stringList(profile['skills']),
+awards:            _stringList(profile['awards']),
+capabilities: ...  profile['capabilities'],
+```
+
+但后端存进 `careerly_resumes.profile` 的是 `ResumeProfile.model_dump()`：
+
+```text
+name / email / phone / skills / experience_years /
+roles / projects / education / certifications / raw_text
+```
+
+**只有 `skills` 对得上。** 而 `onboarding_confirm_page.dart` 的汇总卡
+**正是**由这四个字段驱动的：
+
+```text
+工作经历   ← workExperiences.length   → 恒为 0
+项目经历   ← projectExperiences.length → 恒为 0
+能力与技能 ← skills.length             → 唯一对的一个
+获奖经历   ← awards.length             → 恒为 0
+```
+
+**即：即便 profile 已经落库，Onboarding 的「确认职业信息」屏
+四行里仍有三行恒为 0。** 这是「接通真实功能」的直接缺口。
+修法 → F3，其中「获奖经历」的映射**没有**明显正确的来源
+（后端 `assets.py` 明确写着 awards「not parsed」）→ 登记 **D110**。
+
+---
+
+### 5. 测试结果（**真实输出**）
+
+#### 后端 · 新增用例
+
+```bash
+cd /g/ai_agent/work_agent
+./venv/Scripts/python.exe -m pytest tests/test_p4_resume_asset.py -q
+```
+
+```text
+.............                                                            [100%]
+13 passed, 1 warning in 36.09s
+```
+
+覆盖：文本路径建基线 / 文本 trim / TXT 文件进同一张表 / **图片 OCR 进同一链路** /
+不扣额度 / 不建分析任务 / 降级不覆盖画像 / 无载荷 422 / 空白文本 422 /
+`.doc` → `UNSUPPORTED_FORMAT` / 空文件 422 / 超 10MB → 413 / 用户隔离。
+
+#### 后端 · 全量
+
+```bash
+./venv/Scripts/python.exe -m pytest tests/ -q
+```
+
+```text
+1 failed, 108 passed, 487 warnings in 204.98s (0:03:24)
+
+FAILED tests/test_matching.py::TestSkillOverlap::test_skill_synonyms
+```
+
+⚠️ **该失败与本轮改动无关，已验证是预存在的** —— 把我改的四个文件
+`git stash` 掉之后单跑该用例，**同样失败**：
+
+```text
+FAILED tests/test_matching.py::TestSkillOverlap::test_skill_synonyms - Assert...
+1 failed in 5.13s
+```
+
+（断言是技能同义词表把 `K8s` 归一到 `Kubernetes`，`result["matched"]` 为空。
+不经过本轮改动的任何代码路径。）
+
+#### 后端 · OCR 实拍
+
+```text
+输入：脚本生成的 PNG，三行中文（李四 高级产品经理 8年经验 / 技能：Python、SQL… / 项目：…）
+OCR 输出：
+    李四 高级产品经理 8年经
+    技能: Python、SQL、用户增长、数据分析
+    项目: 推荐系统改版，DAU 提升 30%
+（末字被合成图宽裁掉，非识别问题）
+
+空白图 → ResumeExtractionError(EMPTY_EXTRACTION)   ✅ 未静默返回空 profile
+```
+
+#### Flutter 侧
+
+```text
+未运行 —— 本轮未改任何 Flutter 代码。
+```
+
+#### ① 退出登录（上一提交，记录在此备查）
+
+```bash
+cd /g/ai_agent/careerly
+flutter analyze   →  No issues found!
+flutter test test/auth_logout_test.dart   →  7 passed
+```
+
+---
+
+### 6. 修改文件
+
+#### 💻 代码 —— `work_agent`（后端，**未提交**）
+
+```text
+ M app/agents/resume_agent.py         图片 OCR 分支 + ResumeExtractionError + raw_text
+ M app/careerly/router.py             新增 POST /resume；修订 PUT /resume 注记
+ M requirements.txt                   + pytesseract / pdf2image / Pillow / python-multipart
+ M .gitignore                         忽略 app/data/tessdata/*.traineddata
+?? app/data/tessdata/README.md         语言包说明（**新建**）
+?? app/data/tessdata/chi_sim.traineddata   （二进制，已 gitignore）
+?? tests/test_p4_resume_asset.py       13 例（**新建**）
+```
+
+⚠️ 工作区里还有一笔**不属于本轮**的未提交改动：
+` M docs/careerly/BACKEND_API_CONTRACT.md` —— **不要覆盖它**。
+
+#### 💻 代码 —— `careerly`（Flutter）
+
+```text
+9d879c0  feat(auth): 退出登录接通真实功能   （8 文件，+399 / −1，已提交）
+本轮 Flutter 侧：未改任何文件
+```
+
+#### 📄 文档
+
+```text
+本文件（Session 018）
+TODO.md（D106–D111 + 本轮工作流登记）
+```
+
+---
+
+### 7. 未解决问题 —— 待裁决（本轮新增，编号 D106 起）
+
+> 分类口径：`【产品冲突】【IA 冲突】【视觉/交互差异】【技术实现差异】`
+
+| 编号 | 分类 | 问题 |
+|---|---|---|
+| **D106** | 【视觉/交互差异】 | 退出登录**确认弹层**是 Flutter 侧补的（Figma 只有按钮）。文案 / 是否保留 → 待确认 |
+| **D107** | 【视觉/交互差异】 | 加图片 OCR 后，`on-resume` 上传卡文案「**PDF / Word** · 最大 10MB」必须改。**改法未定** → 待产品侧给文案 |
+| **D108** | 【技术实现差异】 | 「OCR 依赖缺失」从**静默返回空**改为**显式报错**，该改动同样影响既有 `POST /api/v1/resume/upload` |
+| **D109** | 【产品冲突】 | `BACKEND_API_CONTRACT.md` §0.5.2 记「文件上传 Flutter **明确不接**，排 P3」，与本轮指令直接冲突 |
+| **D110** | 【产品冲突】 | 「获奖经历」用什么数据源？后端 `assets.py` 明确 awards「not parsed」，而 Figma 的提取清单列了「获奖与荣誉」。**不自行 invent** |
+| **D111** | 【技术实现差异】 | `/resume/upload`（写 JSON 文件）与 `POST /resume`（写 careerly 库）**双轨**如何处理 —— 建议前者保留不动、Careerly 只走后者 |
+
+**已在用户侧当场裁决、无需再议的两条**（记录备查）：
+
+```text
+✅ profile 写入者 1 → 2（上传即解析落库）
+✅ OCR 依赖现在就装（图片一次做完）
+```
+
+---
+
+### 8. 下一步（恢复时的**精确起点**）
+
+```text
+① ✅ 已提交（9d879c0）
+② 🔶 后端完成 → **接着做 Flutter 侧 F1–F5**（见 §2.4）
+④ 🔶 后端完成（与 ② 同一次改动）→ 随 ② 的 Flutter 侧一起收口
+③ ⛔ 未开始（岗位 URL → Job Agent 爬虫 → 分析入口）
+```
+
+#### 恢复时的第一步
+
+```text
+1. 后端：把 §6 的 6 个文件提交（工作区当前**未提交**）
+2. Flutter：先做 F1（ApiClient.postMultipart），因为 F2/F3 都依赖它
+3. 然后 F3（修 fetchProfile 映射）—— 这条**独立可验证**，
+   做完就能让 Onboarding 确认页的四行汇总卡真的动起来
+4. 再 F2/F4/F5
+```
+
+#### ⚠️ 停止点
+
+- ③ 岗位 URL **未开工**，且它是**新能力接线**（爬虫 → 分析入口），
+  开工前需要先确认它落在「分析」的哪个交互上 → **先报告，不自行决定**。
+- **不要**因为「② 后端都绿了」就认为 ② 已完成 —— **Flutter 一行没动**。
+
+---
+
 ## Session 017 — Phase 8A：成长足迹「日历与事件解耦」（日历默认存在）
 
 **日期**：2026-09-28

@@ -56,6 +56,16 @@ import 'widgets/onboarding_progress_header.dart';
 ///    两者都没有 Flutter 的逐位等价物。
 ///    处理方式与注册页头像（**D58**）一致：**不新建图标资源**。
 ///    登记 **待裁决 · D72**。
+/// 4. **两处文案偏离 Figma** —— 选择器放行图片（走 OCR）后，
+///    标题与卡内说明必须含图片，否则「说一套做一套」。
+///    改法是产品侧 2026-10-02 拍板的草稿（**D107** 已裁决）：
+///
+///    ```text
+///    标题   支持 PDF、Word、图片格式，…        （Figma：支持 PDF、Word 格式，…）
+///    卡内   PDF / Word / 图片截图 · 最大 10MB  （Figma：PDF / Word · 最大 10MB）
+///    ```
+///
+///    「AI 将自动提取」清单**不动** —— 它本就列了「技能与证书 / 获奖与荣誉」两项。
 ///
 /// ## 「选择文件」链路（**D67 已关闭**）
 ///
@@ -228,7 +238,7 @@ class _ResumeTitle extends StatelessWidget {
         Text('上传你的简历', style: AppTypography.onboardingPageHeading),
         SizedBox(height: _ResumeMetrics.titleGap),
         Text(
-          '支持 PDF、Word 格式，AI 将自动解析你的职业经历',
+          '支持 PDF、Word、图片格式，AI 将自动解析你的职业经历',
           style: AppTypography.onboardingSubtitle,
         ),
         SizedBox(height: AppSpacing.lg),
@@ -283,7 +293,7 @@ class _UploadCard extends StatelessWidget {
               const Text('点击或拖拽上传简历', style: AppTypography.onboardingCardTitle),
               const SizedBox(height: _ResumeMetrics.uploadCardTextGap),
               const Text(
-                'PDF / Word · 最大 10MB',
+                'PDF / Word / 图片截图 · 最大 10MB',
                 style: AppTypography.onboardingCaption,
               ),
             ],

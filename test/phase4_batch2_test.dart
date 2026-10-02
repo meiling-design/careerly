@@ -94,7 +94,9 @@ void main() {
       expect(find.byType(OnboardingResumePage), findsOneWidget);
       expect(find.text('上传你的简历'), findsOneWidget);
       expect(find.text('点击或拖拽上传简历'), findsOneWidget);
-      expect(find.text('PDF / Word · 最大 10MB'), findsOneWidget);
+      // ⚠️ 卡内文案含「图片截图」是**有意偏离 Figma** 的
+      // （选择器放行图片走 OCR，说一套做一套不行）→ D107 已裁决。
+      expect(find.text('PDF / Word / 图片截图 · 最大 10MB'), findsOneWidget);
       expect(find.text('AI 将自动提取'), findsOneWidget);
       expect(find.text('选择文件'), findsOneWidget);
       expect(find.text('粘贴简历文本'), findsOneWidget);

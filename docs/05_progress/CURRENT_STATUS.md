@@ -5,11 +5,26 @@
 > 本文件只写**现状**。
 > 接下来做什么 → `TODO.md` ｜ 为什么这么决定 → `CHANGELOG.md` ｜ 怎么做 → `DEVELOPMENT_WORKFLOW.md`
 >
-> 最后更新：**2026-09-28**
-> 当前状态：**▶ Phase 8A（成长足迹「日历与事件解耦」）已交付 · ⚠️ 未验收
+> 最后更新：**2026-10-02**（Session 019）
+> 当前状态：**⏸ 暂停 · 「接通 work_agent 已有能力」进行中**
+>
+> ```text
+> ▶ 当前工作流：把 work_agent 里**已经存在**的能力接出来（接线，不是造能力）
+>   ① 退出登录        ✅ 已交付 · 已提交（9d879c0）
+>   ② 简历资产入口    ✅ 后端（S018）+ Flutter 侧（S019）均已交付 · ⚠️ 未验收
+>   ④ 截图 OCR        ✅ 同 ② 一条链路（图片 → OCR → 同一个 ResumeAgent）
+>   ③ 岗位 URL        ⛔ 未开始 · 开工前必须先报告（落在哪个交互未定）
+> ```
+>
+> ⚠️ **②/④ 的「已交付」不等于「已验收」** —— 本轮证明的是**契约层**
+> （端点 / 传输形态 / 字段映射 / 错误归一化，全部在 Fake backend 上钉死），
+> **真实端到端（真机 + 真实后端）本轮未跑**（无设备）。
+> 恢复时从 `CHANGELOG.md` **Session 019** §11 的停止点接着做。
+>
+> 另：**Phase 8A（成长足迹「日历与事件解耦」）已交付 · ⚠️ 未验收**
 > · Phase 10 Android QA 仍在「APK 已构建/安装/启动，T1–T14 待执行」
 > · 四笔旧欠账（批 1 / 批 2 / Token 审计 / `CareerlyInput`）均 ⚠️ 未验收，
->   Phase 3/4/5/6/7/8 也都仍待合并验收**
+>   Phase 3/4/5/6/7/8 也都仍待合并验收
 >
 > ```text
 > ✅ Phase 3  App Shell 视觉定稿 + AI 入口 + 页面转场
@@ -172,13 +187,18 @@ AI     Phase 7 Chat UI + Mock Response
 | Lint | `flutter_lints ^6.0.0` |
 | 目标平台 | Android-first |
 
-### 3.2 可运行性（**2026-09-22 实测**）
+### 3.2 可运行性（**2026-10-02 实测**）
 
 ```bash
 cd /g/ai_agent/careerly
-flutter analyze   →  No issues found!                (6.3s)
-flutter test      →  All tests passed!（158 / 158）  (2026-09-22 批 2 收口当次实测)
+flutter analyze   →  No issues found!                  (8.0s／复核 119.1s)
+flutter test      →  All tests passed!（215 / 215 + 1 skipped）  (2026-10-02 Session 019 当次)
 ```
+
+> ⚠️ **上一版此处记的是 `158/158`（2026-09-22）** —— 已过期三批交付。
+> 本轮数字**独立复算**过：`grep -c "testWidgets(\|test(" test/*.dart test/*/*.dart`
+> = **216**，减 1 条默认 skip 的 `real_backend_integration_test` → **215 passed**。
+> `flutter analyze` 耗时 8.0s → 复核时 119.1s，同一结论。
 
 > ✅ **2026-09-18 的那 1 个红灯已消失** ——
 > 它曾指向 `test/widget_test.dart` 的「可以切换到『分析』，并保留分支状态」
@@ -200,8 +220,9 @@ flutter devices            →  Windows / Chrome / Edge —— ⚠️ 无 Androi
 
 > 📌 **数字演进**：`10/10` → `24/24`（实为 25）→ `42/42` → `58/58`
 > → `72/72` → `96/97`（1 失败）→ `128/128`（Phase 6/7/8 批 1）
-> → **`158/158`（2026-09-22，Phase 8 批 2）**。
-> 差异与更正说明见 `CHANGELOG.md` Session 006 · 第七节、Session 007、008、010、011、015。
+> → `158/158`（2026-09-22，Phase 8 批 2）→ `180/180`（2026-09-30 全量审查）
+> → **`215/215 + 1 skipped`（2026-10-02，Session 019）**。
+> 差异与更正说明见 `CHANGELOG.md` Session 006 · 第七节、Session 007、008、010、011、015、019。
 
 > ⚠️ **`cd` 到仓库根再跑。** Bash 工具的工作目录会在调用之间保持 ——
 > 曾因此导致 `flutter analyze` 分析了错误的目录、`flutter test` 找不到 `test/`。

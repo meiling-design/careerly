@@ -6,21 +6,25 @@ import 'api_client.dart';
 
 /// 简历与职业基线的真实 API 实现。
 ///
-/// ## 后端现状（P3 之前的范围说明）
-///
-/// 后端当前只有「简历基线文本」一个资源（`PUT/GET /api/v1/resume`）：
+/// ## 端点分工（2026-10-02 起）
 ///
 /// ```text
-/// ✅ submitResumeText  粘贴文本 → PUT /resume（保存基线，分析时直接使用）
-/// ✅ fetchProfile      GET /resume → 文本 + 已保存的画像字段
-/// ✅ buildBaseline     = fetchProfile（解析发生在分析链路内部，见下）
-/// ❌ submitResumeFile  文件上传解析未建（后端 P3），改用粘贴文本
-/// ❌ fetchVersions     多版本简历未建（后端 P3），当前只有一份基线
+/// ✅ submitResumeText  粘贴文本 → POST /resume（multipart 的 text 字段）
+/// ✅ submitResumeFile  文件 / 图片 → POST /resume（multipart 的 file 字段，图片走 OCR）
+/// ✅ fetchProfile      GET  /resume → 文本 + 已解析的画像字段
+/// ✅ buildBaseline     = fetchProfile（解析已在提交时完成，见下）
+/// ❌ fetchVersions     多版本简历未建，当前只有一份基线
 /// ```
 ///
-/// ⚠️ 「解析」语义：后端没有独立的简历解析端点——`POST /analysis`
-/// 在分析链路内自动完成简历解析（ResumeAgent），并把 `capabilitySnapshot`
-/// 写回分析结果。因此 [buildBaseline] 不需要也不应该调用 LLM 做额外解析。
+/// ⚠️ **提交即解析** —— `POST /api/v1/resume` 在同一请求内跑完
+/// ResumeAgent 并把 `profile` 落进 `careerly_resumes`。
+/// 因此 [buildBaseline] 只把已存好的画像读回来，
+/// 不再调用 LLM 做二次解析。
+///
+/// 三种输入（粘贴 / 文件 / 截图）在这条链路上**只差文本怎么读出来**，
+/// 之后的解析与落库完全同一段后端代码 —— 不存在第二套 Profile 逻辑。
+///
+/// ⚠️ 两者都**不扣分析额度**（`CLAUDE.md` §5.2：只有「开始分析」才扣）。
 class ApiResumeRepository implements ResumeRepository {
   ApiResumeRepository(this._client);
 
@@ -28,22 +32,32 @@ class ApiResumeRepository implements ResumeRepository {
 
   @override
   Future<void> submitResumeText(String text) async {
-    await _client.put('/api/v1/resume', body: <String, dynamic>{'text': text});
+    // ⚠️ 该端点只收 multipart/form-data（FastAPI `Form`），不是 JSON body。
+    await _client.postMultipart(
+      '/api/v1/resume',
+      fields: <String, String>{'text': text},
+      timeout: ApiClient.resumeParseTimeout,
+    );
   }
 
   @override
   Future<void> submitResumeFile(ResumeFileData file) async {
-    // 后端 multipart 解析端点未建（P3）。给出明确的中文指引而不是静默失败。
-    throw const AIError(
-      message: '简历文件上传暂未接入，请改用「粘贴简历文本」',
-      isRetryable: false,
-      detail: 'backend P3: resume file upload endpoint not built',
+    await _client.postMultipart(
+      '/api/v1/resume',
+      files: <HttpMultipartFile>[
+        HttpMultipartFile(
+          field: 'file',
+          filename: file.name,
+          bytes: file.bytes,
+        ),
+      ],
+      timeout: ApiClient.resumeParseTimeout,
     );
   }
 
   @override
   Future<ResumeProfile> buildBaseline() async {
-    // 基线 = 已保存的简历文本；解析发生在分析链路内部（见类注释）。
+    // 解析已在 submit 时完成（见类注释），这里只把画像读回来。
     return fetchProfile();
   }
 
@@ -73,16 +87,16 @@ class ApiResumeRepository implements ResumeRepository {
           isCurrent: true,
         ),
       ],
-      workExperiences: _stringList(profile['workExperiences']),
-      projectExperiences: _stringList(profile['projectExperiences']),
+      // ⚠️ 字段名对齐后端 —— `profile` 是引擎 `ResumeProfile.model_dump()`：
+      //    name / email / phone / skills / experience_years /
+      //    roles / projects / education / certifications / raw_text
+      // 此前按 workExperiences / projectExperiences / awards 去读，
+      // 只有 skills 命中，Onboarding 确认页四行里三行恒为 0（2026-10-02 修）。
+      workExperiences: _stringList(profile['roles']),
+      projectExperiences: _projectNames(profile['projects']),
       skills: _stringList(profile['skills']),
-      awards: _stringList(profile['awards']),
-      capabilities: (profile['capabilities'] as Map<String, dynamic>? ??
-              <String, dynamic>{})
-          .map(
-            (String k, dynamic v) =>
-                MapEntry<String, int>(k, (v as num).round()),
-          ),
+      // awards / capabilities 后端**没有来源**（assets.py 明确 awards
+      // 「not parsed」，画像里也没有能力分值）→ 保持空，不编造（D110）。
       updatedAt: updatedAt,
     );
   }
@@ -106,7 +120,30 @@ class ApiResumeRepository implements ResumeRepository {
   }
 }
 
+/// 字符串数组 → `List<String>`，去掉空白项。
+///
+/// 后端可能给出空串（LLM 抽取出空的 role / skill），保留会让确认页
+/// 的条数把空条目也算进去。
 List<String> _stringList(Object? value) {
   if (value is! List) return const <String>[];
-  return value.map((dynamic e) => '$e').toList(growable: false);
+  return <String>[
+    for (final dynamic e in value)
+      if ('$e'.trim().isNotEmpty) '$e'.trim(),
+  ];
+}
+
+/// 后端 `projects[]` 是**对象数组**（`{name, description, tech_stack,
+/// highlights}`），取 `name` 作为摘要字符串。
+///
+/// 字符串条目原样保留 —— 防御旧数据 / 降级形态，避免脆性解析。
+List<String> _projectNames(Object? value) {
+  if (value is! List) return const <String>[];
+  final List<String> names = <String>[];
+  for (final dynamic item in value) {
+    final String name = item is Map
+        ? '${item['name'] ?? ''}'.trim()
+        : '$item'.trim();
+    if (name.isNotEmpty) names.add(name);
+  }
+  return names;
 }
