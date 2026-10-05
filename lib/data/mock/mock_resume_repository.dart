@@ -40,6 +40,16 @@ class MockResumeRepository implements ResumeRepository {
     );
   }
 
+  @override
+  Future<void> deleteVersion(String versionId) async {
+    await _config.simulate();
+    // 与 [setCurrentVersion] 同一口径：Mock 无存储，写入动作明确失败。
+    throw const UnknownError(
+      message: '简历存储尚未接入',
+      detail: 'MockResumeRepository.deleteVersion',
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Onboarding 的「提交简历 → 建立职业基线」（Phase 4 批 2）
   // ---------------------------------------------------------------------------

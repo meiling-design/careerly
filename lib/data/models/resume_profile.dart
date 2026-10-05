@@ -85,6 +85,9 @@ class ResumeProfile {
     this.skills = const <String>[],
     this.awards = const <String>[],
     this.capabilities = const <String, int>{},
+    this.fullName,
+    this.email,
+    this.phone,
     this.updatedAt,
   });
 
@@ -101,6 +104,21 @@ class ResumeProfile {
 
   /// 能力画像（能力名 → 分值）。
   final Map<String, int> capabilities;
+
+  /// 解析出的姓名。后端画像里的 `name`。
+  ///
+  /// ⚠️ 2026-10-04 新增 —— 简历详情页的「基本信息」段与 PDF 卡头部
+  /// 需要这三项，而后端**一直在返回它们**（`ResumeProfile.model_dump()`
+  /// 的 `name` / `email` / `phone`），只是此前的 Dart 映射把它们丢掉了。
+  /// 因此这是**补齐既有字段**，不是新增产品数据（`CLAUDE.md` §7）。
+  /// 解析不出时为空 —— 页面**不渲染**该行，而不是填占位符。
+  final String? fullName;
+
+  /// 解析出的邮箱。见 [fullName] 的说明。
+  final String? email;
+
+  /// 解析出的电话。见 [fullName] 的说明。
+  final String? phone;
 
   final DateTime? updatedAt;
 
@@ -129,6 +147,9 @@ class ResumeProfile {
     List<String>? skills,
     List<String>? awards,
     Map<String, int>? capabilities,
+    String? fullName,
+    String? email,
+    String? phone,
     DateTime? updatedAt,
   }) {
     return ResumeProfile(
@@ -138,6 +159,9 @@ class ResumeProfile {
       skills: skills ?? this.skills,
       awards: awards ?? this.awards,
       capabilities: capabilities ?? this.capabilities,
+      fullName: fullName ?? this.fullName,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -157,6 +181,9 @@ class ResumeProfile {
                 (String k, dynamic v) =>
                     MapEntry<String, int>(k, (v as num).round()),
               ),
+      fullName: _nonEmpty(json['fullName']),
+      email: _nonEmpty(json['email']),
+      phone: _nonEmpty(json['phone']),
       updatedAt: json['updatedAt'] == null
           ? null
           : DateTime.tryParse(json['updatedAt'] as String),
@@ -170,6 +197,9 @@ class ResumeProfile {
     'skills': skills,
     'awards': awards,
     'capabilities': capabilities,
+    'fullName': fullName,
+    'email': email,
+    'phone': phone,
     'updatedAt': updatedAt?.toIso8601String(),
   };
 }
@@ -177,4 +207,13 @@ class ResumeProfile {
 List<String> _stringList(Object? value) {
   if (value is! List) return const <String>[];
   return value.map((dynamic e) => '$e').toList(growable: false);
+}
+
+/// 把可能为 `null` / 空串 / 空白的字符串收敛为 `null`。
+///
+/// 后端的画像字段可能给出空串（LLM 没抽取出该字段），保留空串会让
+/// 页面渲染出「姓名：（空）」这样的行 —— 统一收敛成 `null`，由页面跳过该行。
+String? _nonEmpty(Object? value) {
+  final String text = '${value ?? ''}'.trim();
+  return text.isEmpty ? null : text;
 }

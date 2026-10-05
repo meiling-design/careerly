@@ -84,7 +84,13 @@ class ApiClient {
   /// 后端在**同一个请求内同步**跑 ResumeAgent（LLM 抽取，图片还要 OCR），
   /// 比列表 / 额度这类端点慢得多；用 30s 默认值会误报超时。
   /// 与分析同理，这只是 Flutter 侧的实现取值，不是产品规则。
-  static const Duration resumeParseTimeout = Duration(seconds: 120);
+  ///
+  /// ⚠️ 2026-10-03 实测：`qwen3.5-plus` 是**推理模型**，单份简历解析
+  /// 端到端 **173–199s**（独立探针 199.2s）。原值 120s 恒短于后端真实
+  /// 耗时 —— 客户端总是先超时，用户在上传页看到失败，而后端约 1 分钟后
+  /// 才把 profile 写进 `careerly.db`，于是「上传了但没建立职业资产」。
+  /// 提到与分析同档的 300s。
+  static const Duration resumeParseTimeout = Duration(seconds: 300);
 
   /// 岗位链接抓取（`POST /api/v1/analysis/jobs/parse-url`）超时。
   ///
@@ -93,6 +99,14 @@ class ApiClient {
   /// 误报超时，而超时后重试等于再爬一次。取值与分析同理 ——
   /// Flutter 侧的实现选择，不是产品规则。
   static const Duration jobUrlParseTimeout = Duration(seconds: 90);
+
+  /// AI 回答流（`POST /api/v1/ai/messages`）的**空闲超时**。
+  ///
+  /// 约束的是「两个事件之间」的间隔，**不是整条流的时长** —— 回答很长时
+  /// 总时长可以远超它，只要服务端一直在吐字就不该被判超时。
+  /// 取值需覆盖首字延迟（推理模型要先想再答），属 Flutter 侧实现选择，
+  /// 不是产品规则。
+  static const Duration aiStreamIdleTimeout = Duration(seconds: 60);
 
   // ── 会话（内存态 + 持久化，见类注释「裁决 D-B」） ────────────────────
 
@@ -197,6 +211,146 @@ class ApiClient {
       body: body,
       timeout: timeout ?? defaultTimeout,
     );
+  }
+
+  /// DELETE 并解 envelope，返回 `data`。
+  ///
+  /// 目前只有一处用到：删除历史简历版本
+  /// （`DELETE /api/v1/resume/versions/{id}`）。
+  Future<dynamic> delete(String path, {Duration? timeout}) {
+    return _send('DELETE', path, timeout: timeout ?? defaultTimeout);
+  }
+
+  /// POST 并**逐帧**解析 `text/event-stream`（AI 回答流专用）。
+  ///
+  /// ```text
+  /// POST /api/v1/ai/messages
+  ///   ↓  开流前失败（HTTP != 200）→ 普通 envelope → 抛 AppError
+  ///   ↓  data: {"type":"start"}        → yield
+  ///   ↓  data: {"type":"delta", ...}   → yield …（多次）
+  ///   ↓  data: {"type":"done"}         → yield
+  ///   ↓  data: {"type":"error", ...}   → 抛 AppError
+  /// ```
+  ///
+  /// 与 [post] 最大的差别是**不解 envelope**：流一旦开始，HTTP 状态码就已经
+  /// 发出去了，没法再改成 403 / 404 —— 错误因此分两处（见上），但本方法把
+  /// 两处都归成抛出的 [AppError]，调用方只需一个 `try/catch`。
+  ///
+  /// ⚠️ 不做 401 刷新重试。流式请求重试意味着把整段回答重放一遍，
+  /// 代价远高于普通请求；令牌失效请由调用方重新进入页面。
+  Stream<Map<String, dynamic>> postSse(
+    String path, {
+    Map<String, dynamic>? body,
+    Duration? timeout,
+    Duration? idleTimeout,
+  }) async* {
+    final Uri uri = Uri.parse('$baseUrl$path');
+    final http.Request request = http.Request('POST', uri)
+      ..headers.addAll(<String, String>{
+        'Content-Type': 'application/json; charset=utf-8',
+        'Accept': 'text/event-stream',
+        if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
+      })
+      ..body = jsonEncode(body ?? const <String, dynamic>{});
+
+    final http.StreamedResponse response = await _openStream(
+      request,
+      timeout ?? defaultTimeout,
+      'POST $path',
+    );
+
+    // 开流前失败：服务端还没写任何帧，状态码依然有效 → 仍走普通 envelope。
+    if (response.statusCode != 200) {
+      final String raw = await response.stream.bytesToString();
+      throw _envelopeError(raw, response.statusCode);
+    }
+
+    final Duration idle = idleTimeout ?? aiStreamIdleTimeout;
+    final Stream<String> lines = response.stream
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .timeout(idle);
+
+    try {
+      await for (final String line in lines) {
+        final Map<String, dynamic>? frame = _sseFrame(line);
+        if (frame == null) continue;
+        if (frame['type'] == 'error') {
+          throw AIError(
+            message: frame['message'] as String? ?? 'AI 回复中断，请重试',
+            detail: frame['code'] as String? ?? 'AI_FAILED',
+          );
+        }
+        yield frame;
+      }
+    } on TimeoutException catch (e) {
+      throw NetworkError(
+        message: 'AI 响应中断，请重试',
+        detail: 'POST $path 事件间超过 ${idle.inSeconds}s 无数据',
+        cause: e,
+      );
+    }
+  }
+
+  /// 解析一行 SSE；返回 `null` 表示这行不携带数据。
+  ///
+  /// 只处理 `data:` 单行 —— Careerly 的 AI 流每帧就是一个单行 JSON
+  /// （`app/careerly/router.py::_sse`），`json.dumps` 会把换行转义掉，
+  /// 因而不存在「一个事件跨多行 data」的情况。
+  ///
+  /// 非法 / 半截帧**跳过而不是中断**：一个坏帧不该让用户已经看到半句的
+  /// 回答整个作废。
+  static Map<String, dynamic>? _sseFrame(String line) {
+    if (!line.startsWith('data:')) return null; // 空行（帧分隔）/ `:` 注释
+    final String payload = line.substring(5).trim();
+    if (payload.isEmpty) return null;
+    try {
+      final Object? decoded = jsonDecode(payload);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 把「开流前的失败响应」解成 [AppError]（与 [_send] 的失败分支同源）。
+  static AppError _envelopeError(String raw, int statusCode) {
+    try {
+      return _mapError(jsonDecode(raw) as Map<String, dynamic>, statusCode);
+    } catch (e) {
+      return NetworkError(
+        message: 'AI 服务返回了无法解析的响应',
+        detail: 'HTTP $statusCode',
+        statusCode: statusCode,
+        cause: e,
+      );
+    }
+  }
+
+  /// 建立连接（拿到响应头即返回，响应体仍可继续流式读取）。
+  ///
+  /// 传输层异常在这里统一归一化成 [NetworkError]。
+  Future<http.StreamedResponse> _openStream(
+    http.BaseRequest request,
+    Duration timeout,
+    String label,
+  ) async {
+    try {
+      return await _http.send(request).timeout(timeout);
+    } on TimeoutException catch (e) {
+      throw NetworkError(
+        message: '请求超时，请检查网络后重试',
+        detail: '$label 超过 ${timeout.inSeconds}s',
+        cause: e,
+      );
+    } on SocketException catch (e) {
+      throw NetworkError(
+        message: '无法连接服务器，请检查网络与后端服务',
+        detail: '$label: ${e.message}',
+        cause: e,
+      );
+    } on http.ClientException catch (e) {
+      throw NetworkError(detail: '$label: ${e.message}', cause: e);
+    }
   }
 
   // ── 发送 + envelope 解包 + 错误归一化 ───────────────────────────────
@@ -363,8 +517,12 @@ class ApiClient {
     final String code = error['code'] as String? ?? 'UNKNOWN';
     final String message = error['message'] as String? ?? '请求失败';
 
-    // 额度耗尽（403 QUOTA_EXCEEDED，details 里带 quota 快照）。
-    if (code == 'QUOTA_EXCEEDED') {
+    // 额度耗尽（403，details 里带 quota 快照）。
+    //
+    // 两个额度池用的是不同错误码：分析额度 `QUOTA_EXCEEDED`、
+    // AI 对话额度 `AI_QUOTA_EXCEEDED`（两者独立，见契约 §0.5.8）。
+    // 客户端的处理是同一种 —— 展示剩余额度 + 升级入口，不可重试。
+    if (code == 'QUOTA_EXCEEDED' || code == 'AI_QUOTA_EXCEEDED') {
       final Map<String, dynamic>? details =
           error['details'] as Map<String, dynamic>?;
       final Map<String, dynamic>? quota =
@@ -381,6 +539,23 @@ class ApiClient {
     // 认证失败（401：token 失效 / 手机号未注册）。
     if (statusCode == 401) {
       return AuthError(message: message, detail: code);
+    }
+
+    // 第三方登录不可用（`OAUTH_NOT_CONFIGURED` / `OAUTH_UNAVAILABLE` 501，
+    // `OAUTH_PROVIDER_UNSUPPORTED` 404）。
+    //
+    // ⚠️ **必须放在下面那条 `statusCode >= 500` 之前**，否则 501 会被
+    // 归成 [AIError]（「AI 引擎失败」）—— 而微信 / QQ 登录按钮失败与
+    // AI 引擎毫无关系，用户会看到一句文不对题的提示。
+    //
+    // ⚠️ 也**刻意不归成 [AuthError]**：`ApiClient` 对 [AuthError] 有一条
+    // 特殊处理（见下方 `error is AuthError && !retriedAfterRefresh` 那段）——
+    // 它会尝试刷新令牌，刷新失败则 `clearSession()`。
+    // 于是「用户点了一下还没开通的微信登录」会被升级成**强制退出登录**。
+    // 这两条错误描述的是「服务端这个能力没有」，不是「你的凭据不对」，
+    // 故取中性的 [NetworkError]（保留服务端原文 message，不触发任何重试分支）。
+    if (code.startsWith('OAUTH_')) {
+      return NetworkError(message: message, detail: code, statusCode: statusCode);
     }
 
     // 输入 / 解析类（422：无简历基线、JD 为空、校验失败）。

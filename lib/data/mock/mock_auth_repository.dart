@@ -17,14 +17,19 @@ import 'mock_config.dart';
 /// 只有「这次提交成功 / 失败」这一件事，而它**必须**有一个值，
 /// 否则 UI 的 Loading / Disabled / Error 三态无法被走到。
 ///
-/// ## ⚠️ 登录**不做**「账号是否存在」的判断
+/// ## ⚠️ 登录**不做**「密码是否正确 / 账号是否存在」的判断
 ///
-/// [login] 只有一个入参（手机号），本层**无从判断**凭据是否正确 ——
-/// 凭空返回「账号不存在」会造出一条没有出处（Figma / PRD / IA 均无）
-/// 的产品规则。因此两条链路在此处**行为完全相同**：
+/// 自 2026-10-04 起 [login] 有了 `password` 入参，但本层**仍然不校验**它 ——
+/// Mock 里**没有账号表**，凭空返回「手机号或密码不正确」会造出一条
+/// 没有出处（Figma / PRD / IA 均无）的产品规则，而且这条规则
+/// 会在真实后端接上后**悄悄消失**（Mock 说错、真机说对）。
+/// 因此两条链路在此处**行为完全相同**：
 /// 等待一次延迟，然后按 [MockConfig.failNext] 决定成功或失败。
 ///
-/// 会话本身**不在此处保存**（见 [AuthRepository] 的范围说明）。
+/// 想看真实的密码校验行为，请对 `ApiAuthRepository` 跑
+/// `test/real_backend_integration_test.dart`（需真实后端）。
+///
+/// 会话本身**不在此处保存**（见 [AuthRepository] 的实现对照表）。
 class MockAuthRepository implements AuthRepository {
   MockAuthRepository({MockConfig? config})
     : _config = config ?? MockSettings.config;
@@ -35,21 +40,43 @@ class MockAuthRepository implements AuthRepository {
   Future<void> register({
     required String name,
     required String phone,
-    String? email,
+    required String password,
   }) async {
     // 只模拟「一次网络往返」，不产生任何持久化副作用。
+    //
+    // ⚠️ 密码**刻意不参与**任何计算，也不写进任何输出 ——
+    // 不要为了让 Mock「看起来更真」而把它存下来或打出来。
     await _config.simulate();
   }
 
   @override
-  Future<void> login({required String phone}) async {
-    // 同上 —— 注册 / 登录在 Mock 层的差别**只有入参**。
+  Future<void> login({required String phone, required String password}) async {
+    // 同上 —— 注册 / 登录在 Mock 层的差别**只有入参**（见类文档）。
     await _config.simulate();
+  }
+
+  /// 第三方登录 —— Mock 层**同样如实失败**。
+  ///
+  /// 这里有一个真实的风险：Mock 模式下一按微信就成功，会让
+  /// 「社交登录已经能用」变成一个**只有 Mock 才存在的假象**。
+  /// 因此 Mock 也照抛同一个语义的错误，与后端 501 行为对齐。
+  ///
+  /// ⚠️ 抛的是 `UnimplementedError` 这种原始异常而不是 `ApiError` 家族 ——
+  /// 因为「未配置」这条错误**只有真实后端能给出**（它需要读环境变量）。
+  /// 在 Mock 里编一个 `AppError` 会让错误归一化路径看起来已经验证过，
+  /// 而实际上验证的是编造的那条。页面把它显示成通用失败即可。
+  @override
+  Future<void> signInWithOAuth({required String provider}) async {
+    await _config.simulate();
+    throw UnimplementedError(
+      '第三方登录（$provider）未实现：Mock 模式下不模拟成功。'
+      '真实行为见后端 POST /api/v1/auth/oauth/{provider}（未配置时 501）。',
+    );
   }
 
   @override
   Future<void> logout() async {
-    // Mock 层**没有会话可清**（令牌是传输层的实现细节，见 AuthRepository 的范围说明）。
+    // Mock 层**没有会话可清**（令牌是传输层的实现细节，见 AuthRepository 的实现对照表）。
     // 只模拟「一次网络往返」，让 UI 的 Loading / Error 两态仍可被走到。
     await _config.simulate();
   }

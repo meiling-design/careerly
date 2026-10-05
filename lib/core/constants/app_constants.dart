@@ -21,6 +21,20 @@ abstract final class AppConstants {
   /// 免费用户的完整分析次数。PRD §16 / Baseline §5。
   static const int freeAnalysisQuota = 3;
 
+  /// 密码的最小长度。
+  ///
+  /// ⚠️ **真值来源是后端**，不是这里 ——
+  /// `work_agent/app/core/passwords.py` 的 `MIN_PASSWORD_LENGTH`（= 6，
+  /// 2026-10-04 产品侧裁决：「最保守：bcrypt + 最小 6 位非空，
+  /// 不做强度校验」）。真正的判定点在服务端（短密码走 401）。
+  ///
+  /// 本常量是**客户端镜像**，只用于一件事：让注册 / 登录页在按下主按钮
+  /// **之前**就能表达「还差几位」。两处若不一致，**以后端为准**并改这里。
+  ///
+  /// 放在 `AppConstants` 而不是各自页面里，是因为注册页与登录页
+  /// **都需要**它 —— 两份字面量迟早会漂。
+  static const int passwordMinLength = 6;
+
   /// 底部导航**浮层**高度（不含底部 SafeArea）。
   ///
   /// Figma `BottomNav`：上留白 8 + AI 浮球 62 + 下留白 20 = 90。
