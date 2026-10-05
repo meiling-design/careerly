@@ -248,11 +248,11 @@ build/app/outputs/flutter-apk/app-debug.apk
 build/app/outputs/flutter-apk/app-debug.apk.sha1
 ```
 
-### 3.3 代码规模
+### 3.3 代码规模（**2026-10-04 复核**）
 
 ```text
-lib/          119 个 Dart 文件 / 24682 行
-test/          14 个测试文件 / 4080 行（**158** 用例）
+lib/          142 个 Dart 文件 / 34728 行
+test/          25 个测试文件 / 7175 行（**237** 用例，含 1 条默认 skip）
 assets/fonts/    1 个 README（⚠️ 字体文件仍缺失，见 K1）
 ```
 
@@ -260,28 +260,39 @@ assets/fonts/    1 个 README（⚠️ 字体文件仍缺失，见 K1）
 
 ```bash
 cd /g/ai_agent/careerly
-ls -R lib | grep -c "\.dart$"                              # → 119
-cat $(ls lib/*/*.dart lib/*/*/*.dart lib/*/*/*/*.dart lib/*.dart) | wc -l
-#                                                          # → 24682（含未跟踪文件）
-wc -l test/*.dart | tail -1                                # → 4080
-grep -c "testWidgets(\|test(" test/*.dart
-# → 9 (app_debug_entry) / 15 (design_system) / 17 (phase2_batch2)
-#   / 16 (phase2_input) / 9 (phase4_batch2) / 23 (phase4_onboarding)
-#   / 16 (phase5_home) / 18 (phase6_analysis) / 2 (phase7_ai)
-#   / 3 (phase8_profile) / 6 (phase8b_profile) / 10 (phase8c_profile)
-#   / 4 (phase9_global_state) / 10 (widget)                = 158
+# `find` 在 Git Bash 下不可用（CLAUDE.md §10.2），故用 python 复算
+python -c "
+from pathlib import Path
+import re
+def stat(d, pat):
+    fs = list(Path(d).rglob(pat))
+    return len(fs), sum(len(f.read_text(encoding='utf-8', errors='ignore').splitlines()) for f in fs)
+lf, ll = stat('lib', '*.dart')
+tf, tl = stat('test', '*.dart')
+cases = sum(len(re.findall(r'\b(?:testWidgets|test)\(', f.read_text(encoding='utf-8', errors='ignore')))
+            for f in Path('test').rglob('*.dart'))
+print(f'lib/   {lf} files / {ll} lines')
+print(f'test/  {tf} files / {tl} lines / {cases} cases')
+"
+# lib/   142 files / 34728 lines
+# test/  25 files / 7175 lines / 237 cases
 ```
 
 > ⚠️ `lib/` 的数字含**未跟踪文件**（`git status` 里成片的 `??`），
 > 因此它比一次干净 checkout 后的数字大。复算请用上面这条命令原样跑。
 >
 > 📌 用例数演进：`10` → `24`（**实为 25，误记**）→ `42` → `58` → `72` → `97`
-> → `128`（Phase 6/7/8 批 1）→ **`158`（2026-09-22，Phase 8 批 2）**。
+> → `128`（Phase 6/7/8 批 1）→ `158`（2026-09-22，Phase 8 批 2）
+> → `180`（2026-09-30 全量审查）→ `216`（2026-10-02，Session 019）
+> → **`237`（2026-10-04，接通 work_agent 后的复核）**。
 > 25 → 24 那次误记见 `CHANGELOG.md` Session 006 · 第七节。
 >
 > ⚠️ **两次大跃进的原因不同**：
 > `97 → 128` 是 Phase 6 / 7 / 8 批 1 在同一授权下连续交付（+31）；
 > `128 → 158` 是 Phase 8 批 2 补测（+10，`test/phase8c_profile_test.dart`）。
+>
+> ⚠️ **本表此前停在 158（2026-09-22），落后于 §3.2 的 215+1（2026-10-02）**
+> —— 两节口径不一致由本条修正。
 
 ### 3.4 已建成的基础设施
 
@@ -314,14 +325,24 @@ grep -c "testWidgets(\|test(" test/*.dart
 
 ### 3.5 尚未建立
 
-- ❌ **另三个一级页面的业务功能**（分析 / AI / 我的 —— **首页已不再是 placeholder**）
-- ❌ Phase 6+（分析 / AI / 我的 / Global States / Android QA）—— **未获授权**
+> ✅ **2026-10-04 更正（接通 work_agent 后的复核）**：本节此前有 **4 条已不成立**
+> ——「另三个一级页面的业务功能」「Phase 6+ 未获授权」「`CareerlyAnalysisProgress`」
+> 「`ApiClient`（无真实后端调用）」。这 4 条写于 Phase 6/7/8 交付之前，
+> 且 §3.4 已把对应产物列入「已建成」。**本节与 §3.4 的口径不一致由本次修正。**
+> 复核方式见 §3.3 的复算命令与 `CHANGELOG.md` 对应 Session。
+
+- ❌ **Global States（Phase 9）/ Android QA（Phase 10）** —— 仍未获授权
+      （分析 / AI / 我的已于 D82 / D83 授权并交付，见 §3.4）
 - ❌ **App 入口接线** —— 仍是 `/home` 而非开屏；依赖会话持久化，**裁决前不得改动**（D54）
 - ❌ 独立登录页 —— Figma 中「登录」不拥有页面，两个按钮都跳注册（D55）
 - ❌ Phase 2 批 3 组件（`ScoreIndicator` / `AIMessageBubble`）
-- ❌ Phase 6 才做的 `CareerlyAnalysisProgress`（页面级复合体，D28）
-- ❌ `ApiClient`（无真实后端调用）
-- ❌ 本地存储、鉴权、会员、支付
+- ⚠️ **Flutter 侧「真实后端」只在 `CAREERLY_USE_API=true` 时生效**
+      —— `ApiClient` 及 9 个 `Api*Repository` 已建成（§3.4），
+      但 `ApiClient.useApi` **默认 `false`**，不传 dart-define 时全部走 Mock。
+      **默认装配仍是 Mock First**，这不是缺陷而是设计（`providers.dart` 注释）。
+- ❌ 会员、支付（MOCK 静态页 + 额度门禁，**不做真实支付** —— Baseline 锁定）
+- ⚠️ 本地存储 / 鉴权 —— **部分建立**：`TokenStore`（Keystore / Keychain 安全持久化，D-B）
+      与 `AuthRepository` 已落地；但「已登录则跳过 Onboarding」仍是未决项（**D54**）
 - ❌ 导航栏与 `GlassSurface` 的统一（**存在临时重复实现**，见 K10）
 - ❌ Glass 的统一收口 —— 批 2 又添了**第三处**组合（**K12**）
 - ❌ 字体的实际落地（**K1** 未消除 → 两批的排版都不能盖章）
@@ -387,6 +408,29 @@ grep -c "testWidgets(\|test(" test/*.dart
 | `CareerlyInput` 的 4 档 variant 是否收敛 | 原样保留 4 档 | **属视觉方向的重大决策**，Flutter 侧不代替设计侧拍板 | D45 |
 | `AppTypography.homeEmptyBody` | `12 / w400 / lh1.5` | **Figma 没有首页空态** —— 该角色是为 State 01 / 02 的引导语新造的 | D79 |
 | `AppTypography.homeEmptyAction` | `14 / w700 / primaryBlue` | 同上（行动行「分析第一个岗位 →」） | D79 |
+| `AppColors.addFromHistoryTint` | `#6B7280` | **Figma 里没有这个入口** —— 设计稿的「添加岗位」是**单按钮 + 三项选择菜单**，不存在与「粘贴 JD」「粘贴岗位 URL」并列的第三颗虚线按钮，故**没有原值可取值**。用中性灰是为了与已有的品牌蓝 / 品牌紫拉开区分（产品侧 2026-10-05 裁决：新增中性灰 Token） | **D117** |
+| `AppColors.inputBorderNeutral` | `rgba(107,114,128,0.30)` | 同上 —— 描边色。⚠️ **纯工程取值**：alpha 与另两颗按钮的虚线描边（`inputBorderBrand` `0.25` / `inputBorderPurple` `0.28`）同量级，避免三颗按钮浓淡不一致 | **D117** |
+
+#### ⚠️ 暂定值清单（**后端实现常量** · 2026-10-03 新增）
+
+> **为什么与上表分开** —— 上表是 Flutter **视觉** Token（住在
+> `lib/design_system/tokens/` 里，改一处全系统视觉统一变化）；
+> 本表是 **`work_agent` 后端仓库**里的实现常量（改一处影响**成本与行为**）。
+> 两者都在「先实现 → 验证 → 裁决」的同一条纪律下，但混在一张表里
+> 会看不出「这次改的是视觉还是成本」。
+>
+> 登记规则同 §3.6 正文：**不得散落在业务代码里**，调整只改一处。
+
+| 常量 | 当前值 | 为什么是暂定的 | 位置 |
+|---|---|---|---|
+| `FREE_AI_QUOTA` | `50` | ⚠️ **仅为 MVP 开发 / 测试的暂定值，不是最终商业化额度。** 2026-10-03 裁决只定了「AI 额度**独立于**分析额度、§5.2 不动」与「MVP **不锁死**具体免费次数」，**没有**定免费次数是多少 | `app/careerly/store.py` |
+| `MAX_JD_CHARS` | `4000` | JD 注入 Prompt 的截断长度 —— **实现取值**（控 token 成本），不是产品规则 | `app/careerly/ai_context.py` |
+| `MAX_OTHER_JOBS` | `8` | 上下文里保留的同项目其它岗位摘要条数 —— 同上 | `app/careerly/ai_context.py` |
+| `MAX_HISTORY_TURNS` | `20` | 客户端回传对话历史的轮数上限 —— 同上 | `app/services/llm_service.py` |
+| `MAX_HISTORY_CHARS` | `4000` | 单轮历史内容的字符上限 —— 同上 | `app/services/llm_service.py` |
+
+> 📌 **`FREE_AI_QUOTA = 50` 不得被表述成已锁定的产品规则。**
+> 它存在的唯一目的是让「额度检查 / 扣减」这条链路**真实可跑**。
 
 #### ✅ 已有明确依据（**不是**暂定值）
 

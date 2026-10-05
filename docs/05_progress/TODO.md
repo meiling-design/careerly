@@ -115,6 +115,21 @@ flutter test     →  All tests passed!（180 / 180）   (2026-09-30)
 0.6  关闭 D67（或按裁决回退），并把 file_picker / http 按 §6.5 登记
 ```
 
+> 📌 **2026-10-04 收口进度**（本次只做 §3.1 禁令允许的部分 —— 纯文档，零业务代码）
+>
+> | 项 | 状态 | 说明 |
+> |---|---|---|
+> | 0.1 | ✅ 已完成 | `267fd64`，关闭 D67 |
+> | 0.4 | ✅ **已完成（2026-10-04）** | `CURRENT_STATUS.md` §3.3 数字已复算（142 文件 / 34728 行；237 用例）；§3.5 已删去 4 条不成立项并加更正说明；§1 已于 2026-09-22 自行修正 |
+> | 0.2 / 0.3 / 0.5 / 0.6 | ❌ 仍开放 | 需 D 编号 / CHANGELOG Session，属独立单元，本次未动 |
+>
+> ⚠️ 本次**新增**一条 0.4 范畴的修正对象：`work_agent/main.py` 的模块 docstring
+> 此前写着 `API: uvicorn main:app (FastAPI, not yet implemented)` —— **两处都错**
+> （`main.py` 没有 `app` 对象；FastAPI 早已落地在 `app/api/server.py`）。已改。
+>
+> ⚠️ 本节 ① 表记的「`CURRENT_STATUS.md` §3.3 记的 `119 文件 / 24682 行 / 158 用例` 已过期」
+> —— **该条现已关闭**，§3.3 已按 2026-10-04 实测回写。
+
 **第 1 步 · Phase 3–8A 合并验收**（为什么必须排在所有新开发之前）
 
 ```text
@@ -900,6 +915,67 @@ UnknownError('岗位链接抓取尚未接入')
 
 **待确认**：是否新增一个通用 `ServerError`（或按 `code` 而非仅按状态码分流）。
 属技术侧可自行收口的项，登记在此只为**不静默**。
+
+---
+
+## D117 — 2026-10-05 · 「从历史岗位添加」接线（`CHANGELOG.md` Session 022）
+
+> 本单元把 PRD §9.3「从历史岗位中添加」这条**断了很久的链路**接通
+> （后端 `GET /api/v1/analysis/jobs` 与数据层 `fetchJobLibrary()` 早已存在，
+> 但**全仓没有任何调用者**，用户在产品里根本用不到）。
+> 产品侧 2026-10-05 裁决了入口形态与选择器形态；**两个色值无 Figma 依据**，
+> 故登记于此。
+
+#### D117 — 第三颗虚线按钮的**形态与两个色值**在 Figma 里都没有依据
+
+**分类：【视觉/交互差异】** —— Session 022 新增
+
+事实（可在仓库内复算）：
+
+```text
+Figma（`careerly-analysis-structure.md` §六）
+    「添加岗位」= 「＋ 添加岗位」**单按钮** + 点击后三选一菜单
+        （粘贴 JD / 输入岗位信息 / 从历史岗位选择）
+    ❌ 不存在与「粘贴 JD」「粘贴岗位 URL」并列的**第三颗虚线按钮**
+    ❌ 不存在「历史岗位」选择弹层的任何一帧
+
+PRD §9.3 / IA §7.2
+    ✅ 「从历史岗位中添加」是**明文要求**的能力
+```
+
+因此本轮**没有原值可取值**。已裁决部分（2026-10-05 产品侧）：
+
+```text
+入口形态   ✅ 加第三颗虚线按钮（**不**重构现有两颗为 Figma 的三选一菜单
+              —— 那属改动已交付 UI，超出「接线」范围）
+选择器形态 ✅ Bottom Sheet（复用 `CareerlyBottomSheet` 的 action 档）
+色值       ✅ 新增中性灰 Token（Figma 无依据，故为暂定值）
+```
+
+**两个暂定值**（登记表见 `CURRENT_STATUS.md` §3.6）：
+
+| Token | 值 | 说明 |
+|---|---|---|
+| `AppColors.addFromHistoryTint` | `#6B7280` | 图标 / 文字色 |
+| `AppColors.inputBorderNeutral` | `rgba(107,114,128,0.30)` | 虚线描边色 |
+
+**待确认**：
+
+```text
+① 接受「第三颗并列虚线按钮」，还是要求后续重构成 Figma 的
+   「＋ 添加岗位」三选一菜单（若选后者，是另一件事，需单独下达）
+② 两个色值 —— 中性灰是否合适，浓淡是否与另两颗一致
+③ 图标 `Icons.history`（Figma 无此入口，故无依据，实为工程取值）
+```
+
+> ℹ️ 弹层内部的**间距 / 字号 / 圆角 / 取消钮**全部取自既有 Token 与既有
+> 操作类弹层的先例（`resume_import_sheet` / `resume_share_sheet`），
+> **未新造数值** —— 没有 Figma 值可转写时，沿用系统既有的那一套。
+
+> ⚠️ **`/analysis/targets`（TODO §3.1 · A1 死路由）本次未碰。**
+> `AnalysisTargetsPage` 读的是**当前分析项目**的岗位与匹配度，
+> 与历史岗位库（`fetchJobLibrary`）是两件事，两者**不共用数据、不共用入口**。
+> A1 仍然待产品侧裁决。
 
 ---
 
@@ -3704,7 +3780,7 @@ AI 不是玻璃条内的第 4 格。
 | **G5** | 设置页 5 个入口 | IA §16（账户 / AI 与通知×3 / AI 回答风格×3 / 隐私与数据 / 帮助中心 / 关于 Careerly / 退出登录） | `settings_page.dart:36,73,74,75` 全为 `onTap: () {}`；`:82`「退出登录」`onPressed: () {}` |
 | **G6** | 设置项持久化 | IA §16 | 开关与回答风格只在本地 `setState`，**离开页面即失**（无 Provider、无存储、无后端） |
 | **G7** | 历史岗位详情页 | IA §13（职业资产含「历史岗位」）/ IA §18 Level 3「我的 / 历史岗位详情」 | 无页面、无路由。⚠️ **Baseline O7 早已登记此缺口并排给 Phase 8**，而 Phase 8 已交付 |
-| **G8** | 「从历史岗位添加」（新建分析） | PRD §9.3 / IA §7.2 | Mock 恒空（见 M4）；真实 API 已实现（`GET /api/v1/analysis/jobs`）—— 即**后端有了、前端这条路在 Mock 下不可见** |
+| ~~**G8**~~ ✅ | ~~「从历史岗位添加」（新建分析）~~ | PRD §9.3 / IA §7.2 | **已关闭（2026-10-05 · Session 022）** —— 全链路接通：第三颗虚线按钮 → Bottom Sheet → 选中回填 JD 表单。原缺口是「后端有了、前端这条路在 Mock 下不可见」；现在**在 Mock 下也可见**（如实显示 Empty 态，见 M4）。⚠️ 入口形态 / 两个色值仍属 **D117** 待裁决 |
 
 > ⚠️ **G1 / G2 的「有意未做」是否成立，需要产品侧认定。**
 > 代码把这两条按 **D92「落点不存在的入口不渲染」** 处置，
@@ -3788,7 +3864,7 @@ AI 不是玻璃条内的第 4 格。
 | **M1** | `mock_home_repository.dart:21` | `fetchSummary` 恒 `HomeSummary.empty` | 首页**永远停在 State 01**（D75：State 02/03 只能靠注入测试覆盖） |
 | **M2** | `onboarding_confirm_page.dart:104-115` | 简历画像恒空 | 「确认职业信息」屏**恒为 Empty 态**，走不到真实内容分支 |
 | **M3** | `mock_analysis_repository.dart:53` | `fetchQuota` 恒 `QuotaState.free` | 🔴 **与其余各行不同 —— 见 D105**：额度**行为上不成立**，违反 `CLAUDE.md` §5.2 |
-| **M4** | `mock_analysis_repository.dart:46` | `fetchJobLibrary` 恒 `const []` | 「从历史岗位添加」不可用（见 G8） |
+| **M4** | `mock_analysis_repository.dart:46` | `fetchJobLibrary` 恒 `const []` | Mock 下历史岗位列表**恒为 Empty 态** —— 这是 §7 要求下的**正常形态**（G8 已于 2026-10-05 接线，入口可见、Empty 可读；真实 API 下才出内容） |
 | **M5** | `mock_analysis_repository.dart:84` | `analyze` 写死 `score: 0` | 匹配度恒 0 —— ⚠️ **不是编造数据，是「没算」**，勿误当需求 |
 | **M6** | `mock_analysis_repository.dart:31` | `fetchProjects` 无写入方法 | 分析历史**在 Mock 下永远为空** |
 | **M7** | `mock_resume_repository.dart:23,29,80` | 画像 / 版本 / 基线恒空 | 简历三块在 Mock 下全空 |
@@ -3804,8 +3880,19 @@ AI 不是玻璃条内的第 4 格。
 
 ### 4.6 🟡 测试覆盖缺口
 
-> 现状：`test/` **17 个文件 / 180 用例 / 全绿**（`flutter analyze` 亦干净）。
+> 现状（**2026-10-05 实测** · Session 022）：
+> `test/` **22 个文件 / 265 用例 → 263 通过 · 1 跳过 · 1 失败**
+> （`flutter analyze` 干净）。⚠️ **本文件此前写的「17 文件 / 180 用例 / 全绿」
+> 已过期** —— 那个数字停在 2026-09-30，不覆盖之后的交付。
 > 下表只列**功能在、但没有能验它的测试**的地方。
+
+> 🔴 **唯一失败：`test/widget_test.dart:194`「可以切换到 AI」**
+> （`expect(find.text(suggestion), findsNWidgets(3))` 实测只有 2）。
+> ⚠️ **未查明引入者** —— Session 021 记录本轮收尾时工作区正被并行编辑
+> （AI SSE / 登录密码批），当时**全量测试无法执行**，故该失败从未被归因。
+> 已确认的只是**它不属于 Session 022 的改动**：该用例只 tap「AI」Tab，
+> 从不构建 `AnalysisPage`（`StatefulShellRoute.indexedStack` 无 `preload`，
+> 分支懒加载），且**单跑同样失败**。见 `CHANGELOG.md` Session 022 §4。
 
 | # | 位置 | 缺口 |
 |---|---|---|
@@ -3816,6 +3903,7 @@ AI 不是玻璃条内的第 4 格。
 | **C5** | `settings_page.dart` | 仅测「能进入」（`phase8_profile_test.dart:79`）—— 5 个空回调**没有任何测试会发现它们没接线** |
 | **C6** | `membership_page.dart` | 仅测静态提示（`phase8b_profile_test.dart:217`）；额度卡四态 / 派生统计未测 |
 | **C7** | `core/services/resume_file_picker.dart:39` | `DefaultResumeFilePicker`（**走平台通道**）无测试 —— 测试一律用 `_FakeResumeFilePicker` 替换 |
+| **C8** | `test/widget_test.dart:194`「可以切换到 AI」 | 🔴 **当前唯一红灯**（见本节开头的说明）。`tap(suggestion)` 后只 `pump()` 一帧便断言 `findsNWidgets(3)`，实测**只找到 2 处**（13px 白 = 用户气泡；12px/w700 省略号）。**缺的是哪一处、以及该断言是否本就依赖 Mock 的异步时序，均未查明** —— 不要照抄任何「已定位」的说法 |
 
 > ⚠️ C1 / C5 / C6 / C7 有一个共同点：**测试断言的是「页面在」，不是「功能在」**。
 > 这类缺口不会让 `flutter test` 变红，只会让验收看起来比实际更绿。

@@ -55,3 +55,8 @@ GoogleService-Info.plist
 .flutter
 .flutter_tool_state
 .workbuddy/
+
+# 真机 QA 产物 —— 截图 / 探针输出，只在本机有意义，不入仓
+/*.png
+/.qa/
+**/.figaro/

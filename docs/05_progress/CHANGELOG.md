@@ -19,6 +19,157 @@
 
 ---
 
+## Session 021 — 接通 work_agent：真机联调用例首次跑通 + §9-4 首页筛选行溢出修复
+
+**日期**：2026-10-04
+**阶段**：Integration Audit 之后的第 0–3 步（第 2 步「真机产品路径验收」未执行：需要设备）
+**结论**：✅ 步骤 1 / 3 已完成并**经验证** · ⛔ 步骤 4 到停止点，等产品侧裁决
+
+> ⚠️ **本轮收尾时工作区正被并行编辑**（15:35–15:40 有人改动
+> `app_routes` / `app_router` / `auth_repository` / `api_auth_repository` /
+> `onboarding_provider` / `api_client` / 各 Token）。
+> 因此**全量 `flutter analyze` / `flutter test` 当轮无法执行**
+> —— 工作区当时不编译。下面所有「已验证」都注明用的是**哪种**验证方式。
+> `auth.login` 新增了必填 `password`，`test/real_backend_integration_test.dart:61,64`
+> 因此有待重构方补齐的编译错误（**不是本轮改动造成的**）。
+
+---
+
+### 1. 步骤 1（★ 打开开关、跑通既有联调用例）
+
+**结论**：`real_backend_integration_test.dart` **全绿**
+（`04:40 +1: All tests passed!`，退出码 0，真实 LLM 全链路）。
+
+真实后端（`uvicorn app.api.server:app`，127.0.0.1:8000）上确认走通：
+register 201 → login 200 → `POST /resume` 200（提交即解析，`structured=True`）
+→ `GET /quota` 200 → `POST /analysis` **201**（8 个图节点全 `completed`，
+`score=77`，能力快照 5 维）→ 项目列表 / 详情 / `proj_missing`→404 / 岗位库
+→ 额度 1/3 → 两类错误路径（无 token 401、`.doc` 422）。
+
+#### 🐞 修掉一个**用例自身**的缺陷（不是产品缺陷）
+
+首跑报 `real_backend_integration_test.dart:117` 失败：
+`POST /resume` 无 token 期望 `AuthError`，实际抛
+`NetworkError: Connection closed before full header was received`。
+
+定位过程（三步排除）：
+
+| 实验 | 结果 |
+|---|---|
+| `curl` 匿名 multipart POST（同样带 body） | 干净 **401** → 后端无责 |
+| 探针逐个 `await` 同样的三个请求 | 全部 `AuthError` → 客户端无责 |
+| 探针**不 await + 立即 `dispose()`** | 两个 multipart 复现出**逐字相同**的 `NetworkError` |
+
+**根因**：第 112–143 行把 `Future` 直接交给 `expect(...)` 而**不 await**。
+`expect` 拿到 Future 只登记异步断言就返回，body 继续往下跑到第 145–146 行
+`dispose()`（= `ApiClient._http.close()`，`api_client.dart:558`），
+把还在飞的多笔请求掐断 —— 后到的响应丢失，`AuthError` / `ParseError`
+因此退化成 `NetworkError`。
+
+**修法**：三处 `expect(...)` → `await expectLater(...)`（串行化，也就
+不再与 `dispose()` 竞态）。修后第一跑即全绿，且后端日志显示匿名两笔请求
+复用**同一条连接**（`:51988`），可佐证串行化生效。
+
+> ℹ️ 第 61 / 64 行的 `auth.register` / `auth.login` 是**另一处**、由并行重构
+> 引入的签名变化，与本修无关。
+
+---
+
+### 2. 步骤 3（§9-4 首页「筛选行」溢出）
+
+**修**：`_FilterTabs` 外包 `FittedBox(fit: BoxFit.scaleDown,
+alignment: Alignment.centerLeft)` + `Row(mainAxisSize: min)`。
+
+**修复前实测**（真机宽度下 pump 整页，读 `RenderFlex overflowed`）：
+
+| 可用宽 | 对应屏宽 | 溢出 |
+|---|---|---|
+| 280 | 320dp | **52 px** |
+| 320 | 360dp | **12 px** |
+| ≥353 | ≥393dp | 无 |
+
+固有宽合计 **332**（`20+4×14+20` ×2 + `16+4×14+16` + `gap 8×2`）。
+
+**为什么 `_Tab` 里已有的 `maxLines/ellipsis` 没救它**：`Row` 给非 flex
+子项的是**无界**主轴约束，文本按固有宽度排版，没有可省略的余地 ——
+只会整行溢出。
+
+**为什么此前 237 个用例全绿**：`flutter_test` 默认画布 **800×600**，
+宽得足以容纳三个标签。窄屏条件从未进入回归面。
+
+**修后实测**：320dp / 360dp **横向溢出归零**，三颗胶囊都在（缩小而非隐藏）。
+
+**新增回归用例**：`test/phase5_home_test.dart` 新增
+`§9-4 · 筛选行窄屏不溢出`（280 / 320 / 800 三档）——
+其中 800 那档钉住「未缩放时仍贴左对齐」（偏移 = 胶囊 `padding 0 20`），
+防止把「缩放」修成「整组居中」。
+⚠️ 该组**已通过**，但用的是等价探针（绕开当时不编译的 `app.dart`）；
+文件整体待工作区恢复后随全量用例复核。
+
+---
+
+### 3. 本轮新发现（**均未修改，待裁决**）
+
+#### ① 🐞 首页 STIL 卡在 ≤360dp 纵向溢出 7px（倾向判定为**测试夹具假象**）
+
+`home_stil_cards.dart:105` 的 `Column`：卡高 `180 − 18×2 = 144`，
+320dp 下两张卡各溢出 **7px**、360dp 下一张、≥393dp 干净。
+
+**单卡定性实验**（同样约束下逐卡渲染）：只有**含拉丁字母 `AI`** 的那张
+溢出（5px），三张**纯中文**卡全部干净。
+
+原因：`flutter_test` 的默认测试字体**每个字形都按 1em 方块**度量，
+`AI` 被算成 2em（真实比例字体约 1em）、空格 1em（真实约 0.25em）。
+因此**倾向判定为夹具假象，真机大概率不复现**。
+
+⚠️ **未改** `Figma` 定高 `180` —— 改卡高属**视觉变更**，须先真机确认。
+**待确认项：请在 360dp 真机上核对「问问 AI」卡的描述行是否被裁切。**
+
+#### ② 🐞 work_agent：GBK 控制台把报告导出误报为失败（Windows 特有）
+
+`app/core/orchestrator.py:730` 的 `print(report.summary())`，而
+`MatchReport.summary()`（`app/models/match.py:92`）返回值**第 0 个字符就是 `📊`**
+→ 写进 GBK 控制台抛 `UnicodeEncodeError: 'gbk' codec can't encode
+character '\U0001f4ca' in position 0`（与后端日志逐字吻合）。
+
+被第 736 行的宽 `except Exception` 捕获后**误标**为
+「Report export failed, building in-memory report」—— 实际导出早已成功
+（`RankingAgent._export_formats` 逐格式各自 try/except，且都写了
+`encoding="utf-8"`），`report` 对象也在第 716 行就建好了，`if not report`
+分支根本不成立。
+
+**真实后果**：第 734 行 `self.store.update_session_status(session_id,
+"completed")` **被跳过** —— 会话状态没有落库为 completed。
+
+附带噪声：`_emit()`（`orchestrator.py:951`）里每个 emoji 都会让 logging
+吐一段 `--- Logging error ---` traceback（非致命，但刷屏）。
+
+**未改**（属 work_agent 侧，且本轮范围是打通链路）。
+
+---
+
+### 4. 修改文件（careerly）
+
+| 文件 | 改动 |
+|---|---|
+| `lib/features/home/presentation/widgets/home_analysis_section.dart` | `_FilterTabs` 加 `FittedBox(scaleDown, centerLeft)` |
+| `test/real_backend_integration_test.dart` | 3 处 `expect` → `await expectLater`（修用例自身的竞态） |
+| `test/phase5_home_test.dart` | 新增 `§9-4 · 筛选行窄屏不溢出`（3 档宽度） |
+| `docs/05_progress/CURRENT_STATUS.md` · `TODO.md` | 步骤 0 文档收口（§3.3 / §3.5 / 检查清单） |
+
+### 5. 未解决 / 挡路
+
+1. **工作区不编译** —— 并行重构进行中，全量 `analyze` / `test` 无法执行。
+2. `real_backend_integration_test.dart:61,64` 需补 `password:`（重构方负责）。
+3. STIL 卡纵向溢出待真机确认（见 §3 ①）。
+4. **步骤 4 的三项产品侧裁决仍未做**：Ranking 退化（1 个岗位）、分析异步化、简历版本。
+
+### 6. 下一步
+
+**停止**，等 §5 第 4 条的三项裁决 + 真机验收（步骤 2）。
+
+---
+
 ## Session 020 — 接通 work_agent 已有能力（③ 岗位 URL：抓取回填 JD 文本框 · **后端 + Flutter 双端**）
 
 **日期**：2026-10-02
