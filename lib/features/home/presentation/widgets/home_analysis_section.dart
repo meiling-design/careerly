@@ -96,28 +96,47 @@ class _FilterTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        _Tab(
-          label: '新建分析',
-          filled: true,
-          horizontalPadding: _SectionMetrics.tabPaddingWide,
-          onTap: onNewAnalysis,
-        ),
-        const SizedBox(width: _SectionMetrics.tabGap),
-        const _Tab(
-          label: '最新匹配变化',
-          filled: false,
-          horizontalPadding: _SectionMetrics.tabPaddingWide,
-        ),
-        const SizedBox(width: _SectionMetrics.tabGap),
-        _Tab(
-          label: '查看全部',
-          filled: false,
-          horizontalPadding: _SectionMetrics.tabPaddingNarrow,
-          onTap: onViewAll,
-        ),
-      ],
+    // ⚠️ `FittedBox` + `MainAxisSize.min` 是**必需的**，不是美化。
+    //
+    // 三颗胶囊的固有宽度合计 **332**（`20+4×14+20` ×2 + `16+4×14+16` + `8×2`），
+    // 而 320dp 屏扣掉页面左右内边距只剩 280、360dp 屏剩 320 —— 都装不下。
+    //
+    // Row 里的非 flex 子项拿到的是**无界**主轴约束，所以 `_Tab` 内
+    // `maxLines: 1, overflow: TextOverflow.ellipsis` 永远不会触发
+    // （文本按固有宽度排版，没有可省略的余地），结果是整行
+    // `RenderFlex overflowed` —— 360dp 溢出 12px，320dp 溢出 52px。
+    // 默认测试画布是 800×600，这个缺陷因此一直躲过回归。
+    //
+    // `BoxFit.scaleDown` 只在装不下时**等比**缩小，装得下时逐像素不变；
+    // `alignment: centerLeft` 保证未缩放时仍与 Figma 一样左对齐
+    // （`FittedBox` 默认居中，会把胶囊整组推到屏幕中间）。
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _Tab(
+            label: '新建分析',
+            filled: true,
+            horizontalPadding: _SectionMetrics.tabPaddingWide,
+            onTap: onNewAnalysis,
+          ),
+          const SizedBox(width: _SectionMetrics.tabGap),
+          const _Tab(
+            label: '最新匹配变化',
+            filled: false,
+            horizontalPadding: _SectionMetrics.tabPaddingWide,
+          ),
+          const SizedBox(width: _SectionMetrics.tabGap),
+          _Tab(
+            label: '查看全部',
+            filled: false,
+            horizontalPadding: _SectionMetrics.tabPaddingNarrow,
+            onTap: onViewAll,
+          ),
+        ],
+      ),
     );
   }
 }

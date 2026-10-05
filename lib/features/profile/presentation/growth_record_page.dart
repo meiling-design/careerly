@@ -995,8 +995,12 @@ class _GrowthTimeline extends StatelessWidget {
   /// Figma 时间线日期是**月精度**（`'2026.08'.replace('.', '/')` → `2026/08`）。
   static String? _formatMonth(DateTime? at) {
     if (at == null) return null;
-    final String month = at.month.toString().padLeft(2, '0');
-    return '${at.year}/$month';
+    // ⚠️ `toLocal()` 不能省 —— `occurredAt` 来自后端 UTC 时间戳。
+    // 月精度也照样受影响：UTC 的 8 月 31 日 18:00 是本地 9 月 1 日 02:00，
+    // 落错一格就整条事件跑到相邻月份去。
+    final DateTime local = at.toLocal();
+    final String month = local.month.toString().padLeft(2, '0');
+    return '${local.year}/$month';
   }
 
   @override

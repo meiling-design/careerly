@@ -4,6 +4,7 @@ import '../../../core/errors/error_handler.dart';
 import '../../../core/errors/app_error.dart';
 import '../../../core/state/state.dart';
 import '../../../data/models/analysis_project.dart';
+import '../../../data/models/job.dart';
 import '../../../data/models/parsed_job.dart';
 import '../../../data/models/quota_state.dart';
 import '../../../data/repositories/analysis_repository.dart';
@@ -12,9 +13,13 @@ import '../../../data/repositories/analysis_repository.dart';
 ///
 /// 归属（Baseline §3.2）：**历史分析项目只属于「分析」**。
 ///
-/// Phase 1 只提供「读取项目列表 + 读取额度」两项能力。
-/// 分析引擎、JD 解析、匹配计算、扣减额度全部**未实现**——
-/// Phase 1 §八明确禁止，Phase 6 才做。
+/// 能力范围（Phase 6 交付后）：
+/// 读取项目列表 / 额度、发起与退出分析、岗位链接抓取、历史岗位库读取。
+///
+/// ⚠️ 本注释此前写着「分析引擎、JD 解析、匹配计算、扣减额度**全部未实现**
+/// —— Phase 6 才做」，而 Phase 6 早已交付：扣减在 [startAnalysis]（`consume()`）、
+/// 失败回滚在同处 catch、退出回滚在 [exitAnalysis]。**注释落后于代码**，
+/// 已按 `TODO.md` §4.7 的 P1 债改正。
 class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   AnalysisProvider(this._repository);
 
@@ -61,6 +66,19 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
 
   AsyncState<ParsedJob> get jobUrlState => _jobUrlState;
 
+  /// 历史岗位库的状态（PRD §9.3「从历史岗位中添加」）。
+  ///
+  /// 与 [analysisState] 分开，理由同 [jobUrlState]：读岗位库**不是分析** ——
+  /// 它不扣额度、不建任务，混进 [analysisState] 会让「分析中」的进度页
+  /// 在用户只是打开选择列表时就弹出来。
+  ///
+  /// 与 [jobUrlState] 分开，理由也是它们**互不相关**：抓取失败不该让
+  /// 岗位库列表显示成 Error，反之亦然。
+  AsyncState<List<Job>> _jobLibraryState =
+      const AsyncState<List<Job>>.initial();
+
+  AsyncState<List<Job>> get jobLibraryState => _jobLibraryState;
+
   /// 抓取一条岗位链接，供表单回填 JD 文本框。
   ///
   /// ⚠️ **不扣额度**（`CLAUDE.md` §5.2：只有「开始分析」扣）、
@@ -100,6 +118,34 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   void clearJobUrlState() {
     if (_jobUrlState is AsyncInitial<ParsedJob>) return;
     _jobUrlState = const AsyncState<ParsedJob>.initial();
+    notifyListeners();
+  }
+
+  /// 读取历史岗位库，供「从历史岗位添加」的选择列表展示。
+  ///
+  /// 端点 `GET /api/v1/analysis/jobs`（PRD §9.3：从本项目移除岗位
+  /// **不删除**其历史岗位记录）。
+  ///
+  /// ⚠️ **不扣额度**（`CLAUDE.md` §5.2：只有「开始分析」扣）、
+  /// **不建分析任务**。与 [parseJobUrl] 同款处置 —— 用显式 try/catch
+  /// 把错误写进 state，让选择列表能如实渲染 Error + Retry
+  /// （`CLAUDE.md` §5.5 四态），而不是静默失败给一个空列表。
+  ///
+  /// 不引入代际号：本方法与 [startAnalysis] 不同，它不会把用户
+  /// 从当前界面拽走 —— 弹层关闭后结果自然作废。
+  Future<void> loadJobLibrary() async {
+    _jobLibraryState = const AsyncState<List<Job>>.loading(
+      message: '正在读取历史岗位…',
+    );
+    notifyListeners();
+    try {
+      final List<Job> jobs = await _repository.fetchJobLibrary();
+      _jobLibraryState = AsyncState<List<Job>>.success(jobs);
+    } catch (error, stackTrace) {
+      _jobLibraryState = AsyncState<List<Job>>.failure(
+        AppError.from(error, stackTrace),
+      );
+    }
     notifyListeners();
   }
 

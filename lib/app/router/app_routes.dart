@@ -146,6 +146,17 @@ abstract final class AppRoutes {
   static const String profileResumeHistory =
       '$profile/$profileResumeHistorySegment';
 
+  /// 简历详情的子段（参数名 `versionId`）。
+  ///
+  /// ⚠️ **嵌在简历历史之下**而不是平铺：Figma 的入口只有一处
+  /// （`ResumeHistoryPage` 的「查看详情」，`App.tsx` L4546），
+  /// 返回语义因此是「回到我的简历」—— 与 IA 的 Tab → Card → Detail 一致。
+  static const String profileResumeDetailIdParam = 'versionId';
+
+  /// 简历详情。形如 `/profile/resume-history/current`。
+  static String profileResumeDetail(String versionId) =>
+      '$profileResumeHistory/$versionId';
+
   /// 一级导航路径集合。
   ///
   /// **顺序 = 底部导航顺序**，Shell 通过索引与之一一对应：
@@ -179,28 +190,26 @@ abstract final class AppRoutes {
   /// Onboarding 开屏。
   static const String onboardingSplash = '/onboarding/splash';
 
-  /// Onboarding 注册 / 登录。
+  /// Onboarding 注册。
   static const String onboardingRegister = '/onboarding/register';
 
-  /// 账号页**形态**的查询参数键。
+  /// Onboarding 登录。
   ///
-  /// ⚠️ 形态是**同一页的两种状态**，不是两条路由 ——
-  /// 2026-09-21 产品侧裁决 **D85**：登录补成账号页内的模式切换，
-  /// **不新增页面、不新增路由**（`CLAUDE.md` §0 第二禁令）。
-  static const String accountModeQuery = 'mode';
-
-  /// 账号页形态 —— 注册（默认，也是 Figma 里唯一的形态）。
-  static const String accountModeRegister = 'register';
-
-  /// 账号页形态 —— 登录。
-  static const String accountModeLogin = 'login';
-
-  /// 开屏「点击登录」的落点：**同一条路由** + `?mode=login`。
+  /// ⚠️ **2026-10-04 起登录是独立页面、独立路由。**
+  /// 这**推翻了 2026-09-21 的 D85**（「登录是注册页的第二种形态，
+  /// 用 `?mode=login` 表达」）—— 依据是重新导出的 Figma：
+  /// `OnLogin`（`src/App.tsx` L455-623）与 `OnRegister`（L661-797）
+  /// 是**两个独立的屏**，字段集、标题、按钮文案、分隔线文案全都不同。
   ///
-  /// ⚠️ 路径仍是 [onboardingRegister]，只多一个模式参数 ——
-  /// 因此路由表里**仍然只有一条**账号页路由。
-  static const String onboardingRegisterLogin =
-      '$onboardingRegister?$accountModeQuery=$accountModeLogin';
+  /// D85 连同 `?mode=` 查询参数机制（`accountModeQuery` /
+  /// `accountModeRegister` / `accountModeLogin` / `onboardingRegisterLogin`）
+  /// 一并**删除**。登记见 `docs/05_progress/TODO.md`。
+  ///
+  /// ⚠️ 当时 D85 之所以禁止新增路由，是为了守 `CLAUDE.md` §0 的
+  /// 第二禁令（不得自行增加一级页面）。**登录页不是一级页面** ——
+  /// 它和注册页一样属于同一条一次性的 Onboarding 流程，
+  /// 不进 [shellBranches]、没有底部导航、不是任何一个 Tab。
+  static const String onboardingLogin = '/onboarding/login';
 
   /// Onboarding 提交简历。
   ///
@@ -240,8 +249,10 @@ abstract final class AppRouteNames {
   static const String profileMembership = 'profileMembership';
   static const String profileGrowthRecord = 'profileGrowthRecord';
   static const String profileResumeHistory = 'profileResumeHistory';
+  static const String profileResumeDetail = 'profileResumeDetail';
   static const String onboardingSplash = 'onboardingSplash';
   static const String onboardingRegister = 'onboardingRegister';
+  static const String onboardingLogin = 'onboardingLogin';
   static const String onboardingResume = 'onboardingResume';
   static const String onboardingParsing = 'onboardingParsing';
   static const String onboardingConfirm = 'onboardingConfirm';

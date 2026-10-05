@@ -129,4 +129,74 @@ class ResumeProvider extends AsyncStateNotifier<ResumeProfile> {
     _submitError = error;
     notifyListeners();
   }
+
+  // ---------------------------------------------------------------------------
+  // 简历版本的管理动作（「我的简历」→ 历史版本 · 左滑操作）
+  //
+  // 真值来源：PRD §14（支持当前简历 / 历史简历 / 上传新简历 / **删除** /
+  // **设置当前简历**）+ Figma `SwipeableResumeCard`（`App.tsx` L4438-4545）。
+  //
+  // ⚠️ 与 [submitText] / [submitFile] **不是同一段状态**：
+  // 那两个服务于 Onboarding 的「提交简历 → 解析」链路（两屏之间流转），
+  // 这两个是本页内的原地动作，失败留在原页、成功后就地刷新列表。
+  // ---------------------------------------------------------------------------
+
+  AppError? _actionError;
+
+  /// 最近一次「设为当前 / 删除」的失败原因。成功后清空。
+  AppError? get actionError => _actionError;
+
+  /// 把某个版本设为当前简历（PRD §14）。
+  ///
+  /// 成功后**重新拉取**画像，让「当前简历」横幅与历史列表同时更新 ——
+  /// 由数据层决定谁是当前，不在本地改 `isCurrent` 制造第二份真相。
+  Future<bool> setCurrentVersion(String versionId) =>
+      _runVersionAction(() => _repository.setCurrentVersion(versionId));
+
+  /// 删除一个简历版本（PRD §14）。
+  ///
+  /// ⚠️ 后端当前**不支持**，两个 Repository 实现都会如实抛错 ——
+  /// 本方法把它归一化成 [actionError]，由页面提示，**不假装删掉**。
+  Future<bool> deleteVersion(String versionId) =>
+      _runVersionAction(() => _repository.deleteVersion(versionId));
+
+  Future<bool> _runVersionAction(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (error, stackTrace) {
+      _actionError = ErrorHandler.normalize(error, stackTrace);
+      notifyListeners();
+      return false;
+    }
+
+    _actionError = null;
+    await load();
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 「导入新简历」（我的简历页右下角 + 号）
+  //
+  // 与 Onboarding 的 [submitText] / [submitFile] 复用**同一段提交链路**
+  // （同一个 Repository 方法、同一个 [submitStatus] / [submitError]），
+  // 只多一步：提交成功后把画像**就地读回来**，因为本页不是引导流程，
+  // 没有下一屏去触发 [buildBaseline]。
+  //
+  // ⚠️ 后端 `POST /api/v1/resume` 是**提交即解析**，所以这一步
+  // 只是把已经存好的画像读回来，不产生第二次解析。
+  // ---------------------------------------------------------------------------
+
+  /// 导入一份新简历（文件 / 图片路径）。
+  Future<bool> importFile(ResumeFileData file) async {
+    if (!await submitFile(file)) return false;
+    await load();
+    return true;
+  }
+
+  /// 导入一份新简历（粘贴文本路径）。
+  Future<bool> importText(String text) async {
+    if (!await submitText(text)) return false;
+    await load();
+    return true;
+  }
 }

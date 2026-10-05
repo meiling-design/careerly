@@ -11,6 +11,7 @@ import '../../features/analysis/presentation/job_detail_page.dart';
 import '../../features/analysis/presentation/targets_page.dart';
 import '../../features/home/presentation/home_page.dart';
 import '../../features/onboarding/presentation/onboarding_confirm_page.dart';
+import '../../features/onboarding/presentation/onboarding_login_page.dart';
 import '../../features/onboarding/presentation/onboarding_parsing_page.dart';
 import '../../features/onboarding/presentation/onboarding_register_page.dart';
 import '../../features/onboarding/presentation/onboarding_resume_page.dart';
@@ -24,6 +25,7 @@ import '../../features/profile/presentation/growth_record_page.dart';
 import '../../features/profile/presentation/membership_page.dart';
 import '../../features/profile/presentation/project_detail_page.dart';
 import '../../features/profile/presentation/projects_page.dart';
+import '../../features/profile/presentation/resume_detail_page.dart';
 import '../../features/profile/presentation/resume_history_page.dart';
 import '../../features/profile/presentation/skills_page.dart';
 import '../../features/profile/presentation/work_detail_page.dart';
@@ -144,25 +146,22 @@ GoRouter createAppRouter({String initialLocation = AppRoutes.home}) {
               child: const SettingsPage(),
             ),
       ),
-      // 账号页（注册 / 登录）—— 这是**唯一**一条账号相关路由。
-      //
-      // ⚠️ 它没有走 `_onboardingRoute` 辅助函数，是因为它是唯一需要读
-      // **查询参数**的一页：`?mode=login` 表示以登录形态打开（D85）。
-      // 形态是同一页的状态，**不是**第二条路由 ——
-      // 因此这里路径不变、`AppRoutes` 里也仍然只有一条常量。
-      GoRoute(
-        path: AppRoutes.onboardingRegister,
+      _onboardingRoute(
+        location: AppRoutes.onboardingRegister,
         name: AppRouteNames.onboardingRegister,
-        pageBuilder: (BuildContext context, GoRouterState state) =>
-            CareerlyPageTransitions.onboarding<void>(
-              key: const ValueKey<String>(AppRouteNames.onboardingRegister),
-              name: AppRouteNames.onboardingRegister,
-              child: OnboardingRegisterPage(
-                initialMode: OnboardingAccountMode.fromQuery(
-                  state.uri.queryParameters[AppRoutes.accountModeQuery],
-                ),
-              ),
-            ),
+        page: const OnboardingRegisterPage(),
+      ),
+      // 登录页 —— 2026-10-04 起是**独立路由**。
+      //
+      // ⚠️ 不再是「注册页 + `?mode=login`」（那是已废弃的 D85）。
+      // 本路由曾一度是本文件里唯一要读 `state.uri.queryParameters` 的一条，
+      // 且因此没走 `_onboardingRoute`；现在它与其余 Onboarding 页面
+      // **完全同构**，故回归辅助函数，转场也回到
+      // `CareerlyPageTransitions.onboarding`（不是 slide）。
+      _onboardingRoute(
+        location: AppRoutes.onboardingLogin,
+        name: AppRouteNames.onboardingLogin,
+        page: const OnboardingLoginPage(),
       ),
       _onboardingRoute(
         location: AppRoutes.onboardingResume,
@@ -377,6 +376,19 @@ StatefulShellBranch _profileBranch() {
             segment: AppRoutes.profileResumeHistorySegment,
             name: AppRouteNames.profileResumeHistory,
             builder: (_, _) => const ResumeHistoryPage(),
+            routes: <RouteBase>[
+              // 简历详情 —— 嵌在「我的简历」之下，Back = 回到我的简历。
+              _subRoute(
+                segment: ':${AppRoutes.profileResumeDetailIdParam}',
+                name: AppRouteNames.profileResumeDetail,
+                builder: (_, GoRouterState state) => ResumeDetailPage(
+                  versionId:
+                      state.pathParameters[AppRoutes
+                          .profileResumeDetailIdParam] ??
+                      '',
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -1058,7 +1058,10 @@ class _ResumeCard extends StatelessWidget {
   static String _resumeSubtitle(ResumeVersion version) {
     final DateTime? at = version.uploadedAt;
     if (at == null) return version.label;
-    final String date = '${at.year}.${_two(at.month)}.${_two(at.day)}';
+    // ⚠️ `toLocal()` 不能省 —— 后端时间戳是 UTC（见 `formatResumeDate` 的说明）。
+    final DateTime local = at.toLocal();
+    final String date =
+        '${local.year}.${_two(local.month)}.${_two(local.day)}';
     return version.label.isEmpty ? date : '${version.label} · $date';
   }
 

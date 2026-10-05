@@ -62,8 +62,7 @@ List<SingleChildWidget> careerlyProviders({
 }) {
   // 真实后端开关：--dart-define=CAREERLY_USE_API=true 时，
   // 后端已建端点对应的接口（auth / analysis / resume / quota / growth /
-  // career assets / home summary / profile）改绑 API 实现，
-  // 其余接口（ai）在后端端点落地前继续走 Mock。
+  // career assets / home summary / profile / ai）改绑 API 实现。
   const bool useApi = ApiClient.useApi;
 
   final ApiClient client = apiClient ?? ApiClient();
@@ -80,7 +79,11 @@ List<SingleChildWidget> careerlyProviders({
       create: (_) =>
           useApi ? ApiHomeSummaryRepository(client) : MockHomeRepository(),
     ),
-    Provider<AIRepository>(create: (_) => MockAIRepository()),
+    // AI 对话（P-AI-1）：后端 /api/v1/ai/messages（SSE）已落地，随开关切真实 API。
+    Provider<AIRepository>(
+      create: (_) =>
+          useApi ? ApiAiRepository(client) : MockAIRepository(),
+    ),
     Provider<AnalysisRepository>(
       create: (_) =>
           useApi ? ApiAnalysisRepository(client) : MockAnalysisRepository(),

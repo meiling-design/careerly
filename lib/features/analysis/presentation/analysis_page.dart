@@ -19,6 +19,7 @@ import '../../../design_system/tokens/tokens.dart';
 import '../../profile/state/resume_provider.dart';
 import '../state/analysis_provider.dart';
 import 'widgets/careerly_analysis_progress.dart';
+import 'widgets/job_library_sheet.dart';
 
 /// 分析 Tab（Phase 6）。
 ///
@@ -100,18 +101,19 @@ class _AnalysisPageState extends State<AnalysisPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            _Header(
-              history: _history,
-              onNew: () {
-                setState(() {
-                  _history = false;
-                  _addingJd = false;
-                  _addingUrl = false;
-                });
-                provider.showNewAnalysis();
-              },
-              onHistory: () => setState(() => _history = true),
-            ),
+            if (!analyzing)
+              _Header(
+                history: _history,
+                onNew: () {
+                  setState(() {
+                    _history = false;
+                    _addingJd = false;
+                    _addingUrl = false;
+                  });
+                  provider.showNewAnalysis();
+                },
+                onHistory: () => setState(() => _history = true),
+              ),
             Expanded(
               child: _history
                   ? _HistoryView(
@@ -197,6 +199,29 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           _addingUrl = false;
                         });
                       },
+                      onAddHistory: () async {
+                        // PRD §9.3「从历史岗位中添加」。
+                        //
+                        // 先取数再开弹层：弹层打开时状态已是 Loading，
+                        // 不会先闪一下空列表（§5.5 四态）。
+                        final AnalysisProvider provider = context
+                            .read<AnalysisProvider>();
+                        provider.loadJobLibrary();
+                        final Job? job = await showJobLibrarySheet(context);
+                        // 取数途中用户可能关掉弹层、或切到了历史分析 ——
+                        // 那时不能把结果偷偷写进一个已经不在屏幕上的表单
+                        //（同 `onConfirmUrl` 的 `_addingUrl` 复核）。
+                        if (!mounted || job == null) return;
+                        // `Job.rawJd` 的存在意义就在这里：选历史岗位 =
+                        // 复用已经存过的 JD 原文，不必让用户重粘一遍。
+                        _titleController.text = job.displayName;
+                        _jdController.text = job.rawJd;
+                        setState(() {
+                          _jobAdded = true;
+                          _addingJd = false;
+                          _addingUrl = false;
+                        });
+                      },
                     ),
             ),
           ],
@@ -210,9 +235,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
 // 页头 + 分段切换
 // ---------------------------------------------------------------------------
 
-/// Figma `AnalysisHome` 头部（L1259-1282）：
+/// Figma `AnalysisHome` 头部（L1507-1540）：
 /// `px-5 pt-3 pb-3`；小标 12/w500；大标 22/w700（`mb-0.5`）；
-/// 分段容器 `mt-3 rounded-2xl p-1`（16）蓝底 0.08，段高 36 圆角 14。
+/// 分段容器 `mt-3 rounded-full p-1`（4）毛玻璃 + blur(18)。
+///
+/// 各段的取值见 [_Segment]。
 class _Header extends StatelessWidget {
   const _Header({
     required this.history,
@@ -242,17 +269,42 @@ class _Header extends StatelessWidget {
           const SizedBox(height: 2),
           Text('职业分析', style: AppTypography.title.copyWith(fontSize: 22)),
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: AppColors.primaryBlueSurface,
-              borderRadius: AppRadius.borderMd, // rounded-2xl = 16
+          // 毛玻璃轨道 —— Figma `rounded-full p-1` + blur(18) + 四层阴影（L1512-1520）。
+          // ⚠️ 此前用的是 `primaryBlueSurface` 浅蓝实心块 + `rounded-2xl`，
+          // 与设计稿不是同一款。
+          //
+          // 阴影必须画在 `ClipRRect` **外面** —— 放进被裁剪的子树里，
+          // 左右那两层 `±1.25px` 侧边高光会被圆角一并裁掉，
+          // 观感退回「一个没有描边的灰块」。
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              borderRadius: AppRadius.borderPill,
+              boxShadow: AppShadows.analysisSegmentedTrack,
             ),
-            child: Row(
-              children: <Widget>[
-                Expanded(child: _Segment('新建分析', !history, onNew)),
-                Expanded(child: _Segment('历史分析', history, onHistory)),
-              ],
+            child: ClipRRect(
+              borderRadius: AppRadius.borderPill,
+              child: BackdropFilter(
+                filter: GlassFilters.blur(_HeaderMetrics.segmentBlur),
+                child: Container(
+                  padding: const EdgeInsets.all(_HeaderMetrics.segmentPadding),
+                  decoration: const BoxDecoration(
+                    color: AppColors.analysisSegmentedTrackFill,
+                    borderRadius: AppRadius.borderPill,
+                    border: Border.fromBorderSide(
+                      BorderSide(
+                        color: AppColors.analysisSegmentedTrackBorder,
+                        width: _HeaderMetrics.segmentBorderWidth,
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(child: _Segment('新建分析', !history, onNew)),
+                      Expanded(child: _Segment('历史分析', history, onHistory)),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -261,6 +313,21 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// 分段切换器的一段。
+///
+/// Figma（L1523-1537）：
+///
+/// | 项 | 选中 | 未选中 |
+/// |---|---|---|
+/// | 底 | `#373B4D` | 透明 |
+/// | 字色 | `#F0F4FF` | `#B3B3B3` |
+/// | 字重 | `w700` | `w510`（→ Flutter `w500`，见 Token 说明） |
+/// | 投影 | `0 2px 4px rgba(79,126,245,0.12)` | 无 |
+///
+/// 高度 `36`、圆角 `999`（pill）两者相同。
+///
+/// ⚠️ 此前的实现是「选中段白底 + 蓝字 + 圆角 14」—— 与设计稿
+/// **底、字色、字重、圆角、字号（13 vs 15）五项全不同**。
 class _Segment extends StatelessWidget {
   const _Segment(this.label, this.selected, this.onTap);
 
@@ -274,35 +341,46 @@ class _Segment extends StatelessWidget {
       button: true,
       selected: selected,
       label: label,
-      child: GestureDetector(
+      child: CareerlyPressFeedback(
         onTap: onTap,
+        // Figma `active:scale-[0.97]` —— 与通用按压档（0.96）不同值。
+        pressedScale: AppMotion.pressScaleSegment,
         child: Container(
-          height: 36,
+          height: _HeaderMetrics.segmentHeight,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? AppColors.surface : Colors.transparent,
-            borderRadius: AppRadius.borderSm, // 选中段圆角 14
-            boxShadow: selected
-                ? const <BoxShadow>[
-                    BoxShadow(
-                      color: Color(0x1F4F7EF5), // rgba(79,126,245,0.12)
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ]
-                : null,
+            color: selected ? AppColors.surfaceDark : Colors.transparent,
+            borderRadius: AppRadius.borderPill,
+            boxShadow: selected ? AppShadows.analysisSegmentedActive : null,
           ),
           child: Text(
             label,
-            style: AppTypography.label.copyWith(
-              fontSize: 13,
-              color: selected ? AppColors.primaryBlue : AppColors.textSecondary,
-            ),
+            style: selected
+                ? AppTypography.analysisSegmentedActive
+                : AppTypography.analysisSegmentedIdle,
           ),
         ),
       ),
     );
   }
+}
+
+/// 页头切换器的内部几何（Figma `AnalysisHome` L1512-1537 逐条内联给出）。
+///
+/// 与 `_ButtonMetrics` / `_NavMetrics` 同理：这些是**组件内部比例**，
+/// 不是页面级可调项，故留在文件内，不进入 `AppSpacing`。
+abstract final class _HeaderMetrics {
+  /// Figma `p-1`。
+  static const double segmentPadding = 4;
+
+  /// Figma `blur(18px)`。
+  static const double segmentBlur = 18;
+
+  /// Figma `border: 1px`。
+  static const double segmentBorderWidth = 1;
+
+  /// Figma：段高 `36`。
+  static const double segmentHeight = 36;
 }
 
 // ---------------------------------------------------------------------------
@@ -324,6 +402,7 @@ class _NewView extends StatelessWidget {
     required this.onCancelUrl,
     required this.onConfirmJd,
     required this.onConfirmUrl,
+    required this.onAddHistory,
   });
 
   final AnalysisProvider provider;
@@ -339,6 +418,7 @@ class _NewView extends StatelessWidget {
   final VoidCallback onCancelUrl;
   final VoidCallback onConfirmJd;
   final VoidCallback onConfirmUrl;
+  final VoidCallback onAddHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -375,6 +455,7 @@ class _NewView extends StatelessWidget {
         onCancelUrl: onCancelUrl,
         onConfirmJd: onConfirmJd,
         onConfirmUrl: onConfirmUrl,
+        onAddHistory: onAddHistory,
       ),
     };
   }
@@ -399,6 +480,7 @@ class _FormView extends StatelessWidget {
     required this.onCancelUrl,
     required this.onConfirmJd,
     required this.onConfirmUrl,
+    required this.onAddHistory,
   });
 
   final AnalysisProvider provider;
@@ -414,6 +496,7 @@ class _FormView extends StatelessWidget {
   final VoidCallback onCancelUrl;
   final VoidCallback onConfirmJd;
   final VoidCallback onConfirmUrl;
+  final VoidCallback onAddHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -449,6 +532,7 @@ class _FormView extends StatelessWidget {
             onCancelUrl: onCancelUrl,
             onConfirmJd: onConfirmJd,
             onConfirmUrl: onConfirmUrl,
+            onAddHistory: onAddHistory,
           ),
           if (quota != null) ...<Widget>[
             const SizedBox(height: 16),
@@ -532,10 +616,15 @@ class _ResumeCard extends StatelessWidget {
                   ],
                 ),
               ),
-              // ⚠️ `更换` 是 Figma 画出的入口，但**尚未接线**
-              // （挂起项 → `TODO.md` §3.1 · D82）。
+              // 「更换」→ 我的简历（简历历史）。
+              // 去那里换版本 / 导入新简历；导入成功后按产品侧 2026-10-04 指令
+              // **立即进入该版本的详情页**（`resume_history_page.dart` 里实现）。
+              // ⚠️ D82 由此关闭：此前只画了入口没接线。
               // 无简历时不显示：没有东西可换。
-              if (version != null) const _ChangeBadge(),
+              if (version != null)
+                _ChangeBadge(
+                  onTap: () => context.push(AppRoutes.profileResumeHistory),
+                ),
             ],
           ),
           if (profile != null && version != null) ...<Widget>[
@@ -562,31 +651,42 @@ class _ResumeCard extends StatelessWidget {
   static String _subtitle(ResumeVersion version) {
     final DateTime? at = version.uploadedAt;
     if (at == null) return version.label;
-    final String month = at.month.toString().padLeft(2, '0');
-    final String day = at.day.toString().padLeft(2, '0');
-    return '${version.label} · ${at.year}.$month.$day 更新';
+    // ⚠️ `toLocal()` 不能省：后端时间戳是 UTC（见 `formatResumeDate` 的说明），
+    // 直接读 `.day` 会让 UTC+8 的用户在 08:00 前看到前一天的日期。
+    final DateTime local = at.toLocal();
+    final String month = local.month.toString().padLeft(2, '0');
+    final String day = local.day.toString().padLeft(2, '0');
+    return '${version.label} · ${local.year}.$month.$day 更新';
   }
 }
 
 /// 「更换」徽标。Figma L1302：12/w600 · `px-3 py-1.5` · 圆角 12 ·
 /// 底 `rgba(79,126,245,0.10)` · 字色 primaryBlue。
+///
+/// Figma 里它就是个可点的按钮（`onClick` 换版权），而不是静态徽章 ——
+/// 故这次补上 [onTap]（D82 关闭）。
 class _ChangeBadge extends StatelessWidget {
-  const _ChangeBadge();
+  const _ChangeBadge({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.primaryBlueSurfaceSoft,
-        borderRadius: AppRadius.borderXs,
-      ),
-      child: Text(
-        '更换',
-        style: AppTypography.label.copyWith(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: AppColors.primaryBlue,
+    return CareerlyPressFeedback(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.primaryBlueSurfaceSoft,
+          borderRadius: AppRadius.borderXs,
+        ),
+        child: Text(
+          '更换',
+          style: AppTypography.label.copyWith(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primaryBlue,
+          ),
         ),
       ),
     );
@@ -649,6 +749,7 @@ class _JobsCard extends StatelessWidget {
     required this.onCancelUrl,
     required this.onConfirmJd,
     required this.onConfirmUrl,
+    required this.onAddHistory,
   });
 
   final bool jobAdded;
@@ -670,6 +771,7 @@ class _JobsCard extends StatelessWidget {
   final VoidCallback onCancelUrl;
   final VoidCallback onConfirmJd;
   final VoidCallback onConfirmUrl;
+  final VoidCallback onAddHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -740,6 +842,20 @@ class _JobsCard extends StatelessWidget {
               borderColor: AppColors.inputBorderPurple,
               onTap: onAddUrl,
             ),
+          const SizedBox(height: 8), // Figma `mt-2`
+          // 第三颗入口：从历史岗位库选（PRD §9.3）。
+          //
+          // ⚠️ Figma 里**没有这一颗** —— 设计稿的「添加岗位」是单按钮 +
+          // 三项选择菜单，没有与上面两颗并列的第三颗虚线按钮。
+          // 形态为 2026-10-05 产品侧裁决；两个色值是暂定值
+          //（**待裁决 · D117**，见 `app_colors.dart`）。
+          _DashedAddButton(
+            label: '从历史岗位添加',
+            icon: Icons.history,
+            color: AppColors.addFromHistoryTint,
+            borderColor: AppColors.inputBorderNeutral,
+            onTap: onAddHistory,
+          ),
         ],
       ),
     );
@@ -1301,9 +1417,13 @@ class _ResultMetaLine extends StatelessWidget {
   }
 
   static String _formatDate(DateTime at) {
-    final String month = at.month.toString().padLeft(2, '0');
-    final String day = at.day.toString().padLeft(2, '0');
-    return '${at.year}.$month.$day';
+    // ⚠️ `toLocal()` 不能省 —— 后端 `createdAt` / `updatedAt` 是 UTC
+    // （`schemas.py` 的 `iso()`），`DateTime.tryParse` 解出来 `isUtc: true`。
+    // 直接读 `.day` 会让 UTC+8 的用户在 08:00 前看到前一天的日期。
+    final DateTime local = at.toLocal();
+    final String month = local.month.toString().padLeft(2, '0');
+    final String day = local.day.toString().padLeft(2, '0');
+    return '${local.year}.$month.$day';
   }
 }
 
@@ -1948,9 +2068,13 @@ class _HistoryCard extends StatelessWidget {
   }
 
   static String _formatDate(DateTime at) {
-    final String month = at.month.toString().padLeft(2, '0');
-    final String day = at.day.toString().padLeft(2, '0');
-    return '${at.year}.$month.$day';
+    // ⚠️ `toLocal()` 不能省 —— 后端 `createdAt` / `updatedAt` 是 UTC
+    // （`schemas.py` 的 `iso()`），`DateTime.tryParse` 解出来 `isUtc: true`。
+    // 直接读 `.day` 会让 UTC+8 的用户在 08:00 前看到前一天的日期。
+    final DateTime local = at.toLocal();
+    final String month = local.month.toString().padLeft(2, '0');
+    final String day = local.day.toString().padLeft(2, '0');
+    return '${local.year}.$month.$day';
   }
 }
 

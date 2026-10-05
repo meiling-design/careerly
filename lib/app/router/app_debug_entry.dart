@@ -60,6 +60,7 @@ abstract final class AppDebugEntry {
     'profile': AppRoutes.profile,
     'splash': AppRoutes.onboardingSplash,
     'register': AppRoutes.onboardingRegister,
+    'login': AppRoutes.onboardingLogin,
     'resume': AppRoutes.onboardingResume,
     'parsing': AppRoutes.onboardingParsing,
     'confirm': AppRoutes.onboardingConfirm,
