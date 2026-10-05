@@ -100,6 +100,84 @@
   font-weight: 700;
   font-style: normal;
 }
+@font-face {
+  font-family: "Noto Sans JP:Bold";
+  src: url("https://static.figma.com/font/NotoSansJP-VF_2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Noto Sans JP:Medium";
+  src: url("https://static.figma.com/font/NotoSansJP-VF_2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Noto Sans JP:Regular";
+  src: url("https://static.figma.com/font/NotoSansJP-VF_2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Noto Sans Math:Regular";
+  src: url("https://static.figma.com/font/NotoSansMath-Regular_1") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Noto Sans Symbols2:Regular";
+  src: url("https://static.figma.com/font/NotoSansSymbols2-Regular_5") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Noto Sans Symbols:Regular";
+  src: url("https://static.figma.com/font/NotoSansSymbols-VF_2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Noto Sans:Regular";
+  src: url("https://static.figma.com/font/NotoSans-VF_3") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Arimo:Regular";
+  src: url("https://static.figma.com/font/Arimo_wght__1") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Noto Sans SC:Black";
+  src: url("https://static.figma.com/font/NotoSansSC-VF_2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Poppins:Regular";
+  src: url("https://static.figma.com/font/Poppins-Regular_6") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "SF Pro:Medium";
+  src: url("https://static.figma.com/font/SF-Pro_1") format("woff2");
+  font-weight: 510;
+  font-style: normal;
+}
+@font-face {
+  font-family: "SF Pro:Semibold";
+  src: url("https://static.figma.com/font/SF-Pro_1") format("woff2");
+  font-weight: 590;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Roboto:ExtraBold";
+  src: url("https://static.figma.com/font/Roboto_wdth_wght__3") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+}
 
 html,
 body,

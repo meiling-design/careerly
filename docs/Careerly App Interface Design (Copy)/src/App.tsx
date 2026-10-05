@@ -1,9 +1,31 @@
 import { useState, useRef, useEffect, createContext, useContext } from 'react';
-import imgCareerlyLogo from "@/imports/CareerlyAppInterfaceDesignCopy-19/c61cbc031dbdc1169262d5946824c2890e8b11f4.png";
+
+const assetPathPrefix = "/assets";
+const imgCareerlyLogo = `${assetPathPrefix}/fd4be.png`;
+const imgProfileSettings = `${assetPathPrefix}/f3ca2.svg`;
+const imgProfileCrown = `${assetPathPrefix}/9cbbb.svg`;
+const imgProfileDivider = `${assetPathPrefix}/53d4a.svg`;
+const imgProfileArrowLight = `${assetPathPrefix}/830eb.svg`;
+const imgProfileWork = `${assetPathPrefix}/0172b.svg`;
+const imgProfileProjects = `${assetPathPrefix}/0113a.svg`;
+const imgProfileSkills = `${assetPathPrefix}/539ab.svg`;
+const imgProfileAwards = `${assetPathPrefix}/7c4b7.svg`;
+const imgProfileResume = `${assetPathPrefix}/e0606.svg`;
+const imgProfileArrow = `${assetPathPrefix}/0aada.svg`;
+const imgLoginPasswordVisibility = `${assetPathPrefix}/1a8d7.svg`;
+const imgLoginWeChat = `${assetPathPrefix}/cea01.svg`;
+const imgLoginQq = `${assetPathPrefix}/e9944.svg`;
+const imgRegisterAvatar = `${assetPathPrefix}/b755b.svg`;
+const imgRegisterEdit = `${assetPathPrefix}/310eb.svg`;
+const profileNavIcons: Record<Exclude<Tab, "ai">, string> = {
+  home: `${assetPathPrefix}/1ca9d.svg`,
+  analysis: `${assetPathPrefix}/4e150.svg`,
+  profile: `${assetPathPrefix}/3e26c.svg`,
+};
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 type NavScreen =
-  | 'on-splash' | 'on-register' | 'on-career' | 'on-welcome' | 'on-resume' | 'on-parsing' | 'on-confirm'
+  | 'on-splash' | 'on-login' | 'on-register' | 'on-career' | 'on-welcome' | 'on-resume' | 'on-parsing' | 'on-confirm'
   | 'home' | 'analysis' | 'ai' | 'profile'
   | 'a-start' | 'a-resume-step' | 'a-jd-step' | 'a-confirm'
   | 'a-resume' | 'a-targets' | 'a-processing' | 'a-result' | 'a-job' | 'a-gap'
@@ -301,7 +323,11 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
                 onPointerUp={e => (e.currentTarget.style.transform = 'scale(1)')}
                 onPointerLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
               >
-                <Icon active={active}/>
+                {tab === "profile" ? (
+                  <img src={profileNavIcons[key]} alt="" width="22" height="22" />
+                ) : (
+                  <Icon active={active}/>
+                )}
               </button>
             );
           })}
@@ -365,71 +391,246 @@ function RadarChart({ skills }: { skills: typeof SKILLS_DATA }) {
 // ── Step 0: Original brand splash ────────────────────────────────────────────
 function OnSplash() {
   const { go } = useNav();
-  const BG = 'linear-gradient(111deg, rgb(220,233,251) 11.5%, rgb(229,220,250) 46.1%, rgb(251,233,241) 88.5%)';
   return (
-    <div className="flex flex-col h-full" style={{ background: BG }}>
-      {/* Status bar */}
-      <div className="flex items-center justify-between px-6 pt-3 pb-0" style={{ flexShrink: 0 }}>
-        <span style={{ fontFamily: "'Roboto:SemiBold', sans-serif", fontWeight: 600, fontSize: 13, color: '#6B7280', fontVariationSettings: '"wdth" 100' }}>9:41</span>
-        <div className="flex items-center gap-2">
-          <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><rect x="0" y="3.5" width="3" height="8.5" rx="0.5" fill="#6B7280"/><rect x="4.5" y="2" width="3" height="10" rx="0.5" fill="#6B7280"/><rect x="9" y="0.5" width="3" height="11.5" rx="0.5" fill="#111827"/><rect x="13.5" width="2.5" height="12" rx="0.5" fill="#111827"/></svg>
-          <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" stroke="#6B7280" strokeOpacity="0.35"/><rect x="2" y="2" width="16" height="8" rx="2" fill="#111827"/><path d="M23 4.5V7.5C23.8 7.17 24.5 6.5 24.5 6C24.5 5.5 23.8 4.83 23 4.5Z" fill="#111827"/></svg>
-        </div>
-      </div>
+    <div
+      className="relative h-full overflow-hidden px-6 text-center"
+      style={{ background: 'linear-gradient(111.07deg, #DCE9FB 11.49%, #E5DCFA 46.15%, #FBE9F1 88.52%)' }}
+    >
+      <div
+        className="absolute left-1/2 -translate-x-1/2"
+        style={{
+          top: 159,
+          width: 141,
+          height: 141,
+          paddingTop: 10,
+          paddingBottom: 10,
+          paddingLeft: 24,
+          borderRadius: 99,
+          background: 'linear-gradient(135deg, #4F7EF5 0%, #A77BE6 100%)',
+          boxShadow: '0 20px 48px rgba(79,126,245,0.35)',
+        }}
+      />
 
-      {/* Content */}
-      <div className="flex-1 flex flex-col items-center justify-center text-center px-6 pb-10">
-        {/* Orb */}
-        <div style={{ width: 141, height: 141, borderRadius: 99, backgroundImage: 'linear-gradient(135deg, rgb(79,126,245) 0%, rgb(167,123,230) 100%)', boxShadow: '0px 20px 48px 0px rgba(79,126,245,0.35)', marginBottom: 32, flexShrink: 0 }}/>
-
-        {/* Careerly */}
-        <p style={{ fontFamily: "'Roboto:Bold', sans-serif", fontWeight: 700, fontSize: 40, lineHeight: '60px', letterSpacing: '-1px', backgroundImage: 'linear-gradient(157deg, rgb(79,126,245) 0%, rgb(167,123,230) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', marginBottom: 8, fontVariationSettings: '"wdth" 100' }}>
+      <div className="absolute inset-x-6" style={{ top: 332 }}>
+        <p style={{ fontFamily: "'Roboto:Bold', sans-serif", fontWeight: 700, fontSize: 40, lineHeight: '60px', letterSpacing: '-1px', background: 'linear-gradient(157.38deg, #4F7EF5 0%, #A77BE6 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', fontVariationSettings: '"wdth" 100' }}>
           Careerly
         </p>
+      </div>
 
-        {/* Subtitle line 1 */}
-        <p style={{ fontSize: 22, lineHeight: '33px', color: '#111827', marginBottom: 0 }}>
+      <div className="absolute inset-x-6" style={{ top: 404 }}>
+        <p style={{ fontSize: 22, lineHeight: '33px', color: '#111827' }}>
           <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700 }}>看见能力</span>
           <span style={{ fontFamily: "'Roboto:SemiBold', sans-serif", fontWeight: 600, fontVariationSettings: '"wdth" 100' }}>{' · '}</span>
           <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700 }}>跨越</span>
           <span style={{ fontFamily: "'Roboto:SemiBold', sans-serif", fontWeight: 600, fontVariationSettings: '"wdth" 100' }}>{' Gap'}</span>
         </p>
-        {/* Subtitle line 2 */}
-        <p style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 22, lineHeight: '37px', color: '#111827', marginBottom: 28 }}>记录成长</p>
-
-        {/* Desc */}
-        <p style={{ fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 15, lineHeight: '24px', color: '#6B7280' }}>
-          你的职业成长，从看见自己开始。
+        <p style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 22, lineHeight: '37px', color: '#111827', paddingTop: 4 }}>
+          记录成长
         </p>
       </div>
 
-      {/* Buttons */}
-      <div className="px-6 pb-10 space-y-[14px]">
-        <button
-          onClick={() => go('on-register')}
-          className="w-full active:opacity-90 transition-opacity"
-          style={{ height: 48, borderRadius: 99, backgroundImage: 'linear-gradient(172deg, rgb(79,126,245) 0%, rgb(167,123,230) 100%)', boxShadow: '0px 8px 12px rgba(79,126,245,0.30)' }}
-        >
-          <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, color: 'white', lineHeight: '22.5px' }}>点击登录</span>
+      <p className="absolute inset-x-6" style={{ top: 498, fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 15, lineHeight: '24.375px', color: '#6B7280' }}>
+          你的职业成长，从看见自己开始。
+      </p>
+
+      <button
+        onClick={() => go('on-register')}
+        className="absolute left-6 right-6 mx-auto flex max-w-[342px] items-center justify-center active:opacity-90 transition-opacity"
+        style={{ bottom: 117, height: 48, borderRadius: 99, background: 'linear-gradient(172.01deg, #4F7EF5 0%, #A77BE6 100%)', boxShadow: '0 8px 12px rgba(79,126,245,0.30)' }}
+      >
+        <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, color: 'white', lineHeight: '22.5px' }}>点击注册</span>
+      </button>
+
+      <p className="absolute inset-x-6" style={{ bottom: 52, fontFamily: "'Arimo:Regular', sans-serif", fontWeight: 400, fontSize: 14, lineHeight: 'normal', color: '#363333' }}>
+        已经有账户了?{' '}
+        <button onClick={() => go('on-login')} style={{ fontFamily: "'Arimo:Regular', sans-serif", fontWeight: 400, fontSize: 14, color: '#664293' }}>
+          点击登录
         </button>
-        <button
-          onClick={() => go('on-register')}
-          className="w-full active:opacity-80 transition-opacity"
-          style={{ height: 48, borderRadius: 99, background: 'white', boxShadow: '0px 4px 2px rgba(186,185,188,0.24)' }}
-        >
-          <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, color: '#6B7280', lineHeight: '19.5px' }}>点击注册</span>
-        </button>
+      </p>
+    </div>
+  );
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+function OnLogin() {
+  const { back, go } = useNav();
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const labelStyle: React.CSSProperties = {
+    fontFamily: "'Noto Sans SC:Regular', sans-serif",
+    fontWeight: 400,
+    fontSize: 14,
+    lineHeight: 1.4,
+    color: '#664293',
+  };
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    height: 52,
+    border: '1px solid #c5b7d5',
+    borderRadius: 10,
+    padding: '0 14px',
+    fontFamily: "'Roboto:Regular', sans-serif",
+    fontWeight: 400,
+    fontSize: 16,
+    color: '#111827',
+  };
+
+  return (
+    <div className="relative h-full overflow-hidden" style={{ background: S.bg }}>
+      <button
+        onClick={back}
+        className="absolute left-5 top-3 z-10 flex items-center justify-center active:scale-90 transition-transform"
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 999,
+          background: 'rgba(255,255,255,0.45)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          boxShadow: '1.25px 0 0 -0.75px #d0d0d0, -1.25px 0 0 -0.75px #d0d0d0, 0 0 0 0.5px #e8e8e8, 0 8px 15px rgba(0,0,0,0.02)',
+        }}
+        aria-label="返回"
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+          <path d="M15 18L9 12L15 6" stroke="#0088FF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
+      <div
+        className="absolute inset-x-0 bottom-0 overflow-y-auto rounded-t-[40px] px-4 py-[31px]"
+        style={{
+          top: 185,
+          background: 'linear-gradient(149.75deg, #EEF2FF 8.49%, #F5F3FF 50%, #FFFFFF 91.51%)',
+        }}
+      >
+        <div className="mx-auto flex w-full max-w-[342px] flex-col items-center">
+          <p style={{ fontFamily: "'Noto Sans SC:Black', sans-serif", fontWeight: 900, fontSize: 26, lineHeight: 1.4, color: '#090909', textAlign: 'center' }}>
+            欢迎回来！
+          </p>
+          <p style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 13, lineHeight: 1.55, color: '#6B7280', textAlign: 'center', marginTop: 20 }}>
+            继续成长从看见自己开始
+          </p>
+
+          <div className="mt-[34px] flex w-full flex-col gap-5 px-1">
+            <label className="flex flex-col gap-1.5">
+              <span style={labelStyle}>注册手机号</span>
+              <input
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                placeholder="+86 138 0000 0000"
+                style={inputStyle}
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span style={labelStyle}>密码</span>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="example_1"
+                  style={{ ...inputStyle, paddingRight: 50, fontFamily: "'Arimo:Regular', sans-serif" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-[15px] top-1/2 -translate-y-1/2 flex items-center justify-center"
+                  aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                >
+                  <img src={imgLoginPasswordVisibility} alt="" width="22" height="12" />
+                </button>
+              </div>
+            </label>
+          </div>
+
+          <div className="mt-4 flex w-[calc(100%-17px)] items-center justify-between">
+            <label className="flex items-center gap-px">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={e => setRemember(e.target.checked)}
+                className="sr-only"
+              />
+              <span
+                className="flex items-center justify-center"
+                style={{ width: 16, height: 16, borderRadius: 3, border: '1px solid #57457c', color: '#57457c', fontSize: 11 }}
+              >
+                {remember ? '✓' : ''}
+              </span>
+              <span style={{ fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 13, color: '#352459' }}>记住我</span>
+            </label>
+            <button type="button" style={{ fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 13, color: '#352459' }}>
+              忘记密码?
+            </button>
+          </div>
+
+          <button
+            onClick={() => go('home')}
+            className="mt-5 flex w-full items-center justify-center active:opacity-90 transition-opacity"
+            style={{
+              height: 48,
+              borderRadius: 99,
+              background: 'linear-gradient(172.01deg, #4F7EF5 0%, #A77BE6 100%)',
+              boxShadow: '0 8px 12px rgba(79,126,245,0.30)',
+            }}
+          >
+            <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, lineHeight: '22.5px', color: 'white' }}>点击登录</span>
+          </button>
+
+          <div className="mt-2.5 flex w-[calc(100%-9px)] items-center gap-[25px]">
+            <div className="h-px flex-1" style={{ background: '#c9bcd5' }}/>
+            <span style={{ fontFamily: "'Arimo:Regular', sans-serif", fontWeight: 400, fontSize: 16, lineHeight: 1.4, color: '#bdb0cc', whiteSpace: 'nowrap' }}>sign in with</span>
+            <div className="h-px flex-1" style={{ background: '#c9bcd5' }}/>
+          </div>
+
+          <div className="mt-2.5 grid w-full grid-cols-2 gap-[21px]">
+            <button
+              type="button"
+              className="flex items-center justify-center gap-[15px] active:opacity-70 transition-opacity"
+              style={{ height: 53, borderRadius: 10, border: '1px solid #c5b7d5' }}
+            >
+              <img src={imgLoginWeChat} alt="" width="25" height="25" />
+              <span style={{ fontFamily: "'Arimo:Regular', sans-serif", fontWeight: 400, fontSize: 16, color: '#1872cf' }}>微信</span>
+            </button>
+            <button
+              type="button"
+              className="flex items-center justify-center gap-[15px] active:opacity-70 transition-opacity"
+              style={{ height: 53, borderRadius: 10, border: '1px solid #c5b7d5' }}
+            >
+              <img src={imgLoginQq} alt="" width="25" height="25" />
+              <span style={{ fontFamily: "'Arimo:Regular', sans-serif", fontWeight: 400, fontSize: 16, color: '#363333' }}>QQ</span>
+            </button>
+          </div>
+
+          <p style={{ fontFamily: "'Poppins:Regular', sans-serif", fontWeight: 400, fontSize: 13, color: '#444', textAlign: 'center', marginTop: 20 }}>
+            <span style={{ fontFamily: "'Noto Sans SC:Regular', sans-serif" }}>还没有账号? </span>
+            <button onClick={() => go('on-register')} style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 13, color: '#332065' }}>
+              点击注册
+            </button>
+          </p>
+        </div>
       </div>
     </div>
   );
 }
 
 // ── Onboarding progress bar ───────────────────────────────────────────────────
-function OnboardingProgress({ step, total }: { step: number; total: number }) {
+function OnboardingProgress({ step, total, style }: { step: number; total: number; style?: React.CSSProperties }) {
   const { back } = useNav();
   const pct = Math.round((step / total) * 100);
   return (
-    <div className="flex items-center gap-[29px] px-6 py-[10px] flex-shrink-0">
+    <div
+      className="flex items-center gap-[29px] px-6 py-[10px] flex-shrink-0"
+      style={{ paddingInline: 'unset', paddingRight: 75, ...style }}
+    >
       {/* Glass pill back button — matches import FillShadow + GlassEffect */}
       <button
         onClick={back}
@@ -446,7 +647,7 @@ function OnboardingProgress({ step, total }: { step: number; total: number }) {
         </svg>
       </button>
       {/* Single gradient progress bar */}
-      <div className="relative flex-1 overflow-hidden" style={{ height: 7, borderRadius: 9999, background: 'rgba(79,126,245,0.12)' }}>
+      <div className="relative flex-1 translate-x-px overflow-hidden" style={{ height: 7, borderRadius: 9999, background: 'rgba(79,126,245,0.12)' }}>
         <div
           className="absolute top-0 left-[-4px] h-full rounded-full transition-all duration-500"
           style={{ width: `calc(${pct}% + 4px)`, backgroundImage: 'linear-gradient(172deg, rgb(79,126,245) 0%, rgb(167,123,230) 100%)' }}
@@ -461,98 +662,134 @@ function OnRegister() {
   const { go } = useNav();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  const LABEL: React.CSSProperties = {
-    fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 14,
-    color: '#727272', letterSpacing: '0.3px', textTransform: 'uppercase', lineHeight: '16.5px',
+  const labelStyle: React.CSSProperties = {
+    fontFamily: "'Noto Sans SC:Regular', sans-serif",
+    fontWeight: 400,
+    fontSize: 14,
+    lineHeight: 1.4,
+    color: '#664293',
   };
-  const INPUT_BASE: React.CSSProperties = {
-    width: '100%', background: 'transparent', fontSize: 16,
-    color: S.textPrimary, borderBottom: '1.217px solid rgba(79,126,245,0.25)',
-    paddingBottom: 10, paddingTop: 4,
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    height: 52,
+    border: '1px solid #c5b7d5',
+    borderRadius: 10,
+    padding: '0 14px',
+    fontWeight: 400,
+    fontSize: 16,
+    color: '#111827',
   };
 
   return (
-    <div className="flex flex-col h-full" style={{ backgroundImage: 'linear-gradient(143deg, #EEF2FF 8.5%, #F5F3FF 50%, #FDF4FF 91.5%)' }}>
+    <div className="flex h-full flex-col" style={{ background: 'linear-gradient(142.84deg, #EEF2FF 8.49%, #F5F3FF 50%, #FDF4FF 91.51%)' }}>
       <OnboardingProgress step={1} total={4}/>
-      <div className="flex-1 overflow-y-auto px-6 pb-6 flex flex-col">
-        {/* Title */}
-        <div className="mb-0 mt-2">
-          <p style={{ fontSize: 0, lineHeight: 0 }}>
-            <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 900, fontSize: 26, lineHeight: '32px', color: '#111827' }}>创建你的个人账号</span>
-            <span style={{ fontFamily: "'Roboto:Bold', sans-serif", fontWeight: 800, fontSize: 26, lineHeight: '32px', color: '#111827', fontVariationSettings: '"wdth" 100' }}>{' 📋'}</span>
-          </p>
-        </div>
-        <p style={{ fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 13, color: '#6B7280', lineHeight: '20px', marginTop: 8, marginBottom: 32, width: 260 }}>只有你能看到你的个人信息，不会对外展示。</p>
+      <div className="flex-1 overflow-y-auto px-6 pb-6 pt-6">
+        <p style={{ fontSize: 0, lineHeight: 0, whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: "'Noto Sans SC:Black', sans-serif", fontWeight: 900, fontSize: 26, lineHeight: '32px', color: '#111827' }}>创建你的个人账号</span>
+          <span style={{ fontFamily: "'Roboto:ExtraBold', sans-serif", fontWeight: 800, fontSize: 26, lineHeight: '32px', color: '#111827', fontVariationSettings: '"wdth" 100' }}>{' 📋'}</span>
+        </p>
+        <p style={{ fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 13, color: '#6B7280', lineHeight: '20px', marginTop: 8, width: 260 }}>
+          只有你能看到你的个人信息，不会对外展示。
+        </p>
 
-        {/* Avatar */}
-        <div className="flex items-center justify-center mb-8">
+        <div className="mt-[34px] flex justify-center">
           <div className="relative" style={{ width: 80, height: 88, flexShrink: 0 }}>
-            <div className="flex items-center justify-center" style={{ width: 80, height: 80, borderRadius: 40, backgroundImage: 'linear-gradient(135deg, rgb(79,126,245) 0%, rgb(167,123,230) 100%)', boxShadow: '0px 12px 16px rgba(79,126,245,0.28)' }}>
-              <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-                <circle cx="18" cy="13" r="7" fill="white" fillOpacity="0.9"/>
-                <path d="M5 34C5 26.27 11.27 20 19 20C26.73 20 33 26.27 33 34" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
-              </svg>
+            <div className="flex items-center justify-center" style={{ width: 80, height: 80, borderRadius: 40, background: 'linear-gradient(135deg, #4F7EF5 0%, #A77BE6 100%)', boxShadow: '0 12px 16px rgba(79,126,245,0.28)' }}>
+              <img src={imgRegisterAvatar} alt="" width="36" height="36" />
             </div>
-            <div className="absolute flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 13, background: 'white', boxShadow: '0px 2px 4px rgba(0,0,0,0.12)', bottom: 0, right: 0 }}>
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                <path d="M6 1H2a1.5 1.5 0 0 0-1.5 1.5v8A1.5 1.5 0 0 0 2 12h8a1.5 1.5 0 0 0 1.5-1.5V7" stroke="#4F7EF5" strokeWidth="1.08" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M10.5 0.5a1.5 1.5 0 0 1 2 2L6 9l-3 0.5L3.5 6.5 10.5 0.5z" stroke="#4F7EF5" strokeWidth="1.08" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
+            <button
+              type="button"
+              className="absolute bottom-0 right-0 flex items-center justify-center active:scale-90 transition-transform"
+              style={{ width: 26, height: 26, borderRadius: 13, background: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.12)' }}
+              aria-label="编辑头像"
+            >
+              <img src={imgRegisterEdit} alt="" width="13" height="13" />
+            </button>
           </div>
         </div>
 
-        {/* Fields */}
-        <div className="flex-1" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {/* 姓名 */}
-          <div>
-            <p style={LABEL}>姓名</p>
-            <div style={{ position: 'relative', height: 39 }}>
+        <div className="mx-auto mt-8 flex w-full max-w-[334px] flex-col gap-5">
+          <label className="flex flex-col gap-1.5">
+            <span style={labelStyle}>名字</span>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="你的名字"
+              autoComplete="name"
+              style={{ ...inputStyle, fontFamily: "'Noto Sans SC:Regular', sans-serif" }}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span style={labelStyle}>手机号</span>
+            <input
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              placeholder="+86 138 0000 0000"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              style={{ ...inputStyle, fontFamily: "'Roboto:Regular', sans-serif", fontVariationSettings: '"wdth" 100' }}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span style={{ ...labelStyle, fontFamily: "'Arimo:Regular', sans-serif" }}>密码</span>
+            <div className="relative">
               <input
-                value={name} onChange={e => setName(e.target.value)}
-                placeholder="你的名字"
-                style={{ ...INPUT_BASE, fontFamily: "'Noto Sans SC:Regular', sans-serif", position: 'absolute', inset: 0, height: '100%' }}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="example_1"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                style={{ ...inputStyle, paddingRight: 50, fontFamily: "'Arimo:Regular', sans-serif" }}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-[15px] top-1/2 -translate-y-1/2 flex items-center justify-center"
+                aria-label={showPassword ? '隐藏密码' : '显示密码'}
+              >
+                <img src={imgLoginPasswordVisibility} alt="" width="22" height="12" />
+              </button>
             </div>
-          </div>
-          {/* 手机号 */}
-          <div style={{ marginTop: 28 }}>
-            <p style={{ ...LABEL, color: '#6B7280' }}>手机号</p>
-            <div style={{ position: 'relative', height: 39 }}>
-              <input
-                value={phone} onChange={e => setPhone(e.target.value)}
-                placeholder="+86 138 0000 0000" type="tel"
-                style={{ ...INPUT_BASE, fontFamily: "'Roboto:Regular', sans-serif", fontVariationSettings: '"wdth" 100', position: 'absolute', inset: 0, height: '100%' }}
-              />
-            </div>
-          </div>
-          {/* 邮箱 */}
-          <div style={{ marginTop: 28 }}>
-            <p style={{ ...LABEL, color: '#6B7280' }}>邮箱（选填）</p>
-            <div style={{ position: 'relative', height: 39 }}>
-              <input
-                value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="your@email.com" type="email"
-                style={{ ...INPUT_BASE, fontFamily: "'Roboto:Regular', sans-serif", fontVariationSettings: '"wdth" 100', position: 'absolute', inset: 0, height: '100%' }}
-              />
-            </div>
-          </div>
+          </label>
         </div>
 
-        {/* Buttons */}
-        <div style={{ paddingTop: 32, paddingBottom: 4 }}>
+        <div className="mt-8">
           <button
             onClick={() => go('on-welcome')}
             className="w-full active:opacity-90 transition-opacity"
-            style={{ height: 48, borderRadius: 99, backgroundImage: 'linear-gradient(172deg, rgb(79,126,245) 0%, rgb(167,123,230) 100%)', boxShadow: '0px 8px 12px rgba(79,126,245,0.30)', marginBottom: 12 }}
+            style={{ height: 48, borderRadius: 99, background: 'linear-gradient(172.01deg, #4F7EF5 0%, #A77BE6 100%)', boxShadow: '0 8px 12px rgba(79,126,245,0.30)' }}
           >
-            <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, color: 'white', lineHeight: '22.5px' }}>继续</span>
+            <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, color: 'white', lineHeight: '22.5px' }}>创建账号</span>
           </button>
-          <button onClick={() => go('on-welcome')} className="w-full active:opacity-70 transition-opacity" style={{ height: 24 }}>
-            <span style={{ fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 13, color: '#6B7280', lineHeight: '19.5px' }}>跳过，稍后完善</span>
-          </button>
+
+          <div className="mt-3 flex items-center gap-[13px]">
+            <div className="h-px flex-1" style={{ background: '#c9bcd5' }}/>
+            <span style={{ fontFamily: "'Arimo:Regular', sans-serif", fontWeight: 400, fontSize: 16, lineHeight: 1.4, color: '#bdb0cc', whiteSpace: 'nowrap' }}>Or sign up with</span>
+            <div className="h-px flex-1" style={{ background: '#c9bcd5' }}/>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-[21px]">
+            <button
+              type="button"
+              className="flex items-center justify-center gap-[15px] active:opacity-70 transition-opacity"
+              style={{ height: 53, borderRadius: 10, border: '1px solid #c5b7d5' }}
+            >
+              <img src={imgLoginWeChat} alt="" width="25" height="25" />
+              <span style={{ fontFamily: "'Arimo:Regular', sans-serif", fontWeight: 400, fontSize: 16, color: '#1872cf' }}>微信</span>
+            </button>
+            <button
+              type="button"
+              className="flex items-center justify-center gap-[15px] active:opacity-70 transition-opacity"
+              style={{ height: 53, borderRadius: 10, border: '1px solid #c5b7d5' }}
+            >
+              <img src={imgLoginQq} alt="" width="25" height="25" />
+              <span style={{ fontFamily: "'Arimo:Regular', sans-serif", fontWeight: 400, fontSize: 16, color: '#363333' }}>QQ</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -582,7 +819,7 @@ function OnWelcome() {
   const BG = 'linear-gradient(143deg, #EEF2FF 8.5%, #F5F3FF 50%, #FDF4FF 91.5%)';
   return (
     <div className="flex flex-col h-full" style={{ backgroundImage: BG }}>
-      <OnboardingProgress step={2} total={3}/>
+      <OnboardingProgress step={2} total={4}/>
       <div className="flex-1 flex flex-col px-6 pt-4 pb-8 overflow-y-auto">
         {/* Brand mark */}
         <div className="flex items-center gap-3 mb-5">
@@ -752,7 +989,7 @@ function OnResume() {
   const extractItems = ['工作经历与职位信息', '项目经历与成果', '教育背景', '技能与证书', '获奖与荣誉'];
   return (
     <div className="flex flex-col h-full" style={{ background: BG }}>
-      <OnboardingProgress step={3} total={3} />
+      <OnboardingProgress step={3} total={4} />
       <div className="flex-1 overflow-y-auto px-6 pt-4 pb-8 space-y-6">
         <div>
           <p style={{ fontFamily: "'Noto Sans SC:Black', sans-serif", fontWeight: 900, fontSize: 24, color: '#111827', lineHeight: '36px', marginBottom: 6 }}>上传你的简历</p>
@@ -935,7 +1172,17 @@ function OnConfirm() {
   return (
     <div className="flex flex-col h-full" style={{ background: 'linear-gradient(143deg, #EEF2FF 8.5%, #F5F3FF 50%, #FDF4FF 91.5%)' }}>
       {/* Thin top gradient bar */}
-      <div style={{ height: 7, backgroundImage: grad }}/>
+      <div
+        style={{
+          width: 'calc(100% - 148px)',
+          height: 7,
+          margin: '10px auto',
+          borderRadius: 9999,
+          backgroundImage: grad,
+          transform: 'translateX(1px)',
+          flexShrink: 0,
+        }}
+      />
       <div className="flex-1 flex flex-col items-center px-6 pt-10 pb-4 overflow-y-auto">
         {/* Hero ring + circle */}
         <div style={{ position: 'relative', width: 126, height: 126, marginBottom: 24 }}>
@@ -1262,16 +1509,27 @@ function AnalysisHome({ trialCount, onShowDialog }: { trialCount: number; onShow
         <h1 className="text-[22px] font-bold mb-0.5" style={{ color: S.textPrimary }}>职业分析</h1>
 
         {/* Tab switcher */}
-        <div className="flex mt-3 rounded-2xl p-1" style={{ background: 'rgba(79,126,245,0.08)' }}>
+        <div
+          className="flex mt-3 rounded-full p-1"
+          style={{
+            background: 'rgba(248,248,248,0.28)',
+            border: '1px solid rgba(255,255,255,0.55)',
+            backdropFilter: 'blur(18px)',
+            WebkitBackdropFilter: 'blur(18px)',
+            boxShadow: '1.25px 0 0 -0.75px #d0d0d0, -1.25px 0 0 -0.75px #d0d0d0, 0 0 0 0.5px #e8e8e8, 0 8px 15px rgba(0,0,0,0.02)',
+          }}
+        >
           {(['new', 'history'] as const).map(t => (
             <button
               key={t}
-              className="flex-1 text-[13px] font-semibold transition-all active:scale-[0.97]"
+              className="flex-1 text-[15px] transition-all active:scale-[0.97]"
               style={{
-                height: 36, borderRadius: 14,
-                background: tab === t ? 'white' : 'transparent',
-                color: tab === t ? S.primaryBlue : S.textSecondary,
-                boxShadow: tab === t ? '0 2px 8px rgba(79,126,245,0.12)' : 'none',
+                height: 36, borderRadius: 999,
+                background: tab === t ? '#373B4D' : 'transparent',
+                color: tab === t ? '#F0F4FF' : '#B3B3B3',
+                boxShadow: tab === t ? '0 2px 4px rgba(79,126,245,0.12)' : 'none',
+                fontFamily: tab === t ? '"Noto Sans SC:Bold", "Noto Sans SC", sans-serif' : '"SF Pro:Medium", "Inter", sans-serif',
+                fontWeight: tab === t ? 700 : 510,
               }}
               onClick={() => setTab(t)}
             >
@@ -2768,6 +3026,7 @@ const CHAT_HISTORY = [
 ];
 
 function AIPage({ messages, setMessages }: { messages: Message[]; setMessages: React.Dispatch<React.SetStateAction<Message[]>> }) {
+  const { go } = useNav();
   const [input, setInput] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -2789,16 +3048,72 @@ function AIPage({ messages, setMessages }: { messages: Message[]; setMessages: R
   if (!hasChat) {
     return (
       <div className="flex flex-col h-full relative">
-        <AIHeader onBack={() => {/* no-op on welcome */}} onHistory={() => setShowHistory(true)}/>
+        <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-5 py-3">
+          <button
+            onClick={() => go('home')}
+            className="flex items-center justify-center active:scale-90 transition-transform"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 999,
+              background: 'rgba(255,255,255,0.45)',
+              border: '1.2px solid rgba(255,255,255,0.70)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              boxShadow: '1.25px 0 0 -0.75px #d0d0d0, -1.25px 0 0 -0.75px #d0d0d0, 0 0 0 0.5px #e8e8e8, 0 8px 15px rgba(0,0,0,0.02)',
+            }}
+            aria-label="返回"
+          >
+            <img src={aiAssets.backIcon} alt="" width={18} height={18} />
+          </button>
 
-        {/* Glass card — matches Figma: mx-16px, rounded-24px, glass inner blur */}
+          <div className="flex flex-col items-center">
+            <p style={{ fontFamily: "'Roboto:Bold', sans-serif", fontWeight: 700, fontSize: 14, color: '#171827', lineHeight: '20px' }}>
+              Career Copilot
+            </p>
+            <div className="flex items-center gap-1 pt-0.5">
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#00BC7D', boxShadow: '0 0 5px rgba(16,185,129,0.9)' }}/>
+              <p style={{ fontSize: 11, color: '#626579', lineHeight: '16.5px' }}>
+                <span style={{ fontFamily: "'Roboto:Regular', sans-serif" }}>AI</span>
+                <span style={{ fontFamily: "'Noto Sans SC:Regular', sans-serif" }}>职业顾问</span>
+                <span style={{ fontFamily: "'Roboto:Regular', sans-serif" }}>{` · `}</span>
+                <span style={{ fontFamily: "'Noto Sans SC:Regular', sans-serif" }}>在线</span>
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowHistory(true)}
+            className="flex items-center justify-center active:scale-90 transition-transform"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 999,
+              background: 'rgba(255,255,255,0.45)',
+              border: '1.2px solid rgba(255,255,255,0.70)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              boxShadow: '1.25px 0 0 -0.75px #d0d0d0, -1.25px 0 0 -0.75px #d0d0d0, 0 0 0 0.5px #e8e8e8, 0 8px 15px rgba(0,0,0,0.02)',
+            }}
+            aria-label="聊天记录"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="18" height="18" rx="3" stroke="#0088FF" strokeWidth="1.7"/>
+              <line x1="15" y1="3" x2="15" y2="21" stroke="#0088FF" strokeWidth="1.7" strokeLinecap="round"/>
+              <line x1="8" y1="9" x2="12" y2="9" stroke="#0088FF" strokeWidth="1.5" strokeLinecap="round"/>
+              <line x1="8" y1="12" x2="12" y2="12" stroke="#0088FF" strokeWidth="1.5" strokeLinecap="round"/>
+              <line x1="8" y1="15" x2="12" y2="15" stroke="#0088FF" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Full-height glass panel behind the welcome content and floating controls */}
         <div
-          className="flex-1 mx-4 overflow-hidden flex flex-col"
+          className="absolute inset-x-4 bottom-1.5 top-[66px] overflow-hidden flex flex-col"
           style={{
             borderRadius: 24,
             border: '1.2px solid rgba(255,255,255,0.82)',
             boxShadow: '0 8px 40px rgba(91,124,250,0.16)',
-            position: 'relative',
           }}
         >
           {/* Inner glass backdrop */}
@@ -2818,7 +3133,7 @@ function AIPage({ messages, setMessages }: { messages: Message[]; setMessages: R
           />
 
           {/* Scrollable content */}
-          <div className="relative z-10 flex-1 overflow-y-auto">
+          <div className="relative z-10 flex-1 overflow-y-auto pb-44">
             {/* Avatar + greeting */}
             <div className="flex flex-col items-center pt-6 pb-5 px-5">
               {/* 88px gradient circle — pure, no symbol */}
@@ -2877,7 +3192,7 @@ function AIPage({ messages, setMessages }: { messages: Message[]; setMessages: R
                         background: 'linear-gradient(135deg, rgba(91,124,250,0.10) 0%, rgba(155,93,229,0.10) 100%)',
                       }}
                     >
-                      <img src={aiAssets.arrowIcon} alt="" width={13} height={13} style={{ display: 'block' }}/>
+                      <img src="/assets/99c7b.svg" alt="" width="10" height="10" style={{ display: 'block' }}/>
                     </div>
                     <span style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 12, color: '#171827', lineHeight: '16px' }}>
                       {q}
@@ -2889,7 +3204,58 @@ function AIPage({ messages, setMessages }: { messages: Message[]; setMessages: R
           </div>
         </div>
 
-        <AIInputBar input={input} setInput={setInput} onSend={handleSend} variant="welcome"/>
+        <div className="absolute bottom-[97px] left-[33px] right-[33px] z-20">
+          <div
+            className="flex items-center"
+            style={{
+              height: 62,
+              borderRadius: 99,
+              background: 'rgba(255,255,255,0.72)',
+              border: '1.2px solid rgba(255,255,255,0.88)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              boxShadow: '0 4px 24px rgba(91,124,250,0.13)',
+              paddingLeft: 16,
+              paddingRight: 16,
+            }}
+          >
+            <img src="/assets/b0e93.svg" alt="" width="34" height="32" style={{ flexShrink: 0 }}/>
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSend(input); }}
+              placeholder="输入你想问的问题..."
+              className="min-w-0 flex-1 bg-transparent outline-none"
+              style={{
+                marginLeft: 9,
+                fontFamily: "'Noto Sans SC:Regular', sans-serif",
+                fontWeight: 400,
+                fontSize: 12,
+                color: S.textPrimary,
+                lineHeight: 'normal',
+              }}
+            />
+            <button
+              onClick={() => handleSend(input)}
+              className="flex flex-shrink-0 items-center justify-center active:scale-90 transition-transform"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 12,
+                background: input.trim() ? 'linear-gradient(135deg, #5B7CFA 0%, #9B5DE5 100%)' : 'rgba(99,91,219,0.10)',
+              }}
+              aria-label="发送"
+            >
+              <img
+                src="/assets/8a606.svg"
+                alt=""
+                width="12"
+                height="10"
+                style={{ opacity: input.trim() ? 1 : 0.5, filter: input.trim() ? 'brightness(0) invert(1)' : 'none' }}
+              />
+            </button>
+          </div>
+        </div>
         <AIHistoryDrawer open={showHistory} onClose={() => setShowHistory(false)} onSelect={() => setShowHistory(false)}/>
       </div>
     );
@@ -3116,19 +3482,17 @@ function ProfilePage({ trialCount }: { trialCount: number }) {
     { label: '职业资产', action: () => setActiveProfileTab('职业资产') },
     { label: '成长足迹', action: () => { setActiveProfileTab('成长足迹'); go('growth-record'); } },
     { label: '我的简历', action: () => { setActiveProfileTab('我的简历'); go('resume-history'); } },
-    { label: '历史分析', action: () => { setActiveProfileTab('历史分析'); go('analysis-history'); } },
-    { label: '设置', action: () => { setActiveProfileTab('设置'); go('settings'); } },
   ];
 
   const careerAssets = [
     { n: '4', unit: '段', label: '工作经历', screen: 'work-exp' as NavScreen,
-      icon: <svg width="17" height="17" viewBox="0 0 16.982 16.982" fill="none"><rect x="1.415" y="4.953" width="14.152" height="9.906" rx="0.99" stroke="white" strokeWidth="1.203"/><path d="M11.321 4.953V3.538a1.414 1.414 0 0 0-1.415-1.415H7.076a1.414 1.414 0 0 0-1.415 1.415v1.415" stroke="white" strokeWidth="1.203" strokeLinecap="round"/></svg> },
+      icon: imgProfileWork },
     { n: '6', unit: '个', label: '项目', screen: 'projects' as NavScreen,
-      icon: <svg width="17" height="17" viewBox="0 0 16.982 16.982" fill="none"><path d="M2.123 2.123h4.953v4.953H2.123zM9.906 2.123h4.953v4.953H9.906zM2.123 9.906h4.953v4.953H2.123zM9.906 9.906h4.953v4.953H9.906z" stroke="white" strokeWidth="1.203" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+      icon: imgProfileProjects },
     { n: '12', unit: '项', label: '技能', screen: 'skills' as NavScreen,
-      icon: <svg width="17" height="17" viewBox="0 0 16.982 16.982" fill="none"><path d="M8.491 1.415 6.36 6.368H1.062l4.15 3.184-2.123 5.308 5.302-3.538 5.303 3.538-2.123-5.308 4.15-3.184H10.623Z" stroke="white" strokeWidth="1.203" strokeLinejoin="round"/></svg> },
+      icon: imgProfileSkills },
     { n: '3', unit: '个', label: '奖项', screen: 'awards' as NavScreen,
-      icon: <svg width="17" height="17" viewBox="0 0 16.982 16.982" fill="none"><path d="M5.66 14.859h5.661M8.491 12.029v2.83M3.538 2.123h9.906l-1.415 4.953a3.538 3.538 0 0 1-7.076 0Z" stroke="white" strokeWidth="1.203" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+      icon: imgProfileAwards },
   ];
 
   return (
@@ -3136,9 +3500,9 @@ function ProfilePage({ trialCount }: { trialCount: number }) {
       {/* ── Header: logo + settings ── */}
       <div style={{ height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 24, paddingRight: 24, paddingTop: 16, paddingBottom: 12 }}>
         {/* Careerly logo clipped */}
-        <div style={{ width: 109, height: 27, overflow: "hidden", position: "relative" }}>
-          <div style={{ position: "absolute", left: -70.74, top: -46.21, width: 205, height: 137 }}>
-            <img alt="careerly" src={imgCareerlyLogo} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover", left: "12.23%", top: "-17.73%" }}/>
+        <div style={{ width: 111, height: 24, overflow: "hidden", position: "relative", background: "transparent" }}>
+          <div style={{ position: "absolute", left: -74, top: -49, width: 205, height: 137 }}>
+            <img alt="careerly" src={imgCareerlyLogo} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover", left: "11.55%", top: "-15.7%" }}/>
           </div>
         </div>
         {/* Settings glass button */}
@@ -3147,10 +3511,7 @@ function ProfilePage({ trialCount }: { trialCount: number }) {
           className="active:scale-90 transition-transform"
           style={{ width: 40, height: 40, borderRadius: 99, background: "rgba(255,255,255,0.45)", border: "1.188px solid rgba(255,255,255,0.4)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", boxShadow: "0px 4px 16px rgba(79,126,245,0.05)", display: "flex", alignItems: "center", justifyContent: "center" }}
         >
-          <svg width="17" height="17" viewBox="0 0 16.982 16.982" fill="none">
-            <circle cx="8.491" cy="8.491" r="2.123" stroke="#515151" strokeWidth="1.274"/>
-            <path d="M13.727 10.614a1.415 1.415 0 0 0 .283 1.557l.036.036a1.415 1.415 0 1 1-2.001 2.001l-.037-.037a1.415 1.415 0 0 0-1.556-.282 1.415 1.415 0 0 0-.858 1.295v.106a1.415 1.415 0 0 1-2.83 0v-.056a1.415 1.415 0 0 0-.926-1.295 1.415 1.415 0 0 0-1.557.282l-.037.037a1.415 1.415 0 1 1-2-2l.036-.037a1.415 1.415 0 0 0 .282-1.557 1.415 1.415 0 0 0-1.295-.857H1.16a1.415 1.415 0 0 1 0-2.83h.055a1.415 1.415 0 0 0 1.295-.926 1.415 1.415 0 0 0-.282-1.557l-.037-.037a1.415 1.415 0 1 1 2.001-2l.037.036a1.415 1.415 0 0 0 1.556.282 1.415 1.415 0 0 0 .858-1.295V1.16a1.415 1.415 0 0 1 2.83 0v.055a1.415 1.415 0 0 0 .857 1.295 1.415 1.415 0 0 0 1.557-.282l.037-.037a1.415 1.415 0 0 1 2 2l-.036.037a1.415 1.415 0 0 0-.282 1.556 1.415 1.415 0 0 0 1.295.858h.106a1.415 1.415 0 0 1 0 2.83h-.056a1.415 1.415 0 0 0-1.295.857Z" stroke="#515151" strokeWidth="1.274"/>
-          </svg>
+          <img src={imgProfileSettings} alt="" width="17" height="17" />
         </button>
       </div>
 
@@ -3171,9 +3532,7 @@ function ProfilePage({ trialCount }: { trialCount: number }) {
               <p style={{ fontFamily: "'Inter:Regular', sans-serif", fontWeight: 400, fontSize: 12, color: "#6e717c", lineHeight: "normal" }}>@elmasekeri</p>
             </div>
             <button onClick={() => go("membership")} style={{ background: "#373b4d", borderRadius: 100, display: "flex", alignItems: "center", gap: 4, padding: "6px 12px" }}>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M2.5 10.5H9.5M5.78 1.633a.25.25 0 0 1 .44 0L7.695 4.435a.25.25 0 0 0 .378.088l2.138-1.773a.25.25 0 0 1 .402.228L9.196 8.132A.25.25 0 0 1 8.956 8.5H3.044a.25.25 0 0 1-.24-.368L1.387 2.978a.25.25 0 0 1 .402-.228L3.927 4.523a.25.25 0 0 0 .378-.088Z" stroke="#F2C94C" strokeLinecap="round" strokeWidth="2"/>
-              </svg>
+              <img src={imgProfileCrown} alt="" width="12" height="12" />
               <span style={{ fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700, fontSize: 11, color: "white", whiteSpace: "nowrap" }}>V1会员</span>
             </button>
           </div>
@@ -3183,7 +3542,7 @@ function ProfilePage({ trialCount }: { trialCount: number }) {
               <div key={stat.l} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 0, position: "relative" }}>
                 <p style={{ fontFamily: "'Inter:Extra Bold', sans-serif", fontWeight: 800, fontSize: 16, color: "#181a20", lineHeight: "normal" }}>{stat.v}</p>
                 <p style={{ fontFamily: "'Inter:Semi Bold', sans-serif", fontWeight: 600, fontSize: 11, color: "#6e717c", lineHeight: "normal" }}>{stat.l}</p>
-                {i < 2 && <div style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", width: 1, height: 28, background: "rgba(18,18,18,0.082)" }}/>}
+                {i < 2 && <img src={imgProfileDivider} alt="" width="28" height="1" style={{ position: "absolute", right: -14, top: "50%", transform: "translateY(-50%) rotate(90deg)" }}/>}
               </div>
             ))}
           </div>
@@ -3228,16 +3587,16 @@ function ProfilePage({ trialCount }: { trialCount: number }) {
             </div>
             <button onClick={() => go("career-assets")} style={{ background: "rgba(255,255,255,0.15)", borderRadius: 22, display: "flex", alignItems: "center", gap: 4, padding: "5px 10px" }}>
               <span style={{ fontFamily: "'Inter:Semi Bold', sans-serif", fontWeight: 600, fontSize: 11, color: "white", lineHeight: "16.5px" }}>查看全部</span>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 9L7.5 6L4.5 3" stroke="white" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.1"/></svg>
+              <img src={imgProfileArrowLight} alt="" width="12" height="12" />
             </button>
           </div>
           {/* Asset sub-cards */}
-          <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: 68, display: "flex", gap: 8 }}>
+          <div style={{ position: "absolute", left: 12, right: 12, top: 68, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
             {careerAssets.map(item => (
               <button key={item.label} onClick={() => go(item.screen)}
                 className="active:scale-[0.96] transition-transform"
-                style={{ width: 75.5, height: 73, borderRadius: 14, background: "rgba(255,255,255,0.15)", padding: "11px 10px 10px", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center" }}>
-                <div style={{ marginBottom: 2 }}>{item.icon}</div>
+                style={{ minWidth: 0, height: 73, borderRadius: 14, background: "rgba(255,255,255,0.15)", padding: "11px 10px 10px", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center" }}>
+                <img src={item.icon} alt="" width="17" height="17" style={{ marginBottom: 2 }} />
                 <p style={{ fontFamily: "'Inter:Extra Bold', sans-serif", fontWeight: 800, fontSize: 17, color: "white", lineHeight: "22px" }}>
                   {item.n}<span style={{ fontFamily: "'Inter:Medium', sans-serif", fontWeight: 500, fontSize: 10, marginLeft: 2, color: "white" }}>{item.unit}</span>
                 </p>
@@ -3276,11 +3635,7 @@ function ProfilePage({ trialCount }: { trialCount: number }) {
         <button className="w-full text-left active:scale-[0.98] transition-transform" onClick={() => go("resume-history")}>
           <div style={{ backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", background: "rgba(255,255,255,0.68)", border: "1.188px solid rgba(255,255,255,0.55)", borderRadius: 24, boxShadow: "0px 8px 32px 0px rgba(79,126,245,0.08)", padding: 16, display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(52,199,89,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <svg width="20" height="20" viewBox="0 0 19.989 19.989" fill="none">
-                <path d="M11.663 1.666H4.997a1.666 1.666 0 0 0-1.664 1.664v13.328a1.666 1.666 0 0 0 1.664 1.664h9.995a1.666 1.666 0 0 0 1.664-1.664V6.662l-4.993-4.996Z" stroke="#34C759" strokeLinejoin="round" strokeWidth="1.416"/>
-                <path d="M11.663 1.666v4.996h4.993" stroke="#34C759" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.416"/>
-                <path d="M6.663 10.827h6.663M6.663 14.159h6.663" stroke="#34C759" strokeLinecap="round" strokeWidth="1.249"/>
-              </svg>
+              <img src={imgProfileResume} alt="" width="20" height="20" />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700, fontSize: 14, color: "#111827", lineHeight: "21px" }}>我的简历</p>
@@ -3290,47 +3645,8 @@ function ProfilePage({ trialCount }: { trialCount: number }) {
               <div style={{ background: "rgba(52,199,89,0.12)", borderRadius: 99, padding: "2px 8px" }}>
                 <span style={{ fontFamily: "'Inter:Semi Bold', sans-serif", fontWeight: 600, fontSize: 10, color: "#34c759", lineHeight: "15px" }}>最新版</span>
               </div>
-              <svg width="14" height="14" viewBox="0 0 13.994 13.994" fill="none"><path d="M5.247 10.495L8.746 6.997L5.247 3.498" stroke="#6B7280" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.166"/></svg>
+              <img src={imgProfileArrow} alt="" width="14" height="14" />
             </div>
-          </div>
-        </button>
-      </div>
-
-      {/* ── 历史分析 ── */}
-      <div className="px-5 mb-3">
-        <button className="w-full text-left active:scale-[0.98] transition-transform" onClick={() => go("analysis-history")}>
-          <div style={{ backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", background: "rgba(255,255,255,0.68)", border: "1.188px solid rgba(255,255,255,0.55)", borderRadius: 24, boxShadow: "0px 8px 32px 0px rgba(79,126,245,0.08)", padding: 16, display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(79,126,245,0.09)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <svg width="20" height="20" viewBox="0 0 19.989 19.989" fill="none">
-                <rect x="2.499" y="11.660" width="3.331" height="6.661" rx="0.833" fill="#4F7EF5"/>
-                <rect x="8.329" y="7.496" width="3.331" height="10.825" rx="0.833" fill="#4F7EF5" fillOpacity="0.6"/>
-                <rect x="14.159" y="3.332" width="3.331" height="14.989" rx="0.833" fill="#4F7EF5" fillOpacity="0.3"/>
-              </svg>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700, fontSize: 14, color: "#111827", lineHeight: "21px" }}>历史分析</p>
-              <p style={{ fontFamily: "'Inter:Regular', sans-serif", fontWeight: 400, fontSize: 11, color: "#6b7280", lineHeight: "16.5px" }}>最近分析 2026.08.29 · 最高 86%</p>
-            </div>
-            <svg width="14" height="14" viewBox="0 0 13.994 13.994" fill="none" style={{ flexShrink: 0 }}><path d="M5.247 10.495L8.746 6.997L5.247 3.498" stroke="#6B7280" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.166"/></svg>
-          </div>
-        </button>
-      </div>
-
-      {/* ── 设置 ── */}
-      <div className="px-5 mb-3">
-        <button className="w-full text-left active:scale-[0.98] transition-transform" onClick={() => go("settings")}>
-          <div style={{ backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", background: "rgba(255,255,255,0.68)", border: "1.188px solid rgba(255,255,255,0.55)", borderRadius: 24, boxShadow: "0px 8px 32px 0px rgba(79,126,245,0.08)", padding: 16, display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(107,114,128,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <svg width="20" height="20" viewBox="0 0 19.989 19.989" fill="none">
-                <circle cx="9.994" cy="9.994" r="2.499" stroke="#6B7280" strokeWidth="1.499"/>
-                <path d="M16.157 12.493a1.416 1.416 0 0 0 .283 1.557l.036.036a1.415 1.415 0 1 1-2 2l-.037-.036a1.416 1.416 0 0 0-1.557-.283 1.416 1.416 0 0 0-.857 1.295v.104a1.415 1.415 0 0 1-2.83 0v-.056a1.416 1.416 0 0 0-.926-1.295 1.416 1.416 0 0 0-1.557.283l-.036.037a1.415 1.415 0 1 1-2-2l.036-.037a1.416 1.416 0 0 0 .283-1.557 1.416 1.416 0 0 0-1.295-.857H3.64a1.415 1.415 0 0 1 0-2.83h.055a1.416 1.416 0 0 0 1.295-.926 1.416 1.416 0 0 0-.283-1.557l-.037-.036a1.415 1.415 0 1 1 2-2l.037.036A1.416 1.416 0 0 0 8.264 6.35a1.416 1.416 0 0 0 .857-1.295V4.95a1.415 1.415 0 0 1 2.83 0v.055a1.416 1.416 0 0 0 .857 1.295 1.416 1.416 0 0 0 1.557-.283l.037-.037a1.415 1.415 0 0 1 2 2l-.037.037a1.416 1.416 0 0 0-.283 1.557 1.416 1.416 0 0 0 1.295.857h.104a1.415 1.415 0 0 1 0 2.83h-.056a1.416 1.416 0 0 0-1.295.857Z" stroke="#6B7280" strokeWidth="1.499"/>
-              </svg>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700, fontSize: 14, color: "#111827", lineHeight: "21px" }}>设置</p>
-              <p style={{ fontFamily: "'Inter:Regular', sans-serif", fontWeight: 400, fontSize: 11, color: "#6b7280", lineHeight: "16.5px" }}>账户 · 隐私 · 通知 · 关于</p>
-            </div>
-            <svg width="14" height="14" viewBox="0 0 13.994 13.994" fill="none" style={{ flexShrink: 0 }}><path d="M5.247 10.495L8.746 6.997L5.247 3.498" stroke="#6B7280" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.166"/></svg>
           </div>
         </button>
       </div>
@@ -4080,7 +4396,7 @@ function GrowthRecordPage() {
             <div className="flex-1 min-w-px" style={{ paddingTop: 8, paddingBottom: 20 }}>
               <div
                 style={{
-                  background: cardBg[item.type],
+                  backgroundColor: item.event === '更新简历 V2' ? '#F3EFFE' : cardBg[item.type],
                   borderRadius: '4px 20px 20px 20px',
                   padding: 16,
                   display: 'flex', flexDirection: 'column', gap: 10,
@@ -5159,7 +5475,7 @@ function LastTrialDialog({ onClose, onConfirm }: { onClose: () => void; onConfir
 // APP ROUTER
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const ONBOARDING_SCREENS: NavScreen[] = ['on-splash', 'on-register', 'on-welcome', 'on-resume', 'on-parsing', 'on-confirm'];
+const ONBOARDING_SCREENS: NavScreen[] = ['on-splash', 'on-login', 'on-register', 'on-welcome', 'on-resume', 'on-parsing', 'on-confirm'];
 
 type TransitionDir = 'tab' | 'push' | 'pop' | 'onboard' | 'none';
 
@@ -5239,6 +5555,7 @@ export default function App() {
               >
                 {/* Onboarding */}
                 {screen === 'on-splash' && <OnSplash/>}
+                {screen === 'on-login' && <OnLogin/>}
                 {screen === 'on-register' && <OnRegister/>}
                 {screen === 'on-career' && <OnCareer/>}
                 {screen === 'on-welcome' && <OnWelcome/>}
