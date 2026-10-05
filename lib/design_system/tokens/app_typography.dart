@@ -285,6 +285,12 @@ abstract final class AppTypography {
   ///
   /// ⚠️ `16px` **不在正文 Type Scale 上**（[body] 是 15）——
   /// 这是 Figma 的原值，不是归纳。
+  ///
+  /// ⚠️ 名字里的 `Underline` 指的是**旧稿的下划线输入框**；2026-10-04 起
+  /// 登录 / 注册页改用**方框**输入框（见 `CareerlyInputVariant.outlined`），
+  /// 但两者输入的是同一种东西、Figma 给的字号/字重/颜色也逐位一致，
+  /// 故**继续复用本角色**，不新立 `authFieldValue`。名字保留未改是因为
+  /// 它已被多处引用，改名属范围外改动。
   static const TextStyle inputFieldUnderline = TextStyle(
     fontFamily: fontFamily,
     fontSize: 16,
@@ -380,6 +386,145 @@ abstract final class AppTypography {
     height: 20 / 13,
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 登录 / 注册 / 开屏页（新版 Figma 重新导出 · 2026-10-04）
+  //
+  // 真值来源：`OnLogin`（`src/App.tsx` L455-623）、`OnRegister`（L661-797）、
+  // `OnSplash`（L392-452）的内联 `style`。**全部是 Figma 原值，不是归纳。**
+  //
+  // ⚠️ 本轮重新导出后，登录页与注册页的**标题/副标题各自不同**：
+  //      登录标题 26/w900/**lh 1.4**/#090909   ≠ [onboardingTitle]（lh 32px / #111827）
+  //      登录副标题 13/**w500**/lh 1.55        ≠ [onboardingSubtitle]（w400 / lh 20px）
+  //    注册页则**沿用** [onboardingTitle] / [onboardingSubtitle]（两处逐位一致）。
+  //    不要为了「统一」把其中一组改掉 —— 这是设计稿的两个不同取值。
+  //
+  // ⚠️ 输入值（16/w400/#111827）两页都**复用** [inputFieldUnderline]，
+  //    不新立角色：该角色的字号/字重/颜色与新稿逐位一致，
+  //    只有行高（1.5 vs Figma 未声明）不同，而输入框是固定高 52 的居中盒，
+  //    行高对最终视觉无影响。
+  // ---------------------------------------------------------------------------
+
+  /// 登录页主标题「欢迎回来！」。
+  /// Figma `26px / w900 / line-height 1.4 / #090909`。
+  static const TextStyle authPageTitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 26,
+    height: 1.4,
+    fontWeight: FontWeight.w900,
+    color: AppColors.authTitleInk,
+  );
+
+  /// 登录页副标题「继续成长从看见自己开始」。
+  /// Figma `13px / w500 / line-height 1.55 / #6B7280`。
+  static const TextStyle authPageSubtitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    height: 1.55,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textSecondary,
+  );
+
+  /// 登录 / 注册页的**方框**输入框标签。Figma `14px / w400 / lh 1.4 / #664293`。
+  ///
+  /// ⚠️ 与 [inputLabel]（`14/w700/#727272` + 视觉大写）**是两种形态** ——
+  /// 旧稿是「大写加粗灰」，新稿是「常规紫」。两页共用本角色。
+  static const TextStyle authFieldLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 14,
+    height: 1.4,
+    fontWeight: FontWeight.w400,
+    color: AppColors.authLabelInk,
+  );
+
+  /// 「记住我」/「忘记密码?」。Figma `13px / w400 / #352459`（未声明行高）。
+  static const TextStyle authMeta = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    height: 1.4,
+    fontWeight: FontWeight.w400,
+    color: AppColors.authMetaInk,
+  );
+
+  /// 「记住我」勾选框内的对勾。
+  /// Figma `font-size: 11px` / 颜色 `#57457c`，画在 16×16 的自绘方框里。
+  ///
+  /// 行高取 `1`：该文字由外层 16×16 容器居中，行高参与计算只会让它偏下。
+  static const TextStyle authCheckboxGlyph = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    height: 1,
+    fontWeight: FontWeight.w400,
+    color: AppColors.authCheckboxInk,
+  );
+
+  /// 分隔线中间的文案（登录 `sign in with` / 注册 `Or sign up with`）。
+  /// Figma `16px / w400 / line-height 1.4 / #bdb0cc`。
+  ///
+  /// ⚠️ 两页文案**不同**（登录页是英文小写、注册页是 `Or sign up with`），
+  /// 且登录页少了「Or」—— 这是设计稿原样，**不要顺手加回**。
+  static const TextStyle authDividerLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 16,
+    height: 1.4,
+    fontWeight: FontWeight.w400,
+    color: AppColors.authDividerInk,
+  );
+
+  /// 微信 / QQ 按钮上的渠道名。Figma `16px / w400`，**颜色随渠道变**。
+  ///
+  /// 基色是微信蓝；QQ 按钮用 `copyWith(color: AppColors.authQqInk)` 换色 ——
+  /// 字号/字重相同，故**不拆成两个角色**（符合 §8.4「变体用参数」）。
+  static const TextStyle authSocialLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 16,
+    height: 1.4,
+    fontWeight: FontWeight.w400,
+    color: AppColors.authWechatInk,
+  );
+
+  /// 登录页底部「还没有账号? 点击注册」的**普通**半句。
+  /// Figma `13px / w400 / #444`。
+  static const TextStyle authFooter = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    height: 1.4,
+    fontWeight: FontWeight.w400,
+    color: AppColors.authFooterInk,
+  );
+
+  /// 登录页底部「点击注册」的**可点**半句。
+  /// Figma `13px / w500 / #332065` —— 与 [authFooter] 只差字重与颜色。
+  static const TextStyle authFooterLink = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    height: 1.4,
+    fontWeight: FontWeight.w500,
+    color: AppColors.authLinkInk,
+  );
+
+  /// 开屏页底部「已经有账户了? 点击登录」的**普通**半句。
+  /// Figma `14px / w400 / #363333`。
+  ///
+  /// ⚠️ 与 [authFooter]（登录页底部，`13px / #444`）**字号与颜色都不同** ——
+  /// 两页底部文案在 Figma 里是两次独立声明，**不合并**。
+  static const TextStyle splashFooter = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 14,
+    height: 1.4,
+    fontWeight: FontWeight.w400,
+    color: AppColors.splashFooterInk,
+  );
+
+  /// 开屏页底部「点击登录」的**可点**半句。
+  /// Figma `14px / w400 / #664293`。
+  static const TextStyle splashFooterLink = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 14,
+    height: 1.4,
+    fontWeight: FontWeight.w400,
+    color: AppColors.authLabelInk,
   );
 
   // ---------------------------------------------------------------------------
@@ -2025,6 +2170,254 @@ abstract final class AppTypography {
     height: 14 / 10,
     fontWeight: FontWeight.w600,
     color: AppColors.textInverse,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 我的简历 · 简历历史 / 简历详情
+  //
+  // 真值来源：Figma `ResumeHistoryPage`（`src/App.tsx` L4479-4600）与
+  // `ResumeDetailPage`（L4599-4793），2026-10-04 导出版。
+  //
+  // ⚠️ 与前面各页的「页面段各自持名」同一做法：即便某处的字号字重
+  // 与既存角色相同，只要 Figma 是**另一处独立写下的**，这里就另立角色。
+  // 这样「调简历详情页的字号」不会波及工作详情 / 项目详情。
+  // ---------------------------------------------------------------------------
+
+  /// 简历详情页 · PDF 卡渐变头部的副标题（职位行）。
+  /// Figma：`13px / w400 / rgba(255,255,255,0.80)`。
+  static const TextStyle resumeDetailHeaderSubtitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    fontWeight: FontWeight.w400,
+    color: Color(0xCCFFFFFF),
+  );
+
+  /// 简历详情页 · PDF 卡渐变头部的联系方式行（邮箱 / 电话）。
+  /// Figma：`11px / w400 / rgba(255,255,255,0.70)`。
+  ///
+  /// ⚠️ 与 [profileHeroRole]（同为 `0.70` 白）**同色不同页**，不复用其名。
+  static const TextStyle resumeDetailHeaderContact = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    fontWeight: FontWeight.w400,
+    color: Color(0xB3FFFFFF),
+  );
+
+  /// 简历详情页 · 分段小标题（基本信息 / 工作经历 / …）。
+  /// Figma：`13px / w700 / #111827 / letter-spacing 0.3px`。
+  static const TextStyle resumeDetailSectionTitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    letterSpacing: 0.3,
+    fontWeight: FontWeight.w700,
+    color: AppColors.textPrimary,
+  );
+
+  /// 简历详情页 · 分段条目的名称（左列）。
+  /// Figma：`12px / w700 / #1f2937`。
+  static const TextStyle resumeDetailItemLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+    color: AppColors.resumeItemLabelInk,
+  );
+
+  /// 简历详情页 · 分段条目的值（右列，浅灰）。
+  /// Figma：`11px / w400 / #9ca3af`。
+  static const TextStyle resumeDetailItemValue = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    fontWeight: FontWeight.w400,
+    color: AppColors.textTertiary,
+  );
+
+  /// 简历详情页 · 分段条目的补充说明（整行）。
+  /// Figma：`11px / w400 / line-height 17px / #6b7280`。
+  static const TextStyle resumeDetailItemDetail = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    height: 17 / 11,
+    fontWeight: FontWeight.w400,
+    color: AppColors.textSecondary,
+  );
+
+  /// 简历详情页 · PDF 卡页脚。Figma：`10px / w400 / #d1d5db`。
+  static const TextStyle resumeDetailPdfFooter = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 10,
+    fontWeight: FontWeight.w400,
+    color: AppColors.resumePdfFooterInk,
+  );
+
+  /// 简历详情页 · 分段切换器**选中**项。Figma：`13px / w600 / white`。
+  static const TextStyle resumeDetailTabActive = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    color: Colors.white,
+  );
+
+  /// 简历详情页 · 分段切换器**未选中**项。Figma：`13px / w500 / #6b7280`。
+  static const TextStyle resumeDetailTabIdle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textSecondary,
+  );
+
+  /// 简历详情页 / 简历历史页 · 浅灰元信息（「更新于 …」）。
+  /// Figma：`11px / w400 / #9ca3af`。
+  static const TextStyle resumeMetaTertiary = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    fontWeight: FontWeight.w400,
+    color: AppColors.textTertiary,
+  );
+
+  /// 简历详情页 · 原始内容卡的段标题。
+  /// Figma：`12px / w700 / #374151 / letter-spacing 0.3px / uppercase`。
+  ///
+  /// ⚠️ Figma 带 `uppercase`，但中文无大小写，在 Flutter 上等价于无效果
+  /// —— 与 [profileHeroPeriod] 同一处理（不设 `textTransform`）。
+  static const TextStyle resumeDetailRawTitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    letterSpacing: 0.3,
+    fontWeight: FontWeight.w700,
+    color: AppColors.textBody,
+  );
+
+  /// 简历详情页 · 原始内容行的名称（左列）。Figma：`12px / w500 / #374151`。
+  static const TextStyle resumeDetailRawLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textBody,
+  );
+
+  /// 简历详情页 · 原始内容行的值（右列）。Figma：`12px / w400 / #6b7280`。
+  static const TextStyle resumeDetailRawValue = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: AppColors.textSecondary,
+  );
+
+  /// 简历详情页 · 底部动作条按钮文字（「导出 PDF」/「编辑简历」）。
+  /// Figma：`14px / w600`（颜色随按钮形态：白 / `#4F7EF5`）。
+  static const TextStyle resumeDetailActionLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    color: Colors.white,
+  );
+
+  /// 简历历史页 · 「历史版本 · 左滑操作」列表标题。
+  /// Figma：`11px / w600 / letter-spacing 0.275px / #6b7280 / uppercase`。
+  static const TextStyle resumeHistoryListTitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    letterSpacing: 0.275,
+    fontWeight: FontWeight.w600,
+    color: AppColors.textSecondary,
+  );
+
+  /// 简历历史页 · 左滑露出的动作按钮文字（「设为当前」/「删除」）。
+  /// Figma：`10px / w600 / white`。
+  static const TextStyle resumeSwipeActionLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 10,
+    fontWeight: FontWeight.w600,
+    color: Colors.white,
+  );
+
+  /// 简历历史页 · 版本卡上的「归档」胶囊文字。
+  /// Figma：`10px / w500 / #6b7280`。
+  static const TextStyle resumeArchivePillLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 10,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textSecondary,
+  );
+
+  /// 导入简历弹层 · 说明行。Figma：`13px / w400 / line-height 20px / #6b7280`。
+  ///
+  /// ⚠️ 与 [analysisSheetBody]（`line-height 1.625`）**行高不同**，不可互换。
+  static const TextStyle resumeImportBody = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    height: 20 / 13,
+    fontWeight: FontWeight.w400,
+    color: AppColors.textSecondary,
+  );
+
+  /// 导入简历弹层 · 选项标题。Figma：`14px / w600`（颜色随选项形态）。
+  ///
+  /// ⚠️ 与 [analysisSheetOptionTitle]（`w700`）**字重不同**，不可互换。
+  static const TextStyle resumeImportOptionTitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    color: AppColors.textPrimary,
+  );
+
+  /// 导入简历弹层 · 选项说明行。Figma：`11px / w400 / #6b7280`。
+  static const TextStyle resumeImportOptionDesc = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    fontWeight: FontWeight.w400,
+    color: AppColors.textSecondary,
+  );
+
+  /// 分享 / 导出弹层 · 标题（「分享 / 导出」）。
+  /// Figma：`16px / w700 / #111827`（L4757）。
+  ///
+  /// ⚠️ 与 [analysisSheetTitle]（`17px`）**字号差 1px**，与 [analysisTitle]
+  /// （同为 16/w700 但属分析页标题栏）**页面不同** —— 三者都不互换。
+  static const TextStyle resumeShareSheetTitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 16,
+    fontWeight: FontWeight.w700,
+    color: AppColors.textPrimary,
+  );
+
+  /// 分享 / 导出弹层 · 选项卡文字（「存为 PDF」…）。
+  /// Figma：`12px / w500 / #374151`（L4787）。
+  static const TextStyle resumeShareOptionLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textBody,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 分析页 · 顶部「新建分析 | 历史分析」切换器
+  // （Figma `AnalysisHome` L1511-1539）
+  // ---------------------------------------------------------------------------
+
+  /// 分析页 · 切换器**选中**段文字。
+  ///
+  /// Figma：`15px / w700 / #F0F4FF`（Noto Sans SC Bold，L1529-1531）。
+  static const TextStyle analysisSegmentedActive = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 15,
+    fontWeight: FontWeight.w700,
+    color: AppColors.analysisSegmentedActiveInk,
+  );
+
+  /// 分析页 · 切换器**未选中**段文字。
+  ///
+  /// Figma：`15px / **w510** / #B3B3B3`（SF Pro Medium，L1529-1532）。
+  ///
+  /// ⚠️ **字重偏差**：Figma 写的是 `510`，而 Flutter 的 [FontWeight]
+  /// **只支持 100 的整数倍**（`w500` / `w600`，没有 `w510`）。
+  /// 这里取最近的 [FontWeight.w500]，**差 10**。
+  /// 不为此新增 Token 档位 —— 那不是「暂定值」，是**框架能力边界**。
+  static const TextStyle analysisSegmentedIdle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 15,
+    fontWeight: FontWeight.w500,
+    color: AppColors.analysisSegmentedIdleInk,
   );
 
   /// 只映射 Careerly 实际使用的角色，未映射的位置保持 `null`，

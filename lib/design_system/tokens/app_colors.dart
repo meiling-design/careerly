@@ -317,26 +317,35 @@ abstract final class AppColors {
   // ---------------------------------------------------------------------------
 
   /// 开屏页背景。
-  /// Figma `linear-gradient(111deg, rgb(220,233,251) 11.5%,
-  /// rgb(229,220,250) 46.1%, rgb(251,233,241) 88.5%)`。
+  /// Figma `linear-gradient(111.07deg, #DCE9FB 11.49%,
+  /// #E5DCFA 46.15%, #FBE9F1 88.52%)`（2026-10-04 重新导出）。
   ///
-  /// Flutter 换算：CSS 角度 111deg → `(sin θ, -cos θ) = (0.934, 0.358)`。
+  /// Flutter 换算：CSS 角度 111.07deg → `(sin θ, -cos θ) = (0.933, 0.359)`。
+  ///
+  /// ⚠️ 2026-10-04 重新导出版把角度从 `111deg` 精化成 `111.07deg`，
+  /// 方向向量相应从 `(0.934, 0.358)` 微调到 `(0.933, 0.359)` —— 视觉无差别，
+  /// 改的是与设计稿逐位对齐的可追溯性。
   static const LinearGradient splashGradient = LinearGradient(
-    begin: Alignment(-0.934, -0.358),
-    end: Alignment(0.934, 0.358),
+    begin: Alignment(-0.933, -0.359),
+    end: Alignment(0.933, 0.359),
     colors: <Color>[Color(0xFFDCE9FB), Color(0xFFE5DCFA), Color(0xFFFBE9F1)],
-    stops: <double>[0.115, 0.461, 0.885],
+    stops: <double>[0.1149, 0.4615, 0.8852],
   );
 
-  /// Onboarding 表单页背景（注册 / 登录 / 价值介绍）。
-  /// Figma `linear-gradient(143deg, #EEF2FF 8.5%, #F5F3FF 50%, #FDF4FF 91.5%)`。
+  /// Onboarding 表单页背景（注册 / 价值介绍 / 提交简历 / 解析 / 确认）。
+  /// Figma `linear-gradient(142.84deg, #EEF2FF 8.49%, #F5F3FF 50%, #FDF4FF 91.51%)`。
   ///
-  /// Flutter 换算：CSS 角度 143deg → `(sin θ, -cos θ) = (0.602, 0.799)`。
+  /// Flutter 换算：CSS 角度 142.84deg → `(sin θ, -cos θ) = (0.605, 0.797)`。
+  ///
+  /// ⚠️ 2026-10-04 的微调同 [splashGradient]：`143deg` → `142.84deg`。
+  ///
+  /// ⚠️ **登录页不用本渐变** —— 它是一块从 `top: 185` 起的独立面板，
+  /// 走 [authLoginPanelGradient]（终点是纯白）。
   static const LinearGradient onboardingGradient = LinearGradient(
-    begin: Alignment(-0.602, -0.799),
-    end: Alignment(0.602, 0.799),
+    begin: Alignment(-0.605, -0.797),
+    end: Alignment(0.605, 0.797),
     colors: <Color>[Color(0xFFEEF2FF), Color(0xFFF5F3FF), Color(0xFFFDF4FF)],
-    stops: <double>[0.085, 0.5, 0.915],
+    stops: <double>[0.0849, 0.5, 0.9151],
   );
 
   /// 开屏 Logo 文字的渐变填充。
@@ -537,6 +546,36 @@ abstract final class AppColors {
   ///
   /// 即 [textTertiary] 降到 80%，与 Figma 原值逐位一致。
   static const Color inputHelper = Color(0xCC9CA3AF);
+
+  // ---------------------------------------------------------------------------
+  // 分析 · 添加岗位 ——「从历史岗位添加」入口（2026-10-05）
+  //
+  // ⚠️ **暂定值 · 待视觉验证（待裁决 · D117）** —— 两值在 Figma 中
+  // **都没有依据**：Figma 的添加岗位是「＋ 添加岗位」**单按钮 + 三项选择菜单**
+  // （见 `careerly-analysis-structure.md` §六「添加岗位」），
+  // **不存在**与「粘贴 JD」「粘贴岗位 URL」并列的第三颗虚线按钮，
+  // 因此没有原值可取值。
+  //
+  // 取值理由：与已有的品牌蓝（[primaryBlue] / [inputBorderBrand]）、
+  // 品牌紫（[primaryPurple] / [inputBorderPurple]）拉开区分，用中性灰。
+  //
+  // 调整方式：**只改下面两处** → 全系统统一变化（`CLAUDE.md` §8.2）。
+  // 登记表见 `docs/05_progress/CURRENT_STATUS.md` §3.6。
+  // ---------------------------------------------------------------------------
+
+  /// 「从历史岗位添加」虚线按钮的**图标 / 文字**色。
+  ///
+  /// ⚠️ **暂定值 · 待视觉验证（待裁决 · D117）**。
+  /// 字面量与 [textSecondary] 相同，但**故意不复用** —— 它是可独立调整的
+  /// 暂定值，复用会让「改这里」连带改掉 [textSecondary] 的十余处引用。
+  static const Color addFromHistoryTint = Color(0xFF6B7280);
+
+  /// 「从历史岗位添加」虚线按钮的**描边**色。
+  ///
+  /// ⚠️ **暂定值 · 待视觉验证（待裁决 · D117）**。
+  /// alpha `0x4D`（≈30%）与 [inputBorderBrand]（`0x40`）/ [inputBorderPurple]
+  /// （`0x47`）同量级，避免三颗按钮的虚线浓淡不一致。
+  static const Color inputBorderNeutral = Color(0x4D6B7280);
 
   // ---------------------------------------------------------------------------
   // 首页（Phase 5）
@@ -1318,4 +1357,205 @@ abstract final class AppColors {
 
   /// 月网格事件卡 · 类型 Chip 描边。Figma `${color}25`（alpha 0x25 ≈ 0.145）。
   static Color growthTagRing(Color dot) => dot.withValues(alpha: 0x25 / 255);
+
+  // ---------------------------------------------------------------------------
+  // 登录 / 注册（Figma 重新导出 · 2026-10-04）
+  //
+  // 真值来源：`src/App.tsx` 的 `OnSplash`（L392-452）、`OnLogin`（L455-623）、
+  // `OnRegister`（L661-797）。
+  //
+  // ⚠️ 这一节相对 Phase 4 是一次**结构性改版**，不是微调：
+  // 旧版 Figma 没有登录屏、注册页只有「姓名 / 手机号 / 邮箱（选填）」，
+  // 新版引入了**独立登录屏**、**密码字段**、**记住我 / 忘记密码**、
+  // **微信 / QQ 社交入口**，以及一整套**方框输入**的视觉。
+  // 对应的产品裁决与作废的旧裁决见 `docs/05_progress/CHANGELOG.md`。
+  //
+  // ⚠️ Figma 的社交按钮图标是 `public/assets/*.svg`，工程内**没有**这些资源，
+  // 且项目**禁止自行下载资产** —— Flutter 侧用 Material 近似图标，
+  // 与 `_RegisterAvatar` 对头像 SVG 的既有处置先例一致。
+  // ---------------------------------------------------------------------------
+
+  /// 登录 / 注册表单的字段标签。Figma：`#664293`。
+  ///
+  /// ⚠️ **不是** [inputLabel]（`#727272`）—— 新稿把标签从「大写加粗灰」
+  /// 换成了「常规紫」，两者是两代设计，不可互换。
+  static const Color authLabelInk = Color(0xFF664293);
+
+  /// 登录页底部「点击注册」文字链。Figma：`#332065`。
+  static const Color authLinkInk = Color(0xFF332065);
+
+  /// 「记住我」/「忘记密码?」。Figma：`#352459`。
+  ///
+  /// ⚠️ 与 [authLinkInk]（`#332065`）**不是同一个值** ——
+  /// 二者在登录页同一屏出现，Figma 分别写了。
+  static const Color authMetaInk = Color(0xFF352459);
+
+  /// 方框输入框的描边。Figma：`1px solid #c5b7d5`（登录 / 注册）。
+  ///
+  /// 同一色值也是社交按钮的描边（`App.tsx` L598 / L779）。
+  static const Color authFieldBorder = Color(0xFFC5B7D5);
+
+  /// 社交分隔线的细线。Figma：`#c9bcd5`。
+  static const Color authDividerLine = Color(0xFFC9BCD5);
+
+  /// 社交分隔线上的文字（`sign in with` / `Or sign up with`）。
+  /// Figma：`#bdb0cc`。
+  static const Color authDividerInk = Color(0xFFBDB0CC);
+
+  /// 「记住我」勾选框的描边与对勾。Figma：`1px solid #57457c` + `#57457c`。
+  static const Color authCheckboxInk = Color(0xFF57457C);
+
+  /// 登录面板的标题「欢迎回来！」。Figma：`#090909`。
+  ///
+  /// ⚠️ 比 [textPrimary]（`#111827`）更纯黑，是登录页独有的墨色。
+  static const Color authTitleInk = Color(0xFF090909);
+
+  /// 社交按钮 · 微信文字。Figma：`#1872cf`。
+  static const Color authWechatInk = Color(0xFF1872CF);
+
+  /// 社交按钮 · QQ 文字。Figma：`#363333`。
+  static const Color authQqInk = Color(0xFF363333);
+
+  /// 登录页底部「还没有账号?」行。Figma：`#444`。
+  static const Color authFooterInk = Color(0xFF444444);
+
+  /// 开屏页底部「已经有账户了?」行。Figma：`#363333`。
+  ///
+  /// ⚠️ 与 [authQqInk]**同值不同页** —— 依本文件既定做法（页面段各自持名），
+  /// 不复用那个名字。
+  static const Color splashFooterInk = Color(0xFF363333);
+
+  /// 登录页返回键（Glass 圆钮）的填充。Figma：`rgba(255,255,255,0.45)`。
+  ///
+  /// ⚠️ 与 [onboardingGlassFill]（`0.55`）**不是同一个值** ——
+  /// 注册 / 提交简历等页顶部的进度条返回键是 0.55，
+  /// 而登录页（`App.tsx` L490）单独写了 0.45。
+  /// 两者形状与投影相同，只有填充浓度差 10 个百分点，**不合并**。
+  static const Color authGlassFill = Color(0x73FFFFFF);
+
+  /// 登录面板的渐变。
+  /// Figma：`linear-gradient(149.75deg, #EEF2FF 8.49%, #F5F3FF 50%, #FFFFFF 91.51%)`。
+  ///
+  /// ⚠️ **不是** [onboardingGradient]（`142.84deg`，终点 `#FDF4FF`）——
+  /// 本渐变的终点是**纯白**，角度也差近 7°。
+  ///
+  /// Flutter 换算：CSS `149.75deg` → `(sin θ, -cos θ) = (0.504, 0.864)`。
+  static const LinearGradient authLoginPanelGradient = LinearGradient(
+    begin: Alignment(-0.504, -0.864),
+    end: Alignment(0.504, 0.864),
+    colors: <Color>[Color(0xFFEEF2FF), Color(0xFFF5F3FF), Color(0xFFFFFFFF)],
+    stops: <double>[0.0849, 0.5, 0.9151],
+  );
+
+  /// 登录 / 注册 / 开屏三处主按钮的渐变。
+  /// Figma：`linear-gradient(172.01deg, #4F7EF5 0%, #A77BE6 100%)`。
+  ///
+  /// ⚠️ 与 [brandGradient]（`135deg`）**不是同一个角度**。
+  /// 与 [progressGradient] / [brandGradientDown]（`172deg`）**色值与角度都一致** ——
+  /// 按本文件既定做法（同值不同用途各自持名，见 [brandTint]）另立，
+  /// 好让「改按钮配色」不会波及进度条。
+  ///
+  /// Flutter 换算：CSS `172.01deg` → `(0.139, 0.990)`。
+  static const LinearGradient authPrimaryButtonGradient = LinearGradient(
+    begin: Alignment(-0.139, -0.990),
+    end: Alignment(0.139, 0.990),
+    colors: <Color>[primaryBlue, primaryPurple],
+  );
+
+  // ---------------------------------------------------------------------------
+  // 我的简历 · 简历历史 / 简历详情（Figma `ResumeHistoryPage` L4479-4600、
+  // `ResumeDetailPage` L4599-4793，2026-10-04 导出版）
+  //
+  // ⚠️ 本段按本文件既定做法：**页面段各自持名**，即使与前面某处同值也不复用
+  // （先例见 [brandTint] / [splashFooterInk] 的说明）。这样「改简历页配色」
+  // 不会波及分析页 / Onboarding。
+  // ---------------------------------------------------------------------------
+
+  /// 简历详情页 · 分段切换器（PDF 预览 / 原始内容）**未选中**底色。
+  /// Figma：`rgba(229,231,235,0.60)`（L4618）。
+  static const Color resumeTabTrackFill = Color(0x99E5E7EB);
+
+  /// 简历详情页 · 卡片上的半透明玻璃白。Figma：`rgba(255,255,255,0.90)`
+  /// —— 原始内容卡（L4700）与左滑卡本体（L4455）同值。
+  static const Color resumeGlassCardFill = Color(0xE6FFFFFF);
+
+  /// 简历详情页 · PDF 卡页脚底色。Figma：`#fafafa`（L4673）。
+  static const Color resumePdfFooterFill = Color(0xFFFAFAFA);
+
+  /// 简历详情页 · PDF 卡页脚上边线。Figma：`0.5px solid #f3f4f6`（L4672）。
+  static const Color resumePdfFooterBorder = Color(0xFFF3F4F6);
+
+  /// 简历详情页 · PDF 卡页脚文字（`Resume V3 · 由 Careerly 生成` / `第 1 页`）。
+  /// Figma：`#d1d5db`（L4675 / L4676）。
+  static const Color resumePdfFooterInk = Color(0xFFD1D5DB);
+
+  /// 简历详情页 · 分段条目名（左列）。Figma：`#1f2937`（L4652）。
+  ///
+  /// ⚠️ 与 [textBody]（`#374151`）**不是同一个灰**，不可互换。
+  static const Color resumeItemLabelInk = Color(0xFF1F2937);
+
+  /// 简历历史页 · 历史版本卡的文档图标底板（**非当前**版本）。
+  /// Figma：`rgba(229,231,235,0.55)`（L4470）。
+  static const Color resumeDocTileNeutralFill = Color(0x8CE5E7EB);
+
+  /// 简历历史页 · 历史版本卡的「归档」胶囊底。Figma：`rgba(229,231,235,0.70)`（L4482）。
+  static const Color resumeArchivePillFill = Color(0xB3E5E7EB);
+
+  /// 导入简历弹层 · 「拍照上传」「粘贴文本」两个中性选项的底色。
+  /// Figma：`rgba(229,231,235,0.40)`（L4961 / L4979）。
+  ///
+  /// ⚠️ 与 [inputSurfaceFilled]**同值**（`0x66E5E7EB`），但**语义不同**：
+  /// 那个是「输入框填充」，这个是「中性选项卡」。按本段既定做法不复用。
+  static const Color resumeNeutralOptionFill = Color(0x66E5E7EB);
+
+  /// 导入简历弹层 · 「取消」按钮底。Figma：`rgba(55,59,77,0.87)`（L4993）。
+  ///
+  /// ⚠️ 色相等于 [surfaceDark]（`#373B4D`），但**带了 87% 透明度** ——
+  /// 在玻璃面板上会透出底层模糊，与实心的 [surfaceDark] 不是一回事。
+  static const Color resumeSheetCancelFill = Color(0xDE373B4D);
+
+  /// 简历详情页 · 底部动作条的玻璃底。Figma：`rgba(255,255,255,0.92)`（L4715）。
+  static const Color resumeActionBarFill = Color(0xEBFFFFFF);
+
+  /// 简历详情页 · 底部动作条的上边线。Figma：`0.5px solid rgba(0,0,0,0.06)`（L4714）。
+  ///
+  /// ⚠️ 与 [rowDivider]（`0x0D000000` = 5%）**不是同一个透明度**，不可互换。
+  static const Color resumeActionBarBorder = Color(0x0F000000);
+
+  /// 分享 / 导出弹层 · 「发送邮件」选项的图标色。Figma：`#34D399`（L4785）。
+  ///
+  /// ⚠️ 与 [success]（`#34C759`）**不是同一个绿** —— 原型在这里用了
+  /// Tailwind 的 `emerald-400`，不是它自己的 success 色。
+  static const Color resumeShareMail = Color(0xFF34D399);
+
+  /// 分享 / 导出弹层 · 「发送邮件」选项的底色。
+  /// Figma：`{ #34D399 }15`（图标色的 8% —— 三个选项卡同一算法，L4774）。
+  static const Color resumeShareMailFill = Color(0x1534D399);
+
+  // ---------------------------------------------------------------------------
+  // 分析页 · 顶部「新建分析 | 历史分析」切换器
+  // （Figma `AnalysisHome` L1511-1539，2026-10-04 导出版）
+  //
+  // ⚠️ 与简历详情页的分段切换器（[resumeTabTrackFill] / `#373b4d`）**不同款**：
+  // 那个是实心浅灰轨道 + 深色选中段；这个是**毛玻璃轨道**（blur 18）
+  // + 深色选中段。两者不可互换。
+  // ---------------------------------------------------------------------------
+
+  /// 分析页 · 切换器轨道底。Figma：`rgba(248,248,248,0.28)`（L1515）。
+  ///
+  /// ⚠️ 这是**近白**（`#f8f8f8`）而不是浅蓝 —— 与前几版的
+  /// `primaryBlueSurface` 观感差别明显。
+  static const Color analysisSegmentedTrackFill = Color(0x47F8F8F8);
+
+  /// 分析页 · 切换器轨道描边。Figma：`1px solid rgba(255,255,255,0.55)`（L1516）。
+  static const Color analysisSegmentedTrackBorder = Color(0x8CFFFFFF);
+
+  /// 分析页 · 切换器**未选中**段文字。Figma：`#B3B3B3`（L1529）。
+  static const Color analysisSegmentedIdleInk = Color(0xFFB3B3B3);
+
+  /// 分析页 · 切换器**选中**段文字。Figma：`#F0F4FF`（L1529）。
+  ///
+  /// ⚠️ **不是纯白** —— 它是带一点冷调的近白。底是 [surfaceDark]，
+  /// 两者相配才是设计稿的观感。
+  static const Color analysisSegmentedActiveInk = Color(0xFFF0F4FF);
 }

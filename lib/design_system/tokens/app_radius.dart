@@ -46,6 +46,32 @@ abstract final class AppRadius {
   static const double pill = 999;
 
   // ---------------------------------------------------------------------------
+  // 登录 / 注册页（新版 Figma · 2026-10-04）
+  //
+  // 真值来源：Figma `OnLogin`（`src/App.tsx` L473 / L598）与
+  // `OnRegister`（L679 / L779）。两处**逐位一致**，不是归纳。
+  //
+  // ⚠️ 这一档（10）**故意不并入上面的归纳阶梯**：它比最小档 [xs]（12）
+  //    还小 2，而新稿的方框输入框是**实色中性描边**形态（见
+  //    `CareerlyInputVariant.outlined`），圆角大小直接决定「方正感」——
+  //    改成 12 会明显变圆。这与 [hero] / [iconTile] 的处置同理。
+  // ---------------------------------------------------------------------------
+
+  /// 10 — 登录 / 注册页的方框输入框与社交按钮圆角。
+  ///
+  /// Figma 为这两个控件各写了两次 `borderRadius: 10`
+  /// （登录页输入框 + 社交按钮、注册页输入框 + 社交按钮），
+  /// 形态与数值完全相同，故只立**一个** Token。
+  static const double authField = 10;
+
+  /// 登录页底部面板的**顶部**圆角半径。
+  ///
+  /// Figma `OnLogin` L503：`rounded-t-[40px]` —— 只有上方两个角。
+  /// 该面板占满屏宽、贴底，是**页面内的常驻面板**而不是
+  /// `CareerlyBottomSheet`（后者是 `show()` 出来的模态）。
+  static const double authPanelTop = 40;
+
+  // ---------------------------------------------------------------------------
   // 便捷 BorderRadius
   // ---------------------------------------------------------------------------
 
@@ -64,6 +90,16 @@ abstract final class AppRadius {
   );
   static const BorderRadius borderPill = BorderRadius.all(
     Radius.circular(pill),
+  );
+
+  /// 登录 / 注册页方框输入框、社交按钮圆角（[authField]）。
+  static const BorderRadius borderAuthField = BorderRadius.all(
+    Radius.circular(authField),
+  );
+
+  /// 登录页底部面板顶圆角（[authPanelTop]）。
+  static const BorderRadius borderAuthPanel = BorderRadius.vertical(
+    top: Radius.circular(authPanelTop),
   );
 
   // ---------------------------------------------------------------------------
@@ -102,6 +138,10 @@ abstract final class AppRadius {
   /// 工作台内联表单用 `rounded-2xl`（**16**，与本值一致），
   /// 而 a-jd-step 展开区用 `rounded-xl`（**12**）。
   /// 取 16 是因为它出现在更完整的那一版表单上。
+  ///
+  /// ⚠️ **登录 / 注册页的方框输入框不走本值**，走 [borderAuthField]（10）——
+  /// 那是 2026-10-04 重新导出的 Figma 为登录 / 注册页**单独定义**的形态，
+  /// 与工作台内联表单的 16 不是同一套。**不要为了「统一」把它们合并**。
   static const BorderRadius input = borderMd;
 
   /// Bottom Sheet 顶部圆角。

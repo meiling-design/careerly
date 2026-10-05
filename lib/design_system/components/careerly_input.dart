@@ -11,26 +11,32 @@ import '../tokens/tokens.dart';
 ///
 /// | 变体 | Figma 位置 | 形态 |
 /// |---|---|---|
-/// | [underline] | `App.tsx` L510-541（Onboarding 表单） | 透明底 + **仅下边框** + 无圆角 |
+/// | [underline] | `App.tsx` L510-541（旧版 Onboarding 表单） | 透明底 + **仅下边框** + 无圆角 |
 /// | [boxed] | L1344-1390（工作台内联表单） | 半透明底 + 细边框 + `rounded-2xl` |
 /// | [filled] | L1673-1722（a-jd-step 展开区） | 灰底 + **无边框** + `rounded-xl` |
 /// | [plain] | L2631-2644（AI 对话输入） | 完全无底色无边框 |
+/// | [outlined] | L469-479 / L675-684（登录 / 注册页） | 透明底 + **实色中性描边** + `r10` + **固定高 52** |
 ///
-/// ## 为什么做成 4 个变体而不是 4 个组件
+/// ## 为什么做成 5 个变体而不是 5 个组件
 ///
 /// 遵循 D18「**变体用参数，不用新组件**」——
-/// 四者的**行为**完全相同（都是文本输入），**只有样式不同**，
-/// 因此是 variant 而不是 4 个 class。
+/// 五者的**行为**完全相同（都是文本输入），**只有样式不同**，
+/// 因此是 variant 而不是 5 个 class。
 ///
 /// ## ⚠️ 未做的收敛（属设计决策，不自行拍板）
 ///
-/// 「4 套输入样式是否应该统一成 1 套」是**视觉方向的重大决策**，
+/// 「多套输入样式是否应该统一成 1 套」是**视觉方向的重大决策**，
 /// 按 `CLAUDE.md` §0 第一禁令**不得由 Flutter 侧自行拍板**。
-/// 因此这里**原样保留 4 档**，让真实页面各自取用 ——
+/// 因此这里**原样保留各档**，让真实页面各自取用 ——
 /// 页面上看到实际效果后再裁决是否需要收敛。
 /// 登记为 **待裁决 · D45**，见 `docs/05_progress/` 待裁决清单 §3.1。
+///
+/// ⚠️ [outlined] 是 2026-10-04 重新导出的 Figma 带来的**第 5 种**写法，
+/// 它与 [underline] **不是一套**（旧稿 Onboarding 表单是下划线，新稿是方框）。
+/// 旧的 [underline] 目前仍被 **Phase 4 批 2** 的提交简历 / 确认页引用，
+/// 因此**不删除**；`underline` 的最终去留属视觉方向决策，不在此拍板。
 enum CareerlyInputVariant {
-  /// 透明底 + 仅下边框。Onboarding 表单。
+  /// 透明底 + 仅下边框。旧版 Onboarding 表单（提交简历 / 确认页仍用）。
   underline,
 
   /// 半透明底 + 细边框 + `rounded-2xl`。工作台内联表单。
@@ -41,6 +47,13 @@ enum CareerlyInputVariant {
 
   /// 无底色无边框。AI 对话输入。
   plain,
+
+  /// 透明底 + 1px `#C5B7D5` 描边 + 圆角 10 + **固定高 52**。登录 / 注册页。
+  ///
+  /// 真值来源：`App.tsx` 登录页 L469-479 与注册页 L675-684 的 `inputStyle`
+  /// —— 两处**逐位一致**。标签**在框外上方**（同 [underline]），
+  /// 而不是 [boxed] / [filled] 的行内标题位。
+  outlined,
 }
 
 /// [CareerlyInputVariant.boxed] 的品牌色取向。
@@ -263,7 +276,9 @@ class _CareerlyInputState extends State<CareerlyInput> {
   Widget build(BuildContext context) {
     final _InputSpec spec = _specFor(widget.variant, widget.tone);
 
-    final TextStyle fieldStyle = widget.variant == CareerlyInputVariant.underline
+    final TextStyle fieldStyle =
+        widget.variant == CareerlyInputVariant.underline ||
+            widget.variant == CareerlyInputVariant.outlined
         ? AppTypography.inputFieldUnderline
         : AppTypography.inputFieldCompact;
 
@@ -286,17 +301,12 @@ class _CareerlyInputState extends State<CareerlyInput> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        if (widget.variant == CareerlyInputVariant.underline) ...<Widget>[
+        if (_labelAbove) ...<Widget>[
           if (widget.label != null) ...<Widget>[
-            Text(widget.label!, style: AppTypography.inputLabel),
-            const SizedBox(height: _InputMetrics.underlineLabelGap),
+            Text(widget.label!, style: _labelAboveStyle),
+            SizedBox(height: _labelAboveGap),
           ],
-          _UnderlineShell(
-            color: widget.enabled
-                ? AppColors.inputBorderBrand
-                : AppColors.divider,
-            child: field,
-          ),
+          _shell(spec, field),
         ] else ...<Widget>[
           _buildHeaderRow(),
           _SurfaceShell(spec: spec, enabled: widget.enabled, child: field),
@@ -307,6 +317,42 @@ class _CareerlyInputState extends State<CareerlyInput> {
           _buildFootnote(widget.helperText!, AppColors.inputHelper),
       ],
     );
+  }
+
+  /// 标签是否渲染在输入框**上方**（而不是容器内的行内标题位）。
+  ///
+  /// [CareerlyInputVariant.underline] 与 [CareerlyInputVariant.outlined]
+  /// 的 Figma 结构都是 `label` → 间距 → 输入控件，两者同构。
+  bool get _labelAbove =>
+      widget.variant == CareerlyInputVariant.underline ||
+      widget.variant == CareerlyInputVariant.outlined;
+
+  /// 上方标签的文字角色。
+  ///
+  /// ⚠️ 两种形态的标签**视觉不同**（旧稿 `14/w700/#727272`，
+  /// 新稿 `14/w400/#664293`），因此不是同一个 Token —— 见两个角色的文档。
+  TextStyle get _labelAboveStyle =>
+      widget.variant == CareerlyInputVariant.outlined
+      ? AppTypography.authFieldLabel
+      : AppTypography.inputLabel;
+
+  /// 标签与输入控件之间的间距。
+  ///
+  /// 旧稿没有显式值，是 Flutter 侧补齐的（见 [_InputMetrics.underlineLabelGap]
+  /// 与待裁决 · D48）；新稿 Figma 写的是 `gap-1.5`（6px），有明确依据。
+  double get _labelAboveGap => widget.variant == CareerlyInputVariant.outlined
+      ? AppSpacing.authLabelGap
+      : _InputMetrics.underlineLabelGap;
+
+  /// 输入区外壳：只有 [CareerlyInputVariant.underline] 是「仅下边框」。
+  Widget _shell(_InputSpec spec, Widget field) {
+    if (widget.variant == CareerlyInputVariant.underline) {
+      return _UnderlineShell(
+        color: widget.enabled ? AppColors.inputBorderBrand : AppColors.divider,
+        child: field,
+      );
+    }
+    return _SurfaceShell(spec: spec, enabled: widget.enabled, child: field);
   }
 
   /// `boxed` / `filled` / `plain` 的行内标题行。
@@ -441,6 +487,12 @@ class _CareerlyInputState extends State<CareerlyInput> {
 typedef _InputSpec = ({
   EdgeInsets padding,
   double minHeight,
+  /// 非空时输入区用**固定高度**（`SizedBox`），而不是 `minHeight` 约束。
+  ///
+  /// 两者不是一回事：`minHeight` 只保证「不低于」，单行内容会顶到上沿；
+  /// 登录 / 注册页的方框是 Figma 写死的 `height: 52` 且文字**垂直居中**，
+  /// 因此必须走固定高度 + 居中。
+  double? height,
   Color fill,
   Color? border,
   double borderWidth,
@@ -459,6 +511,7 @@ _InputSpec _specFor(CareerlyInputVariant variant, CareerlyInputTone tone) {
     CareerlyInputVariant.underline => (
       padding: const EdgeInsets.only(top: 4, bottom: 10),
       minHeight: 0,
+      height: null,
       fill: Colors.transparent,
       border: null,
       borderWidth: 0,
@@ -473,6 +526,7 @@ _InputSpec _specFor(CareerlyInputVariant variant, CareerlyInputTone tone) {
         AppSpacing.xs,
       ),
       minHeight: _InputMetrics.multilineMinHeight,
+      height: null,
       fill: purple ? AppColors.inputSurfacePurple : AppColors.inputSurfaceBrand,
       border: purple
           ? AppColors.inputBorderPurple
@@ -487,6 +541,7 @@ _InputSpec _specFor(CareerlyInputVariant variant, CareerlyInputTone tone) {
         vertical: AppSpacing.sm,
       ),
       minHeight: _InputMetrics.multilineMinHeight,
+      height: null,
       fill: AppColors.inputSurfaceFilled,
       border: null,
       borderWidth: 0,
@@ -496,10 +551,28 @@ _InputSpec _specFor(CareerlyInputVariant variant, CareerlyInputTone tone) {
     CareerlyInputVariant.plain => (
       padding: EdgeInsets.zero,
       minHeight: 0,
+      height: null,
       fill: Colors.transparent,
       border: null,
       borderWidth: 0,
       radius: BorderRadius.zero,
+    ),
+    // 透明底 + 实色中性描边 + r10 + 固定高 52。Figma L469-479 / L675-684。
+    //
+    // ⚠️ 描边色用 `authFieldBorder`（`#C5B7D5`）而**不是**品牌色 ——
+    // 新稿这里刻意是中性紫灰，与 [boxed] 的两种品牌色取向都不是一套。
+    // 因此本变体**忽略 [CareerlyInputTone]**（`tone` 的文档已声明该字段
+    // 只对 `boxed` 生效）。
+    CareerlyInputVariant.outlined => (
+      padding: const EdgeInsets.symmetric(
+        horizontal: _InputMetrics.outlinedHorizontalPadding,
+      ),
+      minHeight: 0,
+      height: _InputMetrics.outlinedHeight,
+      fill: Colors.transparent,
+      border: AppColors.authFieldBorder,
+      borderWidth: _InputMetrics.outlinedBorderWidth,
+      radius: AppRadius.borderAuthField,
     ),
   };
 }
@@ -561,12 +634,27 @@ class _SurfaceShell extends StatelessWidget {
         ),
         child: Padding(
           padding: spec.padding,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: spec.minHeight),
-            child: child,
-          ),
+          child: _sizedContent(child),
         ),
       ),
+    );
+  }
+
+  /// 固定高度（[outlined]）走 `SizedBox` + 垂直居中；其余走 `minHeight` 约束。
+  ///
+  /// ⚠️ 居中这一层是必须的：单行的 `TextField` 只有约 24px 高，
+  /// 在 52px 的框里若不居中就会顶到上沿 —— 这与 Figma 的
+  /// `height: 52` + 浏览器默认 `input` 居中行为不符。
+  Widget _sizedContent(Widget child) {
+    if (spec.height != null) {
+      return SizedBox(
+        height: spec.height,
+        child: Align(alignment: Alignment.centerLeft, child: child),
+      );
+    }
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: spec.minHeight),
+      child: child,
     );
   }
 }
@@ -588,6 +676,18 @@ abstract final class _InputMetrics {
   /// Figma `minHeight: 120`（JD 多行输入区）。
   static const double multilineMinHeight = 120;
 
+  /// Figma `height: 52`（登录 / 注册页方框输入框）。
+  static const double outlinedHeight = 52;
+
+  /// Figma `1px solid #c5b7d5`（登录 / 注册页方框输入框描边宽度）。
+  static const double outlinedBorderWidth = 1;
+
+  /// Figma `padding: '0 14px'`（登录 / 注册页方框输入框内边距）。
+  ///
+  /// ⚠️ 取 `14` 而**不是** [AppSpacing.sm]（12）或 [AppSpacing.md]（16）——
+  /// 它是 Figma 原值，落在刻度之间，同 [boxedBorderWidth] 的处置。
+  static const double outlinedHorizontalPadding = 14;
+
   /// ⚠️ **Flutter 侧补齐 · 待视觉验证（待裁决 · D48）** ——
   /// Figma 的 `LABEL` 与输入框之间**没有显式间距**（靠 `p` 的默认边距，
   /// 而 Tailwind preflight 会把它清零），因此没有设计原值可取。
@@ -606,8 +706,11 @@ abstract final class _InputMetrics {
     return switch (variant) {
       CareerlyInputVariant.boxed => AppSpacing.sm,
       CareerlyInputVariant.filled => AppSpacing.sm,
-      // `plain` 与 `underline` 的标题在容器之外，不需要额外缩进。
-      CareerlyInputVariant.plain || CareerlyInputVariant.underline => 0,
+      // `plain` / `underline` / `outlined` 的标题在容器之外（见
+      // [CareerlyInputVariant.outlined] 的说明），不需要额外缩进。
+      CareerlyInputVariant.plain ||
+      CareerlyInputVariant.underline ||
+      CareerlyInputVariant.outlined => 0,
     };
   }
 
@@ -617,8 +720,10 @@ abstract final class _InputMetrics {
       CareerlyInputVariant.boxed => AppSpacing.sm,
       CareerlyInputVariant.filled => AppSpacing.sm,
       // Figma 的辅助说明（L1387）自带 `mt-2`，左沿与输入区一致，
-      // 而 `underline` 变体没有对应设计，取 0 保持与标签左对齐。
-      CareerlyInputVariant.plain || CareerlyInputVariant.underline => 0,
+      // 而 `underline` / `outlined` 变体没有对应设计，取 0 保持与标签左对齐。
+      CareerlyInputVariant.plain ||
+      CareerlyInputVariant.underline ||
+      CareerlyInputVariant.outlined => 0,
     };
   }
 }

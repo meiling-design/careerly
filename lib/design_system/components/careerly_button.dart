@@ -19,6 +19,26 @@ enum CareerlyButtonVariant {
   /// （Figma 可复用组件 `SecondaryBtn`），本变体是**白底 + 中性灰字**。
   /// 两者底色与文字色都不同，故并存为两个变体而不是合并。
   neutral,
+
+  /// 登录 / 注册 / 开屏页的渐变主按钮（2026-10-04 重新导出的 Figma）。
+  ///
+  /// ⚠️ **与 [primary] 只差两点，但两点都看得见**：
+  ///
+  /// ```text
+  ///              渐变角度        投影
+  /// [primary]    135deg（对角）   0 8px 24px rgba(79,126,245,0.30)
+  /// [authPrimary] 172deg（近垂直） 0 8px 12px rgba(79,126,245,0.30)
+  /// ```
+  ///
+  /// Figma 把这两个值在**三处**独立写了一遍（`OnSplash` L439、
+  /// `OnLogin` L581、`OnRegister` L764），而 `S.primary`（135deg）
+  /// 在同一份稿子里用得更多 —— 两套都是**刻意的**，不是笔误。
+  /// 在 48px 高、接近满宽的药丸按钮上，对角渐变与垂直渐变肉眼可辨。
+  ///
+  /// ⚠️ 命名带 `auth` 是因为它**只服务于账号相关的那三屏**；
+  /// 若将来别处也用这套角度 / 投影，应改名并同步这里的说明，
+  /// 而**不是**把它当成新的默认主按钮。
+  authPrimary,
 }
 
 /// Careerly 按钮。
@@ -52,6 +72,27 @@ enum CareerlyButtonVariant {
 /// 且「满强度渐变却点不动」是真实的可用性问题。
 /// 因此这里用既有 Token（`disabledSurface` / `textDisabled`）补齐，
 /// **未新增任何产品规则**。
+///
+/// ⚠️ **已知缺口（未自行修改，待裁决）**：`disabledSurface` 是白色 8%，
+/// 是给深色玻璃面板用的；落在本系统的浅色渐变页上等于**没有底色** ——
+/// 真机上表现为「按钮整个消失，只剩一行灰字」（登录页空表单的
+/// 「点击登录」即此形态）。改用同流程 `OnboardingPrimaryButton` 的
+/// `AppColors.disabled` 作底衬也**不成立**：实测该底衬
+/// `rgb(159,151,164)` 与 `textDisabled` 文字 `rgb(157,158,171)` 几乎同色，
+/// 文字会读不出来。两条既有路径都会坏，**需要产品侧先定「禁用按钮长什么样」**。
+///
+/// ## ⚠️ `color` 与 `gradient` 必须互斥（2026-10-04 修复）
+///
+/// `BoxDecoration` 一旦收到**非 null 的 `color`**，渐变就整块不画 ——
+/// 连 `Colors.transparent` 也会触发。此前 [CareerlyButtonVariant.primary] /
+/// [CareerlyButtonVariant.authPrimary] 写的是 `color: Colors.transparent`，
+/// 于是这两个变体**从未真正渲染出渐变**，只剩下 `boxShadow`；
+/// 白色文字照常绘制（文字在装饰之上），所以真机表现是
+/// 「一团模糊的淡紫斑 + 一行白字」，而不是一颗药丸按钮。
+///
+/// 受影响范围是所有用这两个变体的位置（开屏「点击注册」、登录「点击登录」、
+/// 注册「创建账号」、分析「开始分析」…）。修复方式与
+/// `OnboardingPrimaryButton` 一致：走渐变时把 `color` 传 `null`。
 class CareerlyButton extends StatefulWidget {
   const CareerlyButton({
     super.key,
@@ -136,12 +177,14 @@ class _CareerlyButtonState extends State<CareerlyButton> {
   Widget build(BuildContext context) {
     final bool isPrimary = widget.variant == CareerlyButtonVariant.primary;
     final bool isNeutral = widget.variant == CareerlyButtonVariant.neutral;
+    final bool isAuthPrimary =
+        widget.variant == CareerlyButtonVariant.authPrimary;
     final bool enabled = _isEnabled;
 
     // 文字样式：从 Token 取角色，再按状态换色（不新建字号 / 字重）。
     //
-    // 只有 `secondary` 走 14/w600 的角色，`primary` 与 `neutral` 同为
-    // 15/w700（Figma 的 `SecondaryBtn` 与另两者的字号本就不同）。
+    // 只有 `secondary` 走 14/w600 的角色，`primary` / `authPrimary` / `neutral`
+    // 同为 15/w700（Figma 的 `SecondaryBtn` 与另几者的字号本就不同）。
     final TextStyle baseText = widget.variant == CareerlyButtonVariant.secondary
         ? AppTypography.buttonSecondary
         : AppTypography.buttonPrimary;
@@ -157,7 +200,10 @@ class _CareerlyButtonState extends State<CareerlyButton> {
     );
 
     // 底色与投影。
-    final Color background;
+    //
+    // ⚠️ 走渐变的两个分支必须把 `background` 传 `null`（**不是**
+    // `Colors.transparent`）—— 见类文档「`color` 与 `gradient` 必须互斥」。
+    final Color? background;
     final Gradient? gradient;
     final List<BoxShadow> shadow;
 
@@ -166,9 +212,13 @@ class _CareerlyButtonState extends State<CareerlyButton> {
       gradient = null;
       shadow = AppShadows.none;
     } else if (isPrimary) {
-      background = Colors.transparent;
+      background = null;
       gradient = AppColors.brandGradient;
       shadow = AppShadows.primaryButton;
+    } else if (isAuthPrimary) {
+      background = null;
+      gradient = AppColors.authPrimaryButtonGradient;
+      shadow = AppShadows.authPrimaryButton;
     } else if (isNeutral) {
       background = AppColors.surface;
       gradient = null;
@@ -182,7 +232,7 @@ class _CareerlyButtonState extends State<CareerlyButton> {
     final double pressedOpacity;
     if (!enabled) {
       pressedOpacity = 1.0;
-    } else if (isPrimary) {
+    } else if (isPrimary || isAuthPrimary) {
       pressedOpacity = _ButtonMetrics.pressedOpacityPrimary;
     } else if (isNeutral) {
       pressedOpacity = _ButtonMetrics.pressedOpacityNeutral;

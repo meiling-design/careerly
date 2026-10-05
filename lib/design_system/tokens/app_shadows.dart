@@ -363,4 +363,80 @@ abstract final class AppShadows {
   static const List<BoxShadow> growthBackButton = <BoxShadow>[
     BoxShadow(color: Color(0x0F000000), offset: Offset(0, 2), blurRadius: 4),
   ];
+
+  // ---------------------------------------------------------------------------
+  // 登录 / 注册 / 开屏页（新版 Figma 重新导出 · 2026-10-04）
+  //
+  // 真值来源：`OnSplash` L439、`OnLogin` L582、`OnRegister` L764 ——
+  // **三处逐位一致**，是同一个按钮形态（渐变胶囊主按钮）。
+  // ---------------------------------------------------------------------------
+
+  /// 登录 / 注册 / 开屏页渐变主按钮的投影。
+  /// Figma：`0 8px 12px rgba(79,126,245,0.30)`。
+  ///
+  /// ⚠️ 数值与 [profileAvatar]（L3159）**逐位相同**，但**不合并** ——
+  /// 沿用本文件既有先例（见 [profileAvatar] 的说明）：Figma 在不同版面
+  /// 各写了一次，语义一个是「头像」一个是「按钮」，合并后改一处会误伤另一处。
+  /// 与 [button]（`0.28`）/ [primaryButton]（`0 8px 24px`）同为 `0 8px 12px`
+  /// 家族，**只有透明度不同**，同样不可互相替代。
+  static const List<BoxShadow> authPrimaryButton = <BoxShadow>[
+    BoxShadow(color: Color(0x4D4F7EF5), offset: Offset(0, 8), blurRadius: 12),
+  ];
+
+  // ---------------------------------------------------------------------------
+  // 我的简历 · 简历历史 / 简历详情（Figma `ResumeHistoryPage` L4479-4600、
+  // `ResumeDetailPage` L4599-4793）
+  // ---------------------------------------------------------------------------
+
+  /// 简历详情页 · PDF 预览卡的投影。
+  /// Figma：`0 4px 24px rgba(0,0,0,0.10)`（L4626）。
+  static const List<BoxShadow> resumePdfCard = <BoxShadow>[
+    BoxShadow(color: Color(0x1A000000), offset: Offset(0, 4), blurRadius: 24),
+  ];
+
+  /// 简历历史页 · 「新建」悬浮按钮的投影。
+  /// Figma：`0 8px 24px rgba(79,126,245,0.40)`（L4580）。
+  ///
+  /// ⚠️ 与 [primaryButton]（`0 8px 24px` / `0.30`）**只差透明度**
+  /// （`0.40` vs `0.30`），与 [splashOrb]（`0 20px 48px`）差得更多 ——
+  /// 三者不可互换。
+  static const List<BoxShadow> resumeFab = <BoxShadow>[
+    BoxShadow(color: Color(0x664F7EF5), offset: Offset(0, 8), blurRadius: 24),
+  ];
+
+  // ---------------------------------------------------------------------------
+  // 分析页 · 顶部「新建分析 | 历史分析」切换器
+  // （Figma `AnalysisHome` L1511-1539）
+  // ---------------------------------------------------------------------------
+
+  /// 分析页 · 切换器轨道的四层投影。
+  /// Figma（L1519）逐字：
+  /// `1.25px 0 0 -0.75px #d0d0d0, -1.25px 0 0 -0.75px #d0d0d0,
+  ///  0 0 0 0.5px #e8e8e8, 0 8px 15px rgba(0,0,0,0.02)`
+  ///
+  /// 这是「Glass FillShadow」那套边缘高光的 Flutter 侧近似：
+  /// 左右各 `±1.25px` 偏移、`-0.75px` 收缩画侧边高光，
+  /// `0.5px` 收缩画外描边，最后一层是柔和投影。
+  /// ⚠️ 原型的 `inset` 两层 Flutter 画不了（`BoxShadow` 无 inset），
+  /// 与 `GlassSurface` / `OnboardingProgressHeader` 同一处置。
+  static const List<BoxShadow> analysisSegmentedTrack = <BoxShadow>[
+    BoxShadow(
+      color: Color(0xFFD0D0D0),
+      offset: Offset(1.25, 0),
+      spreadRadius: -0.75,
+    ),
+    BoxShadow(
+      color: Color(0xFFD0D0D0),
+      offset: Offset(-1.25, 0),
+      spreadRadius: -0.75,
+    ),
+    BoxShadow(color: Color(0xFFE8E8E8), spreadRadius: 0.5),
+    BoxShadow(color: Color(0x05000000), offset: Offset(0, 8), blurRadius: 15),
+  ];
+
+  /// 分析页 · 切换器**选中段**的投影。
+  /// Figma：`0 2px 4px rgba(79,126,245,0.12)`（L1530）。
+  static const List<BoxShadow> analysisSegmentedActive = <BoxShadow>[
+    BoxShadow(color: Color(0x1F4F7EF5), offset: Offset(0, 2), blurRadius: 4),
+  ];
 }

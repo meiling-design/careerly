@@ -60,6 +60,13 @@ abstract final class AppMotion {
   /// 重大结果揭示：匹配度分数、分析报告生成完成。400–700ms
   static const Duration reveal = Duration(milliseconds: 550);
 
+  /// 简历版本卡左滑后的吸附回弹。
+  ///
+  /// Figma `SwipeableResumeCard`（`src/App.tsx` L4455）：
+  /// `transition: transform 0.25s cubic-bezier(0.25,0.46,0.45,0.94)`
+  /// —— 时长 `0.25s`，缓动即 [standard]。两者都逐位取自 Figma。
+  static const Duration swipeSnap = Duration(milliseconds: 250);
+
   // ---------------------------------------------------------------------------
   // 语义别名（Phase 1 §二十要求至少预留 fast / normal / slow）
   // ---------------------------------------------------------------------------
@@ -288,6 +295,15 @@ abstract final class AppMotion {
   /// 底部导航 AI 浮球的按下缩放比例。
   /// Figma `BottomNav`: AI 球为 `scale(0.94)`，比普通 Tab 的 0.96 更深。
   static const double pressScaleOrb = 0.94;
+
+  /// 分析页顶部切换器分段的按下缩放比例。
+  ///
+  /// Figma `AnalysisHome`（`src/App.tsx` L1525）：`active:scale-[0.97]`。
+  ///
+  /// ⚠️ 与 [pressScale]（`0.96`）**只差 0.01**，但**不是笔误**：
+  /// Figma 在不同组件上各写各的（导航 / 卡片 `0.96`，本切换器 `0.97`），
+  /// 与 [pressScaleOrb] 同理 —— 每处按 Figma 原值取值，不做「收敛」。
+  static const double pressScaleSegment = 0.97;
 
   /// 空 / 错误状态内容出现时的上移量。
   static const double stateContentOffset = 12.0;
