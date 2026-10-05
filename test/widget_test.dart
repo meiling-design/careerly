@@ -167,6 +167,51 @@ void main() {
       expect(find.text('Career Copilot'), findsOneWidget);
       expect(find.text('你可以问我'), findsOneWidget);
       expect(find.text('输入你想问的问题...'), findsOneWidget);
+      expect(find.text('你好，ALEX'), findsOneWidget);
+      expect(
+        find.byTooltip('聊天记录'),
+        findsOneWidget,
+        reason: 'Figma AI 欢迎页右侧提供聊天记录入口',
+      );
+
+      const String suggestion = '为什么这个岗位匹配度只有 82%？';
+      await tester.ensureVisible(find.text(suggestion));
+      await tester.tap(find.text(suggestion));
+      await tester.pump();
+      expect(
+        find.text('已关联分析：AI 产品经理 · 86% 匹配'),
+        findsOneWidget,
+        reason: '点击 Figma 建议问题后进入带分析上下文的聊天界面',
+      );
+      expect(find.text(suggestion), findsNWidgets(3));
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('聊天记录'));
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.text('新建对话'), findsOneWidget);
+      expect(find.text('聊天记录'), findsOneWidget);
+      expect(find.text(suggestion), findsNWidgets(3));
+
+      await tester.tap(find.byTooltip('关闭聊天记录'));
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.tap(find.byTooltip('聊天记录'));
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.tap(find.text('新建对话'));
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.text('你可以问我'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('聊天记录'));
+      await tester.pump(const Duration(milliseconds: 350));
+      final Finder historyPreview = find.text(suggestion).last;
+      await tester.tap(
+        find
+            .ancestor(of: historyPreview, matching: find.byType(InkWell))
+            .first,
+      );
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.text(suggestion), findsNWidgets(3));
+      expect(find.text('已关联分析：AI 产品经理 · 86% 匹配'), findsOneWidget);
     });
   });
 

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:careerly/core/errors/app_error.dart';
@@ -34,12 +35,14 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// 契约 `docs/careerly/BACKEND_API_CONTRACT.md` §1/§2 在**真实 HTTP** 上的
 /// 落地情况：register/login（手机号身份 D85）、简历资产提交
-/// （`POST /api/v1/resume`，提交即解析落库）、额度扣减、分析全链路
+/// （PDF 经 multipart 上传、提交即解析落库）、额度扣减、分析全链路
 /// （含 C4 能力快照）、项目详情与岗位库、以及两类错误路径
 /// （无 token → [AuthError]；不支持的简历格式 → [ParseError]）。
 void main() {
-  const bool enabled =
-      bool.fromEnvironment('CAREERLY_REAL_BACKEND', defaultValue: false);
+  const bool enabled = bool.fromEnvironment(
+    'CAREERLY_REAL_BACKEND',
+    defaultValue: false,
+  );
   const String baseUrl = String.fromEnvironment(
     'CAREERLY_API_BASE_URL',
     defaultValue: 'http://127.0.0.1:8000',
@@ -57,34 +60,49 @@ void main() {
       final String phone =
           '139${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
 
-      // ── 1. 认证（手机号身份，D85） ───────────────────────────────
-      await auth.register(name: '联调账号', phone: phone);
+      // ── 1. 认证（手机号 + 密码，2026-10-04 取代 D85） ─────────────
+      await auth.register(name: '联调账号', phone: phone, password: _password);
       expect(client.hasSession, isTrue, reason: 'register 应写入会话');
 
-      await auth.login(phone: phone);
+      await auth.login(phone: phone, password: _password);
       expect(client.hasSession, isTrue, reason: 'login 应写入会话');
 
       // ── 2. 简历资产（POST /resume：提交即解析落库） ────────────────
-      await resume.submitResumeText(_resumeText);
+      final Uint8List resumePdf = _makePdf(_resumePdfText);
+      await resume.submitResumeFile(
+        ResumeFileData(
+          name: 'careerly-integration-resume.pdf',
+          extension: 'pdf',
+          sizeBytes: resumePdf.length,
+          bytes: resumePdf,
+        ),
+      );
       final ResumeProfile profile = await resume.fetchProfile();
       expect(profile.hasBaseline, isTrue, reason: '提交后应有基线');
-      expect(profile.skills, isNotEmpty,
-          reason: 'POST /resume 应立即解析出结构化画像，不需先跑一次分析');
-      expect(profile.workExperiences, isNotEmpty,
-          reason: 'roles[] 应映射到 workExperiences（2026-10-02 字段映射修复）');
+      expect(
+        profile.skills,
+        contains('Python'),
+        reason: 'PDF 提取出的技能应由 ResumeAgent 解析并经 API 映射回来',
+      );
+      expect(
+        profile.workExperiences,
+        isNotEmpty,
+        reason: 'roles[] 应映射到 workExperiences（2026-10-02 字段映射修复）',
+      );
 
       // ── 3. 额度 ──────────────────────────────────────────────────
       final QuotaState quotaBefore = await analysis.fetchQuota();
       expect(quotaBefore.total, greaterThanOrEqualTo(3));
 
       // ── 4. 分析（真实 LLM，约 200s） ─────────────────────────────
-      final AnalysisProject project =
-          await analysis.analyze(title: '高级后端工程师', rawJd: _jd);
+      final AnalysisProject project = await analysis.analyze(
+        title: '高级后端工程师',
+        rawJd: _jd,
+      );
       expect(project.results, isNotEmpty, reason: '分析应产出结果');
 
       final AnalysisResult result = project.results.first;
-      expect(result.capabilitySnapshot, isNotEmpty,
-          reason: 'C4：能力快照不应为空');
+      expect(result.capabilitySnapshot, isNotEmpty, reason: 'C4：能力快照不应为空');
       expect(result.matches.first.score, inInclusiveRange(0, 100));
       expect(project.jobs.first.title, '高级后端工程师');
       expect(project.jobs.first.source, 'paste');
@@ -108,13 +126,21 @@ void main() {
       expect(quotaAfter.used, quotaBefore.used + 1);
 
       // ── 7. 错误路径 ──────────────────────────────────────────────
+      //
+      // ⚠️ 这一组**必须** `await expectLater(...)`，不能写成 `expect(...)`。
+      // `expect` 拿到 Future 时只登记异步断言就立刻返回，body 会继续往下跑，
+      // 于是三个请求并发在飞的同时第 145 行 `dispose()` 已经执行
+      // （`ApiClient.dispose()` = `_http.close()`）——
+      // 后到的那两个 multipart 响应会被掐断，`AuthError` / `ParseError`
+      // 因此退化成 `NetworkError: Connection closed before full header was
+      // received`，用例随机变红。串行 await 之后错误类型才是后端真实返回的那一种。
       final ApiClient anon = ApiClient(baseUrl: baseUrl);
-      expect(
+      await expectLater(
         ApiAnalysisRepository(anon).fetchQuota(),
         throwsA(isA<AuthError>()),
         reason: '无 token 必须被拒绝',
       );
-      expect(
+      await expectLater(
         ApiResumeRepository(anon).submitResumeFile(
           ResumeFileData(
             name: 'a.pdf',
@@ -129,7 +155,7 @@ void main() {
 
       // 不支持的格式由后端拒绝（Flutter 白名单与后端逐项一致，
       // 这里验证后端那一侧确实会挡下来）。
-      expect(
+      await expectLater(
         resume.submitResumeFile(
           ResumeFileData(
             name: 'legacy.doc',
@@ -142,27 +168,61 @@ void main() {
         reason: '.doc 是旧二进制格式，后端应回 UNSUPPORTED_FORMAT(422)',
       );
 
+      // ── 8. 第三方登录契约（2026-10-04：只建接缝，不做真实对接） ────
+      //
+      // 这一步**刻意断言「失败」**：项目没有任何第三方开放平台凭据，
+      // 后端在未配置时回 501 `OAUTH_NOT_CONFIGURED`、配了但未实现时回
+      // 501 `OAUTH_UNAVAILABLE`。两种都必须被客户端识别成**可读的错误**，
+      // 而不是静默超时、也不是被误判成凭据失效（那会强制退出登录）。
+      //
+      // ⚠️ 若哪天这里不再抛错，说明真的接上了 OAuth ——
+      // 那时应当把断言改成「换码成功」，而不是删掉它。
+      await expectLater(
+        auth.signInWithOAuth(provider: 'wechat'),
+        throwsA(
+          // 必须落到中性的 [NetworkError]（保留服务端原文 message），
+          // **不能**是 [AuthError] —— 后者在 `ApiClient` 里有一条
+          // 「刷新令牌 → 失败则清会话」的路径，会把「点了下未上线的
+          // 微信按钮」升级成**强制退出登录**。
+          isA<NetworkError>().having(
+            (NetworkError e) => e.detail,
+            'detail',
+            startsWith('OAUTH_'),
+          ),
+        ),
+        reason: '未配置的第三方登录必须报出可识别的错误，不能假装成功',
+      );
+
       client.dispose();
       anon.dispose();
     },
-    skip: enabled ? false : '默认跳过：需要真实后端，'
-        '用 --dart-define=CAREERLY_REAL_BACKEND=true 启用',
+    skip: enabled
+        ? false
+        : '默认跳过：需要真实后端，'
+              '用 --dart-define=CAREERLY_REAL_BACKEND=true 启用',
     timeout: const Timeout(Duration(minutes: 10)),
   );
 }
 
 // ── 样例数据 ────────────────────────────────────────────────────────────
 
-const String _resumeText = '''
-张三 | 后端工程师 | 6 年经验 | zhangsan@example.com
-技能：Python、Go、FastAPI、MySQL、Redis、Docker、Kafka、微服务架构
-经历：
-- 某电商 后端工程师（2021-至今）：负责订单与库存服务，QPS 峰值 1.2 万，
-  主导单体拆分为 6 个微服务，引入 Redis 多级缓存将 P99 从 800ms 降至 120ms。
-- 某 SaaS 公司 后端工程师（2019-2021）：设计多租户计费系统，支撑 300+ 企业客户。
-项目：
-- 电商中台订单服务：FastAPI + MySQL 分库分表 + Kafka 异步解耦。
-- 实时风控引擎：Go + Redis，规则热更新，日均处理 400 万次请求。
+/// 联调账号的密码。
+///
+/// ⚠️ 它只存在于这个**默认跳过**的联调文件里，且每次运行都会新建一个
+/// 随机手机号 —— 不是任何真实账号的凭据。后端收到后会 bcrypt 哈希入库。
+const String _password = 'careerly-it-2026';
+
+// ASCII text keeps the generated PDF fixture portable and readable by Helvetica.
+const String _resumePdfText = '''
+Alex Morgan | Senior Backend Engineer | 6 years
+Email: alex.morgan@example.com
+Skills: Python, Go, FastAPI, MySQL, Redis, Docker, Kafka
+Experience:
+- Senior Backend Engineer at CommerceCo (2021-present)
+- Backend Engineer at SaaSCo (2019-2021)
+Projects:
+- E-commerce order platform: FastAPI, MySQL sharding, Kafka
+- Real-time risk engine: Go and Redis, 4 million requests per day
 ''';
 
 const String _jd = '''
@@ -172,3 +232,46 @@ const String _jd = '''
 熟悉 Docker 与 Kubernetes，具备大规模分布式系统设计与调优经验，
 有技术团队带领经验者优先。
 ''';
+
+Uint8List _makePdf(String text) {
+  final String content = <String>[
+    'BT',
+    '/F1 10 Tf',
+    '50 760 Td',
+    for (final String line in text.trim().split('\n')) ...<String>[
+      '(${line.replaceAll(r'\', r'\\').replaceAll('(', r'\(').replaceAll(')', r'\)')}) Tj',
+      '0 -14 Td',
+    ],
+    'ET',
+  ].join('\n');
+
+  final List<String> objects = <String>[
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] '
+        '/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Length ${ascii.encode(content).length} >>\nstream\n$content\nendstream',
+  ];
+  final StringBuffer pdf = StringBuffer('%PDF-1.4\n');
+  final List<int> offsets = <int>[0];
+  for (int i = 0; i < objects.length; i++) {
+    offsets.add(pdf.length);
+    pdf
+      ..write('${i + 1} 0 obj\n')
+      ..write('${objects[i]}\n')
+      ..write('endobj\n');
+  }
+
+  final int xrefOffset = pdf.length;
+  pdf
+    ..write('xref\n0 ${objects.length + 1}\n')
+    ..write('0000000000 65535 f \n');
+  for (final int offset in offsets.skip(1)) {
+    pdf.write('${offset.toString().padLeft(10, '0')} 00000 n \n');
+  }
+  pdf
+    ..write('trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\n')
+    ..write('startxref\n$xrefOffset\n%%EOF\n');
+  return Uint8List.fromList(ascii.encode(pdf.toString()));
+}

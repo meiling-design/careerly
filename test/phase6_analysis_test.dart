@@ -621,6 +621,10 @@ class StubResumeRepository implements ResumeRepository {
   @override
   Future<void> setCurrentVersion(String versionId) async {}
 
+  // ResumeRepository 新增「删除版本」（PRD §14）—— 桩同步实现。
+  @override
+  Future<void> deleteVersion(String versionId) async {}
+
   @override
   Future<void> submitResumeText(String text) async {}
 

@@ -97,6 +97,13 @@ void main() {
         AppRoutes.profile,
         AppRoutes.onboardingSplash,
         AppRoutes.onboardingRegister,
+        // ⚠️ 2026-10-04 补入 —— `shortNames` 里的 `'login'` 指向
+        // [AppRoutes.onboardingLogin]，而本白名单此前漏了它，
+        // 于是「每个短名都指向真实路由」这条断言**恒失败**。
+        // 该路由自登录页落地起就在 `app_router.dart` 注册过
+        // （`location: AppRoutes.onboardingLogin`），是白名单没跟上，
+        // 不是路由不存在 —— 故修白名单，不改断言。
+        AppRoutes.onboardingLogin,
         AppRoutes.onboardingResume,
         AppRoutes.onboardingParsing,
         AppRoutes.onboardingConfirm,

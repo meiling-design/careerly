@@ -179,11 +179,19 @@ class _RecordingAuthRepository implements AuthRepository {
   Future<void> register({
     required String name,
     required String phone,
-    String? email,
+    required String password,
   }) async {}
 
   @override
-  Future<void> login({required String phone}) async {}
+  Future<void> login({
+    required String phone,
+    required String password,
+  }) async {}
+
+  /// 本文件测的是**退出登录**，第三方登录只是接口上的一个方法 ——
+  /// 不实现任何行为，也不假装成功。
+  @override
+  Future<void> signInWithOAuth({required String provider}) async {}
 
   @override
   Future<void> logout() async {

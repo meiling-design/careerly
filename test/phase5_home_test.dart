@@ -3,6 +3,7 @@ import 'package:careerly/data/models/home_summary.dart';
 import 'package:careerly/data/repositories/home_repository.dart';
 import 'package:careerly/design_system/components/components.dart';
 import 'package:careerly/design_system/theme/careerly_theme.dart';
+import 'package:careerly/features/home/presentation/home_content.dart';
 import 'package:careerly/features/home/presentation/home_page.dart';
 import 'package:careerly/features/home/presentation/widgets/home_analysis_section.dart';
 import 'package:careerly/features/home/presentation/widgets/home_header.dart';
@@ -441,6 +442,88 @@ void main() {
       expect(find.text('重试'), findsOneWidget);
       // 失败时**不得**渲染三态内容 —— 那是「成功且无数据」的形态。
       expect(find.byType(HomeHeroCard), findsNothing);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // §9-4 · 筛选行窄屏不溢出
+  // ---------------------------------------------------------------------------
+
+  /// 修复前：`_FilterTabs` 三颗胶囊的固有宽合计 **332**
+  /// （`padding0 20` + 4 字 ×14 ×2 组，加 `padding0 16` + 4 字 ×14，
+  /// 加 `gap 8` ×2），而 320dp 屏扣掉页面左右内边距只剩 280。
+  ///
+  /// `Row` 里非 flex 子项拿到的是**无界**主轴约束，所以 `_Tab` 内的
+  /// `maxLines: 1, overflow: ellipsis` 永远不会触发，只会整行
+  /// `RenderFlex overflowed` —— 360dp 溢 12px、320dp 溢 52px。
+  ///
+  /// ⚠️ 这个缺陷此前躲过了全部用例，因为 `flutter_test` 默认画布是
+  /// **800×600**，宽得足以容纳三个标签。下面把「真机窄屏」这个条件
+  /// 显式补进回归面。
+  group('§9-4 · 筛选行窄屏不溢出', () {
+    Future<void> pumpSection(WidgetTester tester, double available) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: CareerlyTheme.light(),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: available,
+                child: const HomeAnalysisSection(
+                  content: HomeSectionContent.firstAnalysis(
+                    title: '开始你的第一次分析',
+                    body: '添加一个目标岗位，看看你离它有多远',
+                    actionLabel: '去添加岗位',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    /// 三颗胶囊必须**都在** —— 修法是等比缩小，不是隐藏或省略文字。
+    void expectThreeTabs() {
+      expect(find.text('新建分析'), findsOneWidget);
+      expect(find.text('最新匹配变化'), findsOneWidget);
+      expect(find.text('查看全部'), findsOneWidget);
+    }
+
+    testWidgets('320dp 屏（可用宽 280）', (WidgetTester tester) async {
+      await pumpSection(tester, 280);
+      expectThreeTabs();
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: '三颗胶囊装不下时应等比缩小，而不是溢出',
+      );
+    });
+
+    testWidgets('360dp 屏（可用宽 320）', (WidgetTester tester) async {
+      await pumpSection(tester, 320);
+      expectThreeTabs();
+      expect(tester.takeException(), isNull, reason: '360dp 是主流 Android 宽度');
+    });
+
+    /// 宽屏**必须逐像素不变** —— 防止把缩放修成「整组居中」。
+    ///
+    /// `FittedBox` 的默认对齐是居中，会把胶囊整组推到屏幕中间；
+    /// 这里钉住「未缩放时仍与 Figma 一样贴左」，
+    /// 偏移量即胶囊自身的 `padding: 0 20`。
+    testWidgets('宽屏不缩放、仍贴左对齐', (WidgetTester tester) async {
+      await pumpSection(tester, 800);
+      expectThreeTabs();
+      expect(tester.takeException(), isNull);
+
+      final double sectionLeft =
+          tester.getTopLeft(find.byType(HomeAnalysisSection)).dx;
+      final double labelLeft = tester.getTopLeft(find.text('新建分析')).dx;
+      expect(
+        labelLeft - sectionLeft,
+        20,
+        reason: '未缩放时应保持 Figma 的左对齐（偏移 = 胶囊 padding 20）',
+      );
     });
   });
 }

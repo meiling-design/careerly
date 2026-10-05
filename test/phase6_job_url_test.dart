@@ -500,6 +500,9 @@ class _StubResumeRepository implements ResumeRepository {
   Future<void> setCurrentVersion(String versionId) async {}
 
   @override
+  Future<void> deleteVersion(String versionId) async {}
+
+  @override
   Future<void> submitResumeText(String text) async {}
 
   @override

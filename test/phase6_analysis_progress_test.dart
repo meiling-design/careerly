@@ -62,7 +62,8 @@ class StubAnalysisRepository implements AnalysisRepository {
   final List<_PendingAnalysis> _pending = <_PendingAnalysis>[];
 
   @override
-  Future<List<AnalysisProject>> fetchProjects() async => const <AnalysisProject>[];
+  Future<List<AnalysisProject>> fetchProjects() async =>
+      const <AnalysisProject>[];
 
   @override
   Future<AnalysisProject?> fetchProject(String projectId) async => null;
@@ -103,7 +104,11 @@ class StubAnalysisRepository implements AnalysisRepository {
     }
   }
 
-  AnalysisProject _buildProject(int seq, {required String title, required String rawJd}) {
+  AnalysisProject _buildProject(
+    int seq, {
+    required String title,
+    required String rawJd,
+  }) {
     final DateTime now = DateTime(2026, 1, 1);
     final Job job = Job(
       id: 'stub-job-$seq',
@@ -157,6 +162,10 @@ class StubResumeRepository implements ResumeRepository {
   @override
   Future<void> setCurrentVersion(String versionId) async {}
 
+  // ResumeRepository 新增「删除版本」（PRD §14）—— 桩同步实现。
+  @override
+  Future<void> deleteVersion(String versionId) async {}
+
   @override
   Future<void> submitResumeText(String text) async {}
 
@@ -180,7 +189,9 @@ void main() {
     return MultiProvider(
       providers: <SingleChildWidget>[
         Provider<AnalysisRepository>.value(value: analysis),
-        Provider<ResumeRepository>.value(value: resume ?? StubResumeRepository()),
+        Provider<ResumeRepository>.value(
+          value: resume ?? StubResumeRepository(),
+        ),
         ChangeNotifierProvider<AnalysisProvider>(
           create: (BuildContext context) =>
               AnalysisProvider(context.read<AnalysisRepository>()),
@@ -198,7 +209,10 @@ void main() {
   }
 
   /// 从「新建分析」走完「添加岗位 → 开始分析」进入进度视图。
-  Future<void> enterProgress(WidgetTester tester, StubAnalysisRepository repo) async {
+  Future<void> enterProgress(
+    WidgetTester tester,
+    StubAnalysisRepository repo,
+  ) async {
     await tester.pumpWidget(pageHost(analysis: repo));
     await tester.pump(); // 首帧 → load / loadQuota
     await tester.pump(const Duration(milliseconds: 1));
@@ -237,6 +251,8 @@ void main() {
 
       expect(find.text('AI 正在分析'), findsOneWidget);
       expect(find.text('正在分析'), findsOneWidget);
+      expect(find.text('新建分析'), findsNothing);
+      expect(find.text('历史分析'), findsNothing);
       expect(find.text('1 份简历 × 1 个目标岗位'), findsOneWidget);
       expect(find.text('分析进度'), findsOneWidget);
       // 5 步标题逐字对齐 Figma。
@@ -356,7 +372,10 @@ void main() {
 
       expect(find.text('开始分析（1 个岗位）'), findsOneWidget);
       expect(find.text('测试岗位 A'), findsNothing);
-      expect(providerOf(tester).analysisState, isA<AsyncInitial<AnalysisProject>>());
+      expect(
+        providerOf(tester).analysisState,
+        isA<AsyncInitial<AnalysisProject>>(),
+      );
     });
   });
 
