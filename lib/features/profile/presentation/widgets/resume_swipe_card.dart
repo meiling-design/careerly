@@ -31,11 +31,15 @@ class ResumeSwipeCard extends StatefulWidget {
   const ResumeSwipeCard({
     super.key,
     required this.version,
+    required this.onTap,
     required this.onSetCurrent,
     required this.onDelete,
   });
 
   final ResumeVersion version;
+
+  /// 打开该版本的详情。
+  final VoidCallback onTap;
 
   /// 「设为当前」。为 `null` 时该动作不可用（本条已是当前版本）。
   final VoidCallback? onSetCurrent;
@@ -131,7 +135,7 @@ class _ResumeSwipeCardState extends State<ResumeSwipeCard> {
             onHorizontalDragUpdate: _onDragUpdate,
             onHorizontalDragEnd: _onDragEnd,
             // 已露出时点卡片直接收回，不必再滑一次。
-            onTap: revealed ? _close : null,
+            onTap: revealed ? _close : widget.onTap,
             child: AnimatedContainer(
               duration: _animating ? AppMotion.swipeSnap : Duration.zero,
               curve: AppMotion.standard,

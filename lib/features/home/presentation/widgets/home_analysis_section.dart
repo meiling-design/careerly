@@ -1,19 +1,21 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../design_system/components/components.dart';
 import '../../../../design_system/tokens/tokens.dart';
 import '../../../../data/models/home_summary.dart';
 import '../home_content.dart';
 
-/// 首页「筛选行 + 岗位匹配变化」区块。
+/// 首页「匹配变化操作 + 岗位匹配变化」区块。
 ///
 /// 真值来源：Figma `HomePage` L1133-1179。
 ///
 /// ```text
-/// 筛选行  gap 8 · 三颗 h38 / r100 / 14px w700 胶囊
-///         新建分析   #373b4d 底 + 白字 · padding 0 20 · 有 onClick
-///         最新匹配变化 白底 + 1px #e4e7ec · #111827 · padding 0 20 · 无 onClick
-///         查看全部   同上，但 padding 0 16 · 有 onClick
+/// 操作行  两颗 h38 / r100 / 14px w700 按钮
+///         最新匹配变化  #111827 底 + 白字 · 滚动到列表
+///         查看全部      白底 + 1px #e4e7ec · 跳转分析页
 /// 卡片    r24 · rgba(255,255,255,0.68) · 1.217px rgba(255,255,255,0.55)
 ///         · blur(24px) · 0 8px 32px rgba(79,126,245,0.08) · padding 20
 /// 列表    marginTop 16 · 行 gap 12 · 行间 1px 分隔线（marginTop 12 / marginLeft 40）
@@ -36,28 +38,50 @@ class HomeAnalysisSection extends StatelessWidget {
     super.key,
     required this.content,
     this.onNewAnalysis,
+    this.onJumpToChanges,
     this.onViewAll,
+    this.changesKey,
   });
 
   final HomeSectionContent content;
 
-  /// 「新建分析」的点击回调（分析 Tab）。
+  /// State 01 / 02 引导行的点击回调（分析 Tab）。
   final VoidCallback? onNewAnalysis;
+
+  /// 滚动到岗位匹配变化列表。
+  final VoidCallback? onJumpToChanges;
 
   /// 「查看全部」的点击回调（分析 Tab）。
   final VoidCallback? onViewAll;
+
+  /// 「岗位匹配变化」卡片的滚动定位目标。
+  final Key? changesKey;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        _FilterTabs(
-          onNewAnalysis: onNewAnalysis,
-          onViewAll: onViewAll,
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double controlsWidth = math.min(
+              _SectionMetrics.controlsMaxWidth,
+              math.max(0, constraints.maxWidth - _SectionMetrics.controlsInset),
+            );
+            return Center(
+              child: SizedBox(
+                width: controlsWidth,
+                child: _MatchControls(
+                  onJumpToChanges: onJumpToChanges,
+                  onViewAll: onViewAll,
+                ),
+              ),
+            );
+          },
         ),
         const SizedBox(height: _SectionMetrics.tabsGap),
         GlassSurface(
+          key: changesKey,
           radius: AppRadius.xl,
           // Figma 这一张卡写的是 `1.217px`（其余 Glass 面写 `1px`）——
           // 保持原值，不收敛到默认的 1。
@@ -69,10 +93,7 @@ class HomeAnalysisSection extends StatelessWidget {
               Text(content.title, style: AppTypography.homeSectionTitle),
               const SizedBox(height: _SectionMetrics.titleGap),
               if (content.isFirstAnalysis)
-                _FirstAnalysisPrompt(
-                  content: content,
-                  onTap: onNewAnalysis,
-                )
+                _FirstAnalysisPrompt(content: content, onTap: onNewAnalysis)
               else
                 _JobList(matches: content.matches!),
             ],
@@ -83,82 +104,60 @@ class HomeAnalysisSection extends StatelessWidget {
   }
 }
 
-/// 三颗筛选胶囊。
-///
-/// ⚠️ 中间那颗「最新匹配变化」在 Figma 里**没有 onClick** ——
-/// 它是当前选中态的静态标签，不是一个可点的筛选器。
-/// 这里照原样不给回调（也就没有按压反馈）。
-class _FilterTabs extends StatelessWidget {
-  const _FilterTabs({this.onNewAnalysis, this.onViewAll});
+/// Figma 首页列表上方的两个操作按钮。
+class _MatchControls extends StatelessWidget {
+  const _MatchControls({this.onJumpToChanges, this.onViewAll});
 
-  final VoidCallback? onNewAnalysis;
+  final VoidCallback? onJumpToChanges;
   final VoidCallback? onViewAll;
 
   @override
   Widget build(BuildContext context) {
-    // ⚠️ `FittedBox` + `MainAxisSize.min` 是**必需的**，不是美化。
-    //
-    // 三颗胶囊的固有宽度合计 **332**（`20+4×14+20` ×2 + `16+4×14+16` + `8×2`），
-    // 而 320dp 屏扣掉页面左右内边距只剩 280、360dp 屏剩 320 —— 都装不下。
-    //
-    // Row 里的非 flex 子项拿到的是**无界**主轴约束，所以 `_Tab` 内
-    // `maxLines: 1, overflow: TextOverflow.ellipsis` 永远不会触发
-    // （文本按固有宽度排版，没有可省略的余地），结果是整行
-    // `RenderFlex overflowed` —— 360dp 溢出 12px，320dp 溢出 52px。
-    // 默认测试画布是 800×600，这个缺陷因此一直躲过回归。
-    //
-    // `BoxFit.scaleDown` 只在装不下时**等比**缩小，装得下时逐像素不变；
-    // `alignment: centerLeft` 保证未缩放时仍与 Figma 一样左对齐
-    // （`FittedBox` 默认居中，会把胶囊整组推到屏幕中间）。
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      alignment: Alignment.centerLeft,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          _Tab(
-            label: '新建分析',
-            filled: true,
-            horizontalPadding: _SectionMetrics.tabPaddingWide,
-            onTap: onNewAnalysis,
-          ),
-          const SizedBox(width: _SectionMetrics.tabGap),
-          const _Tab(
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: _MatchControlButton(
             label: '最新匹配变化',
-            filled: false,
-            horizontalPadding: _SectionMetrics.tabPaddingWide,
+            iconPath: 'assets/images/home/home-match-changes.svg',
+            iconWidth: _SectionMetrics.matchIconWidth,
+            filled: true,
+            onTap: onJumpToChanges,
           ),
-          const SizedBox(width: _SectionMetrics.tabGap),
-          _Tab(
+        ),
+        const SizedBox(width: _SectionMetrics.controlsGap),
+        Expanded(
+          child: _MatchControlButton(
             label: '查看全部',
+            iconPath: 'assets/images/home/home-view-all.svg',
+            iconWidth: _SectionMetrics.viewAllIconWidth,
             filled: false,
-            horizontalPadding: _SectionMetrics.tabPaddingNarrow,
             onTap: onViewAll,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _Tab extends StatelessWidget {
-  const _Tab({
+class _MatchControlButton extends StatelessWidget {
+  const _MatchControlButton({
     required this.label,
+    required this.iconPath,
+    required this.iconWidth,
     required this.filled,
-    required this.horizontalPadding,
     this.onTap,
   });
 
   final String label;
+  final String iconPath;
+  final double iconWidth;
   final bool filled;
-  final double horizontalPadding;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final Widget pill = Container(
+    final Widget button = Container(
       height: _SectionMetrics.tabHeight,
-      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
       decoration: BoxDecoration(
         color: filled ? AppColors.surfaceDark : AppColors.surface,
         borderRadius: AppRadius.borderPill,
@@ -170,20 +169,34 @@ class _Tab extends StatelessWidget {
               ),
       ),
       child: Center(
-        child: Text(
-          label,
-          style: AppTypography.onSurfaceVariant(
-            AppTypography.homeTabLabel,
-            filled ? AppColors.textInverse : AppColors.textPrimary,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              SvgPicture.asset(
+                iconPath,
+                width: iconWidth,
+                height: _SectionMetrics.controlIconSize,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(width: _SectionMetrics.controlIconGap),
+              Text(
+                label,
+                style: AppTypography.onSurfaceVariant(
+                  AppTypography.homeTabLabel,
+                  filled ? AppColors.textInverse : AppColors.textPrimary,
+                ),
+                maxLines: 1,
+              ),
+            ],
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
 
-    if (onTap == null) return pill;
-    return CareerlyPressFeedback(onTap: onTap, child: pill);
+    if (onTap == null) return button;
+    return CareerlyPressFeedback(onTap: onTap, child: button);
   }
 }
 
@@ -193,7 +206,7 @@ class _FirstAnalysisPrompt extends StatelessWidget {
 
   final HomeSectionContent content;
 
-  /// 行动行的点击目标 —— 与上方「新建分析」同目标（进分析 Tab 添加 JD）。
+  /// 行动行的点击目标 —— 进入分析 Tab 添加目标岗位。
   final VoidCallback? onTap;
 
   @override
@@ -390,20 +403,20 @@ String _rankLabel(int rank) {
 
 /// 本区块的内部几何（Figma 原值）。
 abstract final class _SectionMetrics {
-  /// Figma：筛选行 `gap: 8`。
-  static const double tabGap = 8;
+  /// Figma 的控制区宽度为屏宽减 72px，最大 330px；外围已有 20px 边距。
+  static const double controlsMaxWidth = 330;
+  static const double controlsInset = 32;
+  static const double controlsGap = 16;
+  static const double controlIconGap = 8;
+  static const double matchIconWidth = 17.5;
+  static const double viewAllIconWidth = 18;
+  static const double controlIconSize = 18;
 
   /// Figma：筛选胶囊 `height: 38`。
   static const double tabHeight = 38;
 
   /// Figma：胶囊描边 `1px`。
   static const double tabBorderWidth = 1;
-
-  /// Figma：`新建分析` / `最新匹配变化` 的 `padding: 0 20`。
-  static const double tabPaddingWide = 20;
-
-  /// Figma：`查看全部` 的 `padding: 0 16`。
-  static const double tabPaddingNarrow = 16;
 
   /// Figma：筛选行与卡片之间 —— 页面 `space-y-4` 的 `16`。
   static const double tabsGap = 16;

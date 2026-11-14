@@ -1,55 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../design_system/components/components.dart';
 import '../../../../design_system/tokens/tokens.dart';
 import '../home_content.dart';
 
 /// 首页 2×2 卡片区。
-///
-/// 真值来源：Figma `HomePage` L1103-1131（数据在 L994-1023）。
-///
-/// ```text
-/// 容器   Column(gap 5)
-/// 每行   Row(gap 5, height 180)  → 单卡 宽 (350−5)/2 = 172.5 · 高 180
-/// 卡片   r28 · padding 18 · rgba(255,255,255,0.68) · 描边 1.5px rgba(255,255,255,0.25)
-///        · 0 8px 20px rgba(155,177,201,0.25)
-/// 内部   Column(space-between)  →  图标底板 / 文字 / 右下箭头
-/// 底板   48×48 · r14 · 90deg 渐变（四张各不相同）· 20×20 白色描边字形
-/// ```
-///
-/// ## ⚠️ 这不是 Glass 材质
-///
-/// Figma 这四张卡的底是 `rgba(255,255,255,0.68)`，**没有 `backdrop-filter`**
-/// —— 与 `S.glass`（`GlassSurface`）同底色但**没有模糊**。
-/// 故这里用 [DecoratedBox] 而非 [GlassSurface]：用 Glass 会多出一层
-/// 设计稿没有的模糊，属于「修改视觉设计」，违反 D64 ①bis。
-///
-/// ## ⚠️ 「今日一句」卡不可点
-///
-/// Figma 里该卡的 `onClick` 是 `undefined`（`cursor: default`），
-/// 故不给按压反馈。它在三态里都是同一张陪伴卡。
 class HomeStilCards extends StatelessWidget {
   const HomeStilCards({
     super.key,
     required this.cards,
     this.onOpenAi,
     this.onOpenAnalysis,
+    this.onOpenCapability,
     this.onOpenGrowth,
   });
 
   final List<HomeStilCardData> cards;
-
-  /// 「问问AI」卡的点击目标（AI Tab）。
   final VoidCallback? onOpenAi;
-
-  /// 「当前状态」卡的点击目标（分析 Tab）。
   final VoidCallback? onOpenAnalysis;
-
-  /// 「最近成长」卡的点击目标。
-  ///
-  /// ⚠️ Figma 是 `go('cap-change')`（能力变化页）—— 按 IA §2.2
-  /// 该页属于「我的 → 成长足迹」内部。当前落到「我的」Tab，
-  /// 见 [HomeCardTarget.growth] 与 **待裁决 · D81**。
+  final VoidCallback? onOpenCapability;
   final VoidCallback? onOpenGrowth;
 
   @override
@@ -58,9 +28,7 @@ class HomeStilCards extends StatelessWidget {
       children: <Widget>[
         for (int i = 0; i < cards.length; i += 2)
           Padding(
-            padding: EdgeInsets.only(
-              top: i == 0 ? 0 : _StilMetrics.rowGap,
-            ),
+            padding: EdgeInsets.only(top: i == 0 ? 0 : _StilMetrics.rowGap),
             child: SizedBox(
               height: _StilMetrics.cardHeight,
               child: Row(
@@ -81,171 +49,473 @@ class HomeStilCards extends StatelessWidget {
   }
 
   Widget _card(HomeStilCardData data) {
-    // 目标由数据给出（不是从标题反推）—— 同一张卡在三态里去同一个地方。
     final VoidCallback? onTap = switch (data.target) {
       null => null,
       HomeCardTarget.ai => onOpenAi,
       HomeCardTarget.analysis => onOpenAnalysis,
+      HomeCardTarget.capability => onOpenCapability,
       HomeCardTarget.growth => onOpenGrowth,
     };
 
-    final Widget surface = DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.homeCardFill,
-        borderRadius: AppRadius.borderXxl,
-        boxShadow: AppShadows.homeStilCard,
+    final Widget surface = switch (data.kind) {
+      HomeStilCardKind.status => _StatusCard(data: data),
+      HomeStilCardKind.growth => _ContentCard(
+        data: data,
+        iconAsset: 'assets/images/home/home-growth.svg',
+        iconGradient: AppColors.homeStilGradientGrowth,
       ),
-      child: CustomPaint(
-        // 描边用 foregroundPainter：Figma 把它画成一层覆盖在卡片之上的
-        // 独立层（`position:absolute; inset:0`），压在内容之上。
-        // 用 `Border` 会占掉内容区 1.5px，与设计稿的内边距不一致。
-        foregroundPainter: const _StilCardEdgePainter(),
-        child: Padding(
-          padding: const EdgeInsets.all(_StilMetrics.cardPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              // Figma：底板 `alignSelf: center` —— 在左对齐的卡片里水平居中。
-              Align(
-                alignment: Alignment.topCenter,
-                child: _IconBadge(
-                  size: _StilMetrics.badgeSize,
-                  background: data.iconBackground,
-                  icon: data.icon,
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    data.title,
-                    style: AppTypography.homeCardTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: _StilMetrics.titleGap),
-                  for (int i = 0; i < data.lines.length; i++)
-                    Text(
-                      data.lines[i],
-                      style: AppTypography.onSurfaceVariant(
-                        data.isQuote
-                            ? AppTypography.homeCardDesc.copyWith(
-                                fontWeight: FontWeight.w400,
-                              )
-                            : AppTypography.homeCardDesc,
-                        // 高亮只作用于**最后一行**（Figma 逐卡的取值）；
-                        // 单行的「今日一句」卡因此整行高亮。
-                        i == data.lines.length - 1 && data.lineAccent != null
-                            ? data.lineAccent!
-                            : AppColors.homeCardDesc,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
-              Align(
-                alignment: Alignment.bottomLeft,
-                child: Icon(
-                  // Figma 是自绘的双向斜箭头路径（`arrowUR`）。
-                  // 用 Material 字形近似，同 D58 / **D72** 的处置。
-                  Icons.open_in_full,
-                  size: _StilMetrics.arrowSize,
-                  color: AppColors.homeCardTitle,
-                ),
-              ),
-            ],
-          ),
-        ),
+      HomeStilCardKind.suggestion => _ContentCard(
+        data: data,
+        iconAsset: 'assets/images/home/home-suggestion.svg',
+        iconGradient: AppColors.homeStilGradientAi,
       ),
-    );
+      HomeStilCardKind.daily => _DailyCard(data: data),
+    };
 
     if (onTap == null) return surface;
     return CareerlyPressFeedback(onTap: onTap, child: surface);
   }
 }
 
-/// 渐变图标底板。
-class _IconBadge extends StatelessWidget {
-  const _IconBadge({
-    required this.size,
-    required this.background,
-    required this.icon,
-  });
+class _StatusCard extends StatelessWidget {
+  const _StatusCard({required this.data});
 
-  final double size;
-  final LinearGradient background;
-  final IconData icon;
+  final HomeStilCardData data;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
+    final int? score = data.statusScore;
+
+    return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: background,
-        borderRadius: AppRadius.borderSm,
+        gradient: AppColors.homeStatusCardGradient,
+        borderRadius: BorderRadius.circular(_StilMetrics.radius),
+        border: Border.all(
+          color: AppColors.homeStatusCardBorder,
+          width: _StilMetrics.statusBorderWidth,
+        ),
       ),
-      child: Center(
-        child: Icon(
-          icon,
-          size: _StilMetrics.glyphSize,
-          color: AppColors.textInverse,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_StilMetrics.radius),
+        child: Stack(
+          children: <Widget>[
+            Positioned(
+              left: _StilMetrics.statusInset,
+              right: _StilMetrics.statusInset,
+              top: _StilMetrics.statusHeaderTop,
+              height: _StilMetrics.statusHeaderHeight,
+              child: Row(
+                children: <Widget>[
+                  SvgPicture.asset(
+                    'assets/images/home/home-status-marker.svg',
+                    width: _StilMetrics.statusMarkerWidth,
+                    height: _StilMetrics.statusMarkerHeight,
+                  ),
+                  const SizedBox(width: _StilMetrics.statusMarkerGap),
+                  Expanded(
+                    child: Text(
+                      data.title,
+                      style: AppTypography.homeCardTitle.copyWith(
+                        fontSize: _StilMetrics.statusTitleSize,
+                        color: AppColors.textInverse,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (score != null && data.lines.isNotEmpty) ...<Widget>[
+                    const SizedBox(width: _StilMetrics.statusChipGap),
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: _StilMetrics.statusChipHorizontal,
+                          vertical: _StilMetrics.statusChipVertical,
+                        ),
+                        decoration: const BoxDecoration(
+                          color: AppColors.homeStatusChipFill,
+                          borderRadius: BorderRadius.all(
+                            Radius.circular(_StilMetrics.statusChipRadius),
+                          ),
+                        ),
+                        child: Text(
+                          data.lines.first,
+                          style: AppTypography.homeCardDesc.copyWith(
+                            fontSize: _StilMetrics.statusChipFontSize,
+                            height: 14 / _StilMetrics.statusChipFontSize,
+                            color: AppColors.homeStatusChipText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (score != null)
+              Positioned(
+                top: _StilMetrics.ringTop,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: SizedBox(
+                    width: _StilMetrics.ringSize,
+                    height: _StilMetrics.ringSize,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: <Widget>[
+                        Positioned.fill(
+                          child: SvgPicture.asset(
+                            'assets/images/home/home-score-ring-track.svg',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        Positioned.fill(
+                          child: SvgPicture.asset(
+                            'assets/images/home/home-score-ring-fill.svg',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              '$score%',
+                              style: AppTypography.homeHeroScore.copyWith(
+                                fontSize: _StilMetrics.scoreFontSize,
+                                height: 1.35,
+                                color: AppColors.homeCardTitle,
+                              ),
+                            ),
+                            Text(
+                              '匹配度',
+                              style: AppTypography.homeHeroScoreLabel.copyWith(
+                                color: AppColors.homeStatusScoreLabel,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else
+              Positioned(
+                left: _StilMetrics.statusInset,
+                right: _StilMetrics.statusInset,
+                top: _StilMetrics.statusBodyTop,
+                child: _DescriptionLines(data: data),
+              ),
+            Positioned(
+              left: _StilMetrics.statusFooterInset,
+              right: _StilMetrics.statusFooterInset,
+              bottom: _StilMetrics.statusFooterBottom,
+              child: _CardAction(
+                label: data.actionLabel,
+                iconAsset: 'assets/images/home/home-card-open.svg',
+                color: AppColors.homeStatusActionText,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// 卡片描边层：`1.5px solid rgba(255,255,255,0.25)` + 圆角 28。
-class _StilCardEdgePainter extends CustomPainter {
-  const _StilCardEdgePainter();
+class _ContentCard extends StatelessWidget {
+  const _ContentCard({
+    required this.data,
+    required this.iconAsset,
+    required this.iconGradient,
+  });
+
+  final HomeStilCardData data;
+  final String iconAsset;
+  final LinearGradient iconGradient;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final RRect rrect = RRect.fromRectAndRadius(
-      Offset.zero & size,
-      const Radius.circular(AppRadius.xxl),
-    ).deflate(_StilMetrics.borderWidth / 2);
-
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = _StilMetrics.borderWidth
-        ..color = AppColors.homeCardBorder,
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.homeCardFill,
+        borderRadius: BorderRadius.circular(_StilMetrics.radius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(_StilMetrics.contentPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.only(top: _StilMetrics.iconTopPadding),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Container(
+                  width: _StilMetrics.iconTileSize,
+                  height: _StilMetrics.iconTileSize,
+                  decoration: BoxDecoration(
+                    gradient: iconGradient,
+                    borderRadius: BorderRadius.circular(
+                      _StilMetrics.iconTileRadius,
+                    ),
+                  ),
+                  child: Center(
+                    child: SvgPicture.asset(
+                      iconAsset,
+                      width: _StilMetrics.iconSize,
+                      height: _StilMetrics.iconSize,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: _StilMetrics.iconContentGap),
+            Text(
+              data.title,
+              style: AppTypography.homeCardTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: _StilMetrics.titleGap),
+            Expanded(child: _DescriptionLines(data: data)),
+            _CardAction(
+              label: data.actionLabel,
+              iconAsset: 'assets/images/home/home-card-action.svg',
+              color: AppColors.homeCardActionText,
+            ),
+          ],
+        ),
+      ),
     );
   }
-
-  @override
-  bool shouldRepaint(_StilCardEdgePainter oldDelegate) => false;
 }
 
-/// 本区块的内部几何（Figma 原值）。
+class _DescriptionLines extends StatelessWidget {
+  const _DescriptionLines({required this.data});
+
+  final HomeStilCardData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        for (int i = 0; i < data.lines.length; i++)
+          Padding(
+            padding: EdgeInsets.only(
+              top: i == 0 ? 0 : _StilMetrics.descriptionLineGap,
+            ),
+            child: Text(
+              data.lines[i],
+              style: AppTypography.homeCardDesc.copyWith(
+                color: i == data.lines.length - 1 && data.lineAccent != null
+                    ? data.lineAccent
+                    : AppColors.homeCardDesc,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _CardAction extends StatelessWidget {
+  const _CardAction({
+    required this.label,
+    required this.iconAsset,
+    required this.color,
+  });
+
+  final String label;
+  final String iconAsset;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        SvgPicture.asset(
+          iconAsset,
+          width: _StilMetrics.actionIconSize,
+          height: _StilMetrics.actionIconSize,
+          fit: BoxFit.contain,
+        ),
+        const SizedBox(width: _StilMetrics.actionGap),
+        Flexible(
+          child: Text(
+            label,
+            style: AppTypography.homeCardDesc.copyWith(
+              fontSize: _StilMetrics.actionFontSize,
+              height: 16 / _StilMetrics.actionFontSize,
+              letterSpacing: _StilMetrics.actionLetterSpacing,
+              color: color,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DailyCard extends StatelessWidget {
+  const _DailyCard({required this.data});
+
+  final HomeStilCardData data;
+
+  static const List<String> _weekdays = <String>[
+    '周日',
+    '周一',
+    '周二',
+    '周三',
+    '周四',
+    '周五',
+    '周六',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final DateTime today = DateTime.now();
+    final String quote = <String>[
+      data.title,
+      ...data.lines,
+    ].where((String line) => line.trim().isNotEmpty).join('\n');
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.homeCardFill,
+        borderRadius: BorderRadius.circular(_StilMetrics.radius),
+        border: Border.all(
+          color: AppColors.homeQuoteBorder,
+          width: _StilMetrics.quoteBorderWidth,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_StilMetrics.quoteInnerRadius),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            _StilMetrics.quotePaddingLeft,
+            _StilMetrics.quotePaddingTop,
+            _StilMetrics.quotePaddingRight,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                today.day.toString().padLeft(2, '0'),
+                style: AppTypography.homeCardTitle.copyWith(
+                  fontFamily: 'serif',
+                  fontSize: _StilMetrics.dateFontSize,
+                  height:
+                      _StilMetrics.dateLineHeight / _StilMetrics.dateFontSize,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: _StilMetrics.dateLetterSpacing,
+                  color: AppColors.homeQuoteDate,
+                ),
+              ),
+              const SizedBox(height: _StilMetrics.dateGap),
+              Text(
+                '${today.year} ｜ ${today.month.toString().padLeft(2, '0')} ｜ ${_weekdays[today.weekday % 7]}',
+                style: AppTypography.homeCardDesc.copyWith(
+                  fontSize: _StilMetrics.calendarFontSize,
+                  height: 12 / _StilMetrics.calendarFontSize,
+                  color: AppColors.homeQuoteDateMuted,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: _StilMetrics.quoteGap),
+              Text(
+                '"',
+                style: AppTypography.homeCardTitle.copyWith(
+                  fontFamily: 'serif',
+                  fontSize: _StilMetrics.quoteMarkSize,
+                  height: 0.75,
+                  fontWeight: FontWeight.w400,
+                  color: AppColors.homeQuoteMark,
+                ),
+              ),
+              const SizedBox(height: _StilMetrics.quoteTextGap),
+              Text(
+                quote,
+                style: AppTypography.homeCardDesc.copyWith(
+                  fontSize: _StilMetrics.quoteFontSize,
+                  height: 16 / _StilMetrics.quoteFontSize,
+                  fontWeight: FontWeight.w400,
+                  color: AppColors.homeCardPurple,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 abstract final class _StilMetrics {
-  /// Figma：每行 `height: 180`。
-  static const double cardHeight = 180;
+  static const double cardHeight = 198;
+  static const double rowGap = 10;
+  static const double columnGap = 10;
+  static const double radius = 28;
 
-  /// Figma：`gap: 5`（行与列都是 5）。
-  static const double rowGap = 5;
-  static const double columnGap = 5;
+  static const double statusBorderWidth = 1;
+  static const double statusInset = 17;
+  static const double statusHeaderTop = 17;
+  static const double statusHeaderHeight = 18;
+  static const double statusMarkerWidth = 11;
+  static const double statusMarkerHeight = 15;
+  static const double statusMarkerGap = 6;
+  static const double statusTitleSize = 12;
+  static const double statusChipGap = 4;
+  static const double statusChipHorizontal = 7;
+  static const double statusChipVertical = 2;
+  static const double statusChipRadius = 99;
+  static const double statusChipFontSize = 8.5;
+  static const double ringTop = 43;
+  static const double ringSize = 118.56;
+  static const double scoreFontSize = 32;
+  static const double statusBodyTop = 55;
+  static const double statusFooterInset = 17;
+  static const double statusFooterBottom = 9;
 
-  /// Figma：卡片 `padding: 18`。
-  static const double cardPadding = 18;
-
-  /// Figma：描边 `1.5px`。
-  static const double borderWidth = 1.5;
-
-  /// Figma：图标底板 `48×48`，圆角 `14`。
-  static const double badgeSize = 48;
-
-  /// Figma：底板内 SVG 为 `20×20`。
-  static const double glyphSize = 20;
-
-  /// Figma：标题与描述之间 `margin-bottom: 4`。
+  static const double contentPadding = 18;
+  static const double iconTopPadding = 10;
+  static const double iconTileSize = 58;
+  static const double iconTileRadius = 14;
+  static const double iconSize = 27;
+  static const double iconContentGap = 11;
   static const double titleGap = 4;
+  static const double descriptionLineGap = 2;
 
-  /// Figma：箭头 `16×16`。
-  static const double arrowSize = 16;
+  static const double actionIconSize = 16;
+  static const double actionGap = 4;
+  static const double actionFontSize = 10;
+  static const double actionLetterSpacing = 0.5;
+
+  static const double quoteBorderWidth = 5;
+  static const double quoteInnerRadius = 23;
+  static const double quotePaddingLeft = 12;
+  static const double quotePaddingRight = 12;
+  static const double quotePaddingTop = 8;
+  static const double dateFontSize = 56;
+  static const double dateLineHeight = 62;
+  static const double dateLetterSpacing = -2;
+  static const double dateGap = 2;
+  static const double calendarFontSize = 8;
+  static const double quoteGap = 4;
+  static const double quoteMarkSize = 24;
+  static const double quoteTextGap = 2;
+  static const double quoteFontSize = 10;
 }

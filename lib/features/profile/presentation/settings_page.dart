@@ -69,8 +69,7 @@ class _SettingsPageState extends State<SettingsPage> {
             children: <Widget>[
               Text('要退出登录吗？', style: AppTypography.title),
               const SizedBox(height: AppSpacing.xs),
-              Text('退出后需要重新登录才能查看你的职业资产与成长记录。',
-                  style: AppTypography.bodySmall),
+              Text('退出后需要重新登录才能查看你的职业资产与成长记录。', style: AppTypography.bodySmall),
               const SizedBox(height: AppSpacing.md),
               CareerlyButton(
                 label: '退出登录',
@@ -110,7 +109,23 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingsSection(
             title: '账户',
             children: <Widget>[
-              _SettingsRow(label: '个人信息', icon: Icons.person_outline, onTap: () {}),
+              // 2026-10-07 接线。此前是空壳 `onTap: () {}`。
+              //
+              // ⚠️ 这处空壳**从未被任何条目登记过** —— `TODO.md` §2.2 · K22 ②
+              // 记的是下面「隐私与数据」那一行的空壳（同日修复），
+              // 是**两处不同的**空壳，别混为一谈。
+              //
+              // ⚠️ Figma 全稿**没有「个人信息」这一页**，页面是按
+              // 「设置 → 账户」的既有形态 + 两个已有接口拼的，
+              // 因此登记 **待裁决 · D125**（`docs/05_progress/TODO.md` §3.1）。
+              //
+              // ⚠️ 该页**只读**（用户裁决：「先跑通只读」）——
+              // 页面内没有任何输入控件，编辑路径本轮未做。
+              _SettingsRow(
+                label: '个人信息',
+                icon: Icons.person_outline,
+                onTap: () => context.push(AppRoutes.settingsPersonalInfo),
+              ),
             ],
           ),
           _SettingsSection(
@@ -119,12 +134,14 @@ class _SettingsPageState extends State<SettingsPage> {
               _SettingsSwitch(
                 label: 'AI 主动建议',
                 value: _proactiveAdvice,
-                onChanged: (bool value) => setState(() => _proactiveAdvice = value),
+                onChanged: (bool value) =>
+                    setState(() => _proactiveAdvice = value),
               ),
               _SettingsSwitch(
                 label: '每日职业简报',
                 value: _dailyBriefing,
-                onChanged: (bool value) => setState(() => _dailyBriefing = value),
+                onChanged: (bool value) =>
+                    setState(() => _dailyBriefing = value),
               ),
               _SettingsSwitch(
                 label: '匹配变化提醒',
@@ -144,12 +161,61 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
             ],
           ),
+          // 发布基线 §1.0f · E3 与 D123。
+          //
+          // 原先这里是一行「隐私与数据」指向隐私政策（此前还是空壳
+          // `onTap: () {}`，TODO §2.2 · K22 ② 记的正是那一条）。
+          // 2026-10-07 产品侧裁决 **D123 = A**：三份文档在**设置页平铺**，
+          // 于是这一行升级成一个独立分区。
+          //
+          // ⚠️ 三个入口**都是二级页**，`context.push` 进入、Back 回设置页。
+          // 与注册页的同意链接指向**同一批路由**（`/legal/*`），
+          // 不是两套页面 —— 两份文档共用一个 `LegalDocumentPage`。
+          _SettingsSection(
+            title: '隐私与数据',
+            children: <Widget>[
+              _SettingsRow(
+                label: '删除职业数据',
+                icon: Icons.delete_sweep_outlined,
+                onTap: () => context.push(AppRoutes.settingsDeleteCareerData),
+              ),
+              _SettingsRow(
+                label: '注销账号',
+                icon: Icons.delete_outline,
+                onTap: () => context.push(AppRoutes.settingsDeleteAccount),
+              ),
+              _SettingsRow(
+                label: '用户协议',
+                icon: Icons.description_outlined,
+                onTap: () => context.push(AppRoutes.legalTerms),
+              ),
+              _SettingsRow(
+                label: '隐私政策',
+                icon: Icons.shield_outlined,
+                onTap: () => context.push(AppRoutes.legalPrivacy),
+              ),
+              // 第三份（E1 要求三份齐备）。在此之前它只进资产与镜像、
+              // App 内没有任何入口 —— 见 `LegalDocument` 的类文档。
+              _SettingsRow(
+                label: 'AI 数据使用说明',
+                icon: Icons.smart_toy_outlined,
+                onTap: () => context.push(AppRoutes.legalAiData),
+              ),
+            ],
+          ),
           _SettingsSection(
             title: '更多',
             children: <Widget>[
-              _SettingsRow(label: '隐私与数据', icon: Icons.shield_outlined, onTap: () {}),
-              _SettingsRow(label: '帮助中心', icon: Icons.help_outline, onTap: () {}),
-              _SettingsRow(label: '关于 Careerly', icon: Icons.info_outline, onTap: () {}),
+              _SettingsRow(
+                label: '帮助中心',
+                icon: Icons.help_outline,
+                onTap: () {},
+              ),
+              _SettingsRow(
+                label: '关于 Careerly',
+                icon: Icons.info_outline,
+                onTap: () {},
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -178,7 +244,10 @@ class _SettingsSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.only(left: AppSpacing.xs, bottom: AppSpacing.xs),
+            padding: const EdgeInsets.only(
+              left: AppSpacing.xs,
+              bottom: AppSpacing.xs,
+            ),
             child: Text(title, style: AppTypography.caption),
           ),
           CareerlyCard(
@@ -193,7 +262,11 @@ class _SettingsSection extends StatelessWidget {
 }
 
 class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({required this.label, required this.icon, required this.onTap});
+  const _SettingsRow({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
   final String label;
   final IconData icon;
   final VoidCallback onTap;
@@ -206,14 +279,22 @@ class _SettingsRow extends StatelessWidget {
         onTap: onTap,
         leading: Icon(icon, color: AppColors.textSecondary, size: 20),
         title: Text(label, style: AppTypography.bodySmall),
-        trailing: const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 20),
+        trailing: const Icon(
+          Icons.chevron_right,
+          color: AppColors.textTertiary,
+          size: 20,
+        ),
       ),
     );
   }
 }
 
 class _SettingsSwitch extends StatelessWidget {
-  const _SettingsSwitch({required this.label, required this.value, required this.onChanged});
+  const _SettingsSwitch({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
   final String label;
   final bool value;
   final ValueChanged<bool> onChanged;
@@ -234,7 +315,11 @@ class _SettingsSwitch extends StatelessWidget {
 }
 
 class _SettingsChoice extends StatelessWidget {
-  const _SettingsChoice({required this.label, required this.selected, required this.onTap});
+  const _SettingsChoice({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
   final String label;
   final bool selected;
   final VoidCallback onTap;

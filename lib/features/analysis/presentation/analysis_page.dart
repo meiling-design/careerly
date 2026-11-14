@@ -17,6 +17,7 @@ import '../../../data/models/resume_profile.dart';
 import '../../../design_system/components/components.dart';
 import '../../../design_system/tokens/tokens.dart';
 import '../../profile/state/resume_provider.dart';
+import '../../profile/state/growth_celebration_provider.dart';
 import '../state/analysis_provider.dart';
 import 'widgets/careerly_analysis_progress.dart';
 import 'widgets/job_library_sheet.dart';
@@ -423,12 +424,16 @@ class _NewView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (provider.analysisState) {
-      // 「分析中」复合组件（D28 / Phase 6 补做）。进度读数由组件内部的
-      // UI 时钟驱动（同 D73 两条时钟）；成功后由本分发切到结果页。
+      // 「分析中」复合组件（D28 / Phase 6 补做）。成功后由本分发切到结果页。
       // Mock 一次只允许 1 个 JD，故胶囊固定「× 1」。
+      //
+      // [provider.taskProgress] 非空 = 真实后端在报节点进度，动效由真实
+      // 节点驱动；为空 = Mock（背后没有 agent 流程），沿用组件内时钟。
+      // 两种模式的判据在组件里 —— 见 `CareerlyAnalysisProgress.progress`。
       AsyncLoading<AnalysisProject>() => CareerlyAnalysisProgress(
         jobCount: 1,
         onExit: provider.exitAnalysis,
+        progress: provider.taskProgress,
       ),
       AsyncFailure<AnalysisProject>() =>
         CareerlyAsyncStateView<AnalysisProject>(
@@ -544,10 +549,19 @@ class _FormView extends StatelessWidget {
                 ? (jobAdded ? '开始分析（1 个岗位）' : '开始分析')
                 : '额度不足，暂不可分析',
             onPressed: provider.canAnalyze && jobAdded
-                ? () => provider.startAnalysis(
-                    title: titleController.text,
-                    rawJd: jdController.text,
-                  )
+                ? () async {
+                    await provider.startAnalysis(
+                      title: titleController.text,
+                      rawJd: jdController.text,
+                    );
+                    if (!context.mounted) return;
+                    if (provider.analysisState
+                        is AsyncSuccess<AnalysisProject>) {
+                      context.read<GrowthCelebrationProvider>().record(
+                        GrowthMilestone.jobAnalysisCompleted,
+                      );
+                    }
+                  }
                 : null,
           ),
         ],

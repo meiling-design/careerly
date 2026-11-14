@@ -48,6 +48,27 @@ import 'widgets/password_visibility_toggle.dart';
 /// 密码下界是**后端**规则的镜像（`passwords.MIN_PASSWORD_LENGTH`）。
 /// 这套三字段规则已登记为待裁决项，**不得盖章为产品已确认**。
 ///
+/// ## 同意门禁（发布基线要求，⚠️ **Figma 无此控件**）
+///
+/// 依据 `TODO.md` §1.0f ③ · E2：Google Play 要求「收集数据前须取得同意」，
+/// 境内合规同样要求注册前明确同意用户协议与隐私政策。
+///
+/// ```text
+/// 未勾选 → 「创建账号」Disabled
+/// 未勾选 → 微信 / QQ 也 Disabled（它们同样会创建账号）
+/// 勾选   → 两个链接可打开 /legal/terms 与 /legal/privacy 的实际正文
+/// ```
+///
+/// **Figma 的注册页没有这个控件，也没有注册页的同意文案** ——
+/// 文案由产品侧于 2026-10-07 裁决为
+/// 「我已阅读并同意《用户协议》与《隐私政策》」，
+/// 形态（两行式）与门禁范围（含第三方注册）同为当日裁决。
+/// 详见 [_AgreeRow] 的类文档。
+///
+/// ⚠️ 与「校验」一节不同，这一项**不是** Flutter 侧自行补齐的产品规则，
+/// 而是产品侧明确要求的新增控件；但它的**视觉**没有任何设计源，
+/// 因此「已按产品要求实现」与「视觉已定稿」是两件事，验收时不要混。
+///
 /// ## 数据链路
 ///
 /// ```text
@@ -71,6 +92,11 @@ class _OnboardingRegisterPageState extends State<OnboardingRegisterPage> {
 
   /// 密码是否明文可见。
   bool _showPassword = false;
+
+  /// 是否已勾选同意《用户协议》与《隐私政策》。
+  ///
+  /// ⚠️ **Figma 里没有这个控件** —— 见类文档「同意门禁」一节。
+  bool _agreedToTerms = false;
 
   @override
   void initState() {
@@ -99,10 +125,14 @@ class _OnboardingRegisterPageState extends State<OnboardingRegisterPage> {
   void _onFieldChanged() => setState(() {});
 
   /// 主按钮是否可用。规则见类文档「校验」一节。
+  ///
+  /// ⚠️ 末尾这一项（同意勾选）是**发布基线要求**，不是原有产品规则 ——
+  /// 见类文档「同意门禁」一节。
   bool get _canSubmit =>
       _name.text.trim().isNotEmpty &&
       _phone.text.trim().isNotEmpty &&
-      _password.text.length >= AppConstants.passwordMinLength;
+      _password.text.length >= AppConstants.passwordMinLength &&
+      _agreedToTerms;
 
   Future<void> _submit() async {
     final OnboardingProvider provider = context.read<OnboardingProvider>();
@@ -275,6 +305,16 @@ class _OnboardingRegisterPageState extends State<OnboardingRegisterPage> {
                       : () => setState(() => _showPassword = !_showPassword),
                 ),
               ),
+              const SizedBox(height: AppSpacing.authFieldGap),
+              _AgreeRow(
+                value: _agreedToTerms,
+                // 提交在途时与其余输入项一同停用，避免提交中改状态。
+                enabled: !submitting,
+                onChanged: (bool value) =>
+                    setState(() => _agreedToTerms = value),
+                onTerms: () => context.push(AppRoutes.legalTerms),
+                onPrivacy: () => context.push(AppRoutes.legalPrivacy),
+              ),
             ],
           ),
         ),
@@ -314,11 +354,16 @@ class _OnboardingRegisterPageState extends State<OnboardingRegisterPage> {
             labelGap: _RegisterMetrics.dividerLabelGap,
           ),
         ),
+        // ⚠️ 第三方注册同样受同意门禁约束 —— 它们也会**创建账号**，
+        // 只拦手机号注册会让这条合规要求形同虚设
+        // （产品侧 2026-10-07 裁决，见类文档「同意门禁」）。
+        // 传 `null` 会让按钮呈现 Disabled 视觉（`CareerlySocialButton`
+        // 边框转灰、文字转浅），与主按钮的四态一致。
         AuthSocialRow(
-          onWechat: submitting
+          onWechat: (submitting || !_agreedToTerms)
               ? null
               : () => _signUpWithOAuth(_RegisterMetrics.wechatProvider),
-          onQq: submitting
+          onQq: (submitting || !_agreedToTerms)
               ? null
               : () => _signUpWithOAuth(_RegisterMetrics.qqProvider),
         ),
@@ -417,6 +462,113 @@ class _RegisterAvatar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 同意行（两行式）。
+///
+/// ## 为什么是两行，而不是整句一行
+///
+/// 产品侧选定的文案是「我已阅读并同意《用户协议》与《隐私政策》」。
+/// 把它整句写进 [CareerlyCheckbox.label] 做不到 —— 那个参数是**纯 `String`**，
+/// 书名号那两段无法变成可点区域。可选做法只剩两个：
+///
+/// ```text
+/// A  扩展 CareerlyCheckbox 支持富文本 label → 要改一个已交付、未验收的
+///                                           design-system 组件
+/// B  两行：第一行勾选框 +「我已阅读并同意」，
+///    第二行「《用户协议》与《隐私政策》」逐段可点      ← 本实现
+/// ```
+///
+/// 产品侧 2026-10-07 选了 B，理由是 A 会把改动扩散到范围外的组件。
+/// 第二行的「与」是一段**不可点**的普通文字，因此读起来仍是选定的那句话。
+///
+/// ## ⚠️ 无 Figma 依据（Flutter 侧补齐，**不得盖章为视觉已定稿**）
+///
+/// Figma 的注册页**没有这个控件**（`src/App.tsx` L661-797 逐行可查）。
+/// 因此两行的**位置、间距、缩进**全部是 Flutter 侧定的 ——
+/// 取值一律复用既有 `AppSpacing` 档位，**不发明新数值**，
+/// 但没有设计源这一点必须如实记录
+/// —— 登记为 **待裁决 · D124**（`docs/05_progress/TODO.md` §3.1）。
+class _AgreeRow extends StatelessWidget {
+  const _AgreeRow({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+    required this.onTerms,
+    required this.onPrivacy,
+  });
+
+  /// 是否已勾选。
+  final bool value;
+
+  /// 是否可交互（提交在途时为 `false`）。
+  final bool enabled;
+
+  /// 勾选状态变化。
+  final ValueChanged<bool> onChanged;
+
+  /// 打开《用户协议》。
+  final VoidCallback onTerms;
+
+  /// 打开《隐私政策》。
+  final VoidCallback onPrivacy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        CareerlyCheckbox(
+          value: value,
+          label: _AgreeRowCopy.agreeLabel,
+          onChanged: enabled ? onChanged : null,
+        ),
+        Padding(
+          // 第二行让出勾选框的宽度，让两行文字左对齐。
+          // ⚠️ 精确值是 `CareerlyCheckbox` 内部的 16 + 1 = 17，
+          // 但那是该组件的私有常量、未公开，这里取最近的 Token 档位
+          // （`AppSpacing.md` = 16），**不硬编码 17**。
+          padding: const EdgeInsetsDirectional.only(start: AppSpacing.md),
+          child: Row(
+            children: <Widget>[
+              CareerlyTextLink(
+                label: _AgreeRowCopy.termsLabel,
+                style: AppTypography.authMeta,
+                onPressed: enabled ? onTerms : null,
+                // 「《用户协议》」在页面上只此一处，但读屏时补上动作更清楚。
+                semanticsLabel: '查看用户协议',
+              ),
+              const SizedBox(width: AppSpacing.xxs),
+              const Text(_AgreeRowCopy.conjunction, style: AppTypography.authMeta),
+              const SizedBox(width: AppSpacing.xxs),
+              CareerlyTextLink(
+                label: _AgreeRowCopy.privacyLabel,
+                style: AppTypography.authMeta,
+                onPressed: enabled ? onPrivacy : null,
+                semanticsLabel: '查看隐私政策',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 同意行的文案。
+///
+/// ⚠️ 文案由产品侧于 2026-10-07 裁决。**改动只改这里** ——
+/// 拆成三段只是为了让书名号那两段可点，读起来仍是完整的一句话。
+abstract final class _AgreeRowCopy {
+  /// 勾选框右侧的引导语。
+  static const String agreeLabel = '我已阅读并同意';
+
+  /// 两份文档的名称（同时是链接文字）。
+  static const String termsLabel = '《用户协议》';
+  static const String privacyLabel = '《隐私政策》';
+
+  /// 两段链接之间的连接词（不可点）。
+  static const String conjunction = '与';
 }
 
 /// 页面内部几何（Figma 原值）。

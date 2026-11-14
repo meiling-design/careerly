@@ -4,47 +4,15 @@ import '../../../data/models/home_summary.dart';
 import '../../../design_system/tokens/tokens.dart';
 import '../state/home_provider.dart';
 
-/// 首页**三态的内容装配**。
-///
-/// ## 为什么单独一个文件
-///
-/// 产品侧裁决 **D64** ①bis 的原话是「只替换文字内容，不要修改 figma 视觉设计」。
-/// 把三态的**全部差异**收敛到本文件，是为了让这条约束**在结构上成立**：
-///
-/// ```text
-/// presentation/widgets/*  →  只认 HomeContent，不认识 HomeStage
-/// 本文件                  →  唯一知道「三态文案分别是什么」的地方
-/// ```
-///
-/// 因此「只换文案」不是一句要靠自觉遵守的话 ——
-/// 视觉层根本没有可以分叉的地方。
-///
-/// ## 文案来源逐条标注
-///
-/// | 状态 | 来源 |
-/// |---|---|
-/// | State 01 | **D64 ② 逐字**（产品侧给出的完整规格） |
-/// | State 02 | ⚠️ **AI 起草**（产品侧未给）→ **待裁决 · D76** |
-/// | State 03 | **Figma 原文**；其中数据位由 `HomeSummary` 填充 |
-///
-/// ## ⚠️ 为什么 State 03 的卡片文案要从数据来
-///
-/// Figma 首页的 `排名 #1` / `AI 能力 68→76 ↑8` / `补充 AI Agent 项目案例`
-/// 都是**硬编码的假数据**。依 `CLAUDE.md` §7「不编造产品数据」与
-/// D64 ⑥，它们**不得**搬进 Mock —— 所以这几行由 `HomeSummary`
-/// （`suggestions` / `recentGrowth`）填充，**没有数据时留空**，
-/// 而不是回落到 Figma 的假字符串。
+/// 首页内容装配。真实岗位、建议和成长数据来自 [HomeSummary]；
+/// Figma 原型中的演示姓名、分数和日期不会作为业务数据使用。
 @immutable
 class HomeContent {
   const HomeContent({
-    required this.headerTitle,
     required this.hero,
     required this.stilCards,
     required this.section,
   });
-
-  /// 顶部主标题（`主页` 小标签下方的整句）。
-  final String headerTitle;
 
   /// Hero 卡内容。
   final HomeHeroContent hero;
@@ -57,14 +25,13 @@ class HomeContent {
 
   /// 按阶段装配内容。
   ///
-  /// [summary] 只在 [HomeStage.analyzed] 下被真正使用 ——
-  /// State 01 / 02 的文案是**固定**的（产品侧规格），不随摘要变化。
+  /// 内容阶段由真实摘要状态决定；今日内容可在任何阶段提供。
   factory HomeContent.forStage(HomeStage stage, HomeSummary summary) {
     switch (stage) {
       case HomeStage.firstUse:
-        return _firstUse();
+        return _firstUse(summary.dailyContent);
       case HomeStage.baselineOnly:
-        return _baselineOnly();
+        return _baselineOnly(summary.dailyContent);
       case HomeStage.analyzed:
         return _analyzed(summary);
     }
@@ -74,12 +41,8 @@ class HomeContent {
   // State 01 —— 首次使用（D64 ② 逐字）
   // ---------------------------------------------------------------------------
 
-  static HomeContent _firstUse() {
-    return const HomeContent(
-      // ⚠️ D64 ② **没有**给 Header 区块的文案（它只列了 Hero / 四卡 /
-      // 岗位匹配变化）。此处取 D64 自己写的「你的职业主页」填该槽位
-      // —— 不另造新词。登记 **待裁决 · D76**。
-      headerTitle: '你的职业主页',
+  static HomeContent _firstUse(String? dailyContent) {
+    return HomeContent(
       hero: HomeHeroContent(
         label: '你的职业主页',
         title: '还没有职业分析',
@@ -89,39 +52,32 @@ class HomeContent {
       ),
       stilCards: <HomeStilCardData>[
         HomeStilCardData(
-          title: '问问 AI',
-          lines: <String>['不知道下一步该提升什么？', '和 AI 聊聊你的职业方向'],
-          iconBackground: AppColors.homeStilGradientAi,
-          icon: Icons.image_outlined,
-          lineAccent: AppColors.homeCardHighlight,
-          target: HomeCardTarget.ai,
-        ),
-        HomeStilCardData(
+          kind: HomeStilCardKind.status,
           title: '还没有职业分析',
           lines: <String>['上传简历并分析一个目标岗位', '看见你的能力匹配度'],
-          iconBackground: AppColors.homeStilGradientStatus,
-          icon: Icons.grid_on_outlined,
-          // 「当前状态」卡在 State 01 引导去分析。
+          actionLabel: '查看详情',
           target: HomeCardTarget.analysis,
         ),
         HomeStilCardData(
+          kind: HomeStilCardKind.growth,
           title: '还没有成长记录',
           lines: <String>['每一次简历更新、技能增加', '都会成为你的职业资产'],
-          iconBackground: AppColors.homeStilGradientGrowth,
-          icon: Icons.videocam_outlined,
+          actionLabel: '查看成长记录',
           lineAccent: AppColors.success,
           target: HomeCardTarget.growth,
         ),
         HomeStilCardData(
-          // 「今日一句」不看岗位数据，三态通用（D64 ② 的原话）。
-          // ⚠️ 与「State 03 = Figma 现有 Dashboard」的措辞存在歧义
-          // → 登记 **待裁决 · D78**。
+          kind: HomeStilCardKind.suggestion,
+          title: '下一步建议',
+          lines: <String>['不知道下一步该提升什么？', '和 AI 聊聊你的职业方向'],
+          actionLabel: '与AI聊聊',
+          lineAccent: AppColors.homeCardHighlight,
+          target: HomeCardTarget.ai,
+        ),
+        HomeStilCardData(
+          kind: HomeStilCardKind.daily,
           title: '今天也可以向前一步',
-          lines: <String>['先看见自己，再决定下一步。'],
-          iconBackground: AppColors.homeStilGradientDaily,
-          icon: Icons.folder_outlined,
-          lineAccent: AppColors.homeCardPurple,
-          isQuote: true,
+          lines: _dailyLines(dailyContent),
         ),
       ],
       section: HomeSectionContent.firstAnalysis(
@@ -143,9 +99,8 @@ class HomeContent {
   /// 只把「还没有简历」这一件事改写为「已经有简历、只差一个岗位」，
   /// 且**只用 D64 已经出现过的词**（职业基线 / 目标岗位 / 能力匹配度 /
   /// 第一次分析）。起草结果逐条列在 **待裁决 · D76** 供产品侧增删。
-  static HomeContent _baselineOnly() {
-    return const HomeContent(
-      headerTitle: '你的职业主页',
+  static HomeContent _baselineOnly(String? dailyContent) {
+    return HomeContent(
       hero: HomeHeroContent(
         label: '你的职业主页',
         title: '还没有岗位分析',
@@ -155,36 +110,33 @@ class HomeContent {
       ),
       stilCards: <HomeStilCardData>[
         HomeStilCardData(
-          title: '问问 AI',
-          lines: <String>['不知道下一步该提升什么？', '和 AI 聊聊你的职业方向'],
-          iconBackground: AppColors.homeStilGradientAi,
-          icon: Icons.image_outlined,
-          lineAccent: AppColors.homeCardHighlight,
-          target: HomeCardTarget.ai,
-        ),
-        HomeStilCardData(
+          kind: HomeStilCardKind.status,
           // 「职业基线已建立」是 D63 已裁决的措辞。
           title: '职业基线已建立',
           lines: <String>['添加一个目标岗位并开始分析', '看见你的能力匹配度'],
-          iconBackground: AppColors.homeStilGradientStatus,
-          icon: Icons.grid_on_outlined,
-          target: HomeCardTarget.analysis,
+          actionLabel: '查看职业能力',
+          target: HomeCardTarget.capability,
         ),
         HomeStilCardData(
+          kind: HomeStilCardKind.growth,
           title: '还没有成长记录',
           lines: <String>['每一次简历更新、技能增加', '都会成为你的职业资产'],
-          iconBackground: AppColors.homeStilGradientGrowth,
-          icon: Icons.videocam_outlined,
+          actionLabel: '查看成长记录',
           lineAccent: AppColors.success,
           target: HomeCardTarget.growth,
         ),
         HomeStilCardData(
+          kind: HomeStilCardKind.suggestion,
+          title: '下一步建议',
+          lines: <String>['不知道下一步该提升什么？', '和 AI 聊聊你的职业方向'],
+          actionLabel: '与AI聊聊',
+          lineAccent: AppColors.homeCardHighlight,
+          target: HomeCardTarget.ai,
+        ),
+        HomeStilCardData(
+          kind: HomeStilCardKind.daily,
           title: '今天也可以向前一步',
-          lines: <String>['先看见自己，再决定下一步。'],
-          iconBackground: AppColors.homeStilGradientDaily,
-          icon: Icons.folder_outlined,
-          lineAccent: AppColors.homeCardPurple,
-          isQuote: true,
+          lines: _dailyLines(dailyContent),
         ),
       ],
       section: HomeSectionContent.firstAnalysis(
@@ -205,68 +157,50 @@ class HomeContent {
   static HomeContent _analyzed(HomeSummary summary) {
     final List<MatchChange> matches = summary.matchChanges;
     final MatchChange? top = matches.isEmpty ? null : matches.first;
+    final String headline = summary.headline.trim();
 
     return HomeContent(
-      // ⚠️ Figma 写的是 `Alex 的职业主页`，而 `Alex` 是硬编码假名。
-      // `HomeSummary` 目前**没有**用户姓名字段，取不到真名时
-      // 用「你的职业主页」兜底，不回落到 `Alex`。登记 **待裁决 · D76**。
-      headerTitle: '你的职业主页',
       hero: HomeHeroContent(
-        label: '最匹配岗位',
-        title: top?.jobTitle ?? '',
-        // Figma 的位置是「更新时间」。摘要里没有该字段 → 留空，
-        // 不搬 Figma 的 `2026/9/12`。登记 **待裁决 · D77**。
-        meta: '',
+        label: '当前职业状态',
+        title: headline.isNotEmpty ? headline : top?.jobTitle ?? '',
+        meta: summary.subheadline.trim(),
         actionLabel: '查看分析',
         action: HomeHeroAction.viewAnalysis,
-        score: top?.score,
-        scoreDelta: top?.delta,
       ),
       stilCards: <HomeStilCardData>[
         HomeStilCardData(
-          // 标题是 Figma 原文（不是数据）；两行描述在 Figma 里是假数据，
-          // 改由「行动建议」填充。
-          title: '问问AI',
-          lines: _take(summary.suggestions, 2),
-          iconBackground: AppColors.homeStilGradientAi,
-          icon: Icons.chat_bubble_outline,
-          lineAccent: AppColors.homeCardHighlight,
-          target: HomeCardTarget.ai,
-        ),
-        HomeStilCardData(
+          kind: HomeStilCardKind.status,
           title: '当前状态',
-          // 第一行在 Figma 里是 `排名 #1`（假数据）→ 改为真实的分析数量；
-          // 第二行 `点击查看详细分析` 是**文案**而非数据，保留原文。
           lines: <String>[
-            '已分析 ${matches.length} 个目标岗位',
-            '点击查看详细分析',
+            matches.isEmpty ? '已完成目标岗位分析' : '最近有 ${matches.length} 个岗位匹配变化',
           ],
-          iconBackground: AppColors.homeStilGradientStatus,
-          icon: Icons.grid_on_outlined,
+          actionLabel: '查看详情',
+          statusScore: top?.score,
           target: HomeCardTarget.analysis,
         ),
         HomeStilCardData(
+          kind: HomeStilCardKind.growth,
           title: '最近成长',
-          // Figma 的 `新增 AI Agent 项目` / `AI 能力 68→76 ↑8` 同为假数据。
           lines: _take(summary.recentGrowth, 2),
-          iconBackground: AppColors.homeStilGradientGrowth,
-          icon: Icons.videocam_outlined,
+          actionLabel: '查看成长记录',
           lineAccent: AppColors.success,
           target: HomeCardTarget.growth,
         ),
         HomeStilCardData(
+          kind: HomeStilCardKind.suggestion,
+          title: '下一步建议',
+          lines: _take(summary.suggestions, 2),
+          actionLabel: '与AI聊聊',
+          lineAccent: AppColors.homeCardHighlight,
+          target: HomeCardTarget.ai,
+        ),
+        HomeStilCardData(
+          kind: HomeStilCardKind.daily,
           title: '今天也可以向前一步',
-          lines: <String>['先看见自己，再决定下一步。'],
-          iconBackground: AppColors.homeStilGradientDaily,
-          icon: Icons.folder_outlined,
-          lineAccent: AppColors.homeCardPurple,
-          isQuote: true,
+          lines: _dailyLines(summary.dailyContent),
         ),
       ],
-      section: HomeSectionContent.matches(
-        title: '岗位匹配变化',
-        matches: matches,
-      ),
+      section: HomeSectionContent.matches(title: '岗位匹配变化', matches: matches),
     );
   }
 
@@ -274,6 +208,13 @@ class HomeContent {
   static List<String> _take(List<String> source, int count) {
     if (source.length <= count) return source;
     return source.sublist(0, count);
+  }
+
+  static List<String> _dailyLines(String? content) {
+    if (content == null || content.trim().isEmpty) {
+      return const <String>['先看见自己，再决定下一步。'];
+    }
+    return <String>[content.trim()];
   }
 }
 
@@ -302,8 +243,6 @@ class HomeHeroContent {
     required this.meta,
     required this.actionLabel,
     required this.action,
-    this.score,
-    this.scoreDelta,
   });
 
   /// 小标签。
@@ -320,73 +259,51 @@ class HomeHeroContent {
 
   /// 按钮的跳转目标。
   final HomeHeroAction action;
-
-  /// 匹配度读数。
-  ///
-  /// ⚠️ **为 `null` 时右侧读数区整体不渲染** ——
-  /// State 01 / 02 没有匹配度可言，不得用 `0` 或 `--` 占位。
-  /// 装饰弧线**照常保留**（它是纯装饰，与分数不成比例）。
-  /// 登记 **待裁决 · D77**。
-  final int? score;
-
-  /// 相比上次的变化量。
-  final int? scoreDelta;
 }
 
 /// 2×2 卡片的数据。
 @immutable
 class HomeStilCardData {
   const HomeStilCardData({
+    required this.kind,
     required this.title,
     required this.lines,
-    required this.iconBackground,
-    required this.icon,
+    this.actionLabel = '',
+    this.statusScore,
     this.lineAccent,
-    this.isQuote = false,
     this.target,
   });
 
+  final HomeStilCardKind kind;
   final String title;
 
   /// 描述行（0–2 行）。
   final List<String> lines;
 
-  /// 图标底板的渐变（Figma 四张卡各不相同）。
-  final LinearGradient iconBackground;
+  final String actionLabel;
 
-  /// 图标字形。
-  ///
-  /// ⚠️ Figma 是自绘 SVG 路径。这里用 Material 字形近似，
-  /// 与注册页头像（**D58**）、提交简历页（**D72**）同一处置，
-  /// **不新建图标资源**。
-  final IconData icon;
+  /// 最匹配岗位的真实匹配分；无分析时不显示读数。
+  final int? statusScore;
 
   /// 最后一行的高亮色。为 `null` 时该卡所有描述行都用中性灰。
-  ///
-  /// ⚠️ **这是卡片的槽位属性，不是状态的文案属性** ——
-  /// 同一张卡在三个状态下取**同一个颜色**（D64 ①bis：只换文字、
-  /// 不换视觉）。Figma 逐卡给出的取值见 [_analyzed]。
   final Color? lineAccent;
 
-  /// 是否为「今日一句」卡 —— 该卡在 Figma 里 `onClick` 为 `undefined`，
-  /// 文字样式也与其余三张不同（单行、w400、紫色）。
-  final bool isQuote;
-
   /// 点击目标。为 `null` 时不可点（Figma 的「今日一句」卡）。
-  ///
-  /// ⚠️ 这是**槽位属性**，与 [lineAccent] 同理：同一张卡在三个状态下
-  /// 去同一个地方（D64 ①bis 只换文字）。Figma 逐卡的 `onClick` 见
-  /// [HomeContent] 的类文档。
   final HomeCardTarget? target;
 }
 
+enum HomeStilCardKind { status, growth, suggestion, daily }
+
 /// 2×2 卡片的点击目标。
 enum HomeCardTarget {
-  /// 「问问AI」→ AI Tab（Figma `onAIClick` → `setTabNav('ai')`）。
+  /// 「下一步建议」/「与AI聊聊」→ AI Tab。
   ai,
 
   /// 「当前状态」→ 分析 Tab（Figma `onAnalysisClick` → `go('analysis')`）。
   analysis,
+
+  /// 「职业基线已建立」→ 我的职业能力详情（IA §6 Empty State）。
+  capability,
 
   /// 「最近成长」→ Figma 是 `go('cap-change')`（能力变化页）。
   ///
@@ -400,11 +317,9 @@ enum HomeCardTarget {
 /// 「岗位匹配变化」区块的内容 —— **两种互斥形态**。
 @immutable
 class HomeSectionContent {
-  const HomeSectionContent.matches({
-    required this.title,
-    required this.matches,
-  }) : body = null,
-       actionLabel = null;
+  const HomeSectionContent.matches({required this.title, required this.matches})
+    : body = null,
+      actionLabel = null;
 
   const HomeSectionContent.firstAnalysis({
     required this.title,

@@ -600,6 +600,15 @@ abstract final class AppColors {
     colors: <Color>[primaryBlue, primaryPurple],
   );
 
+  /// 最新首页欢迎区渐变（Figma：169.47deg）。
+  static const LinearGradient homeWelcomeGradient = LinearGradient(
+    begin: Alignment(-0.183, -0.983),
+    end: Alignment(0.183, 0.983),
+    colors: <Color>[primaryBlue, primaryPurple],
+  );
+
+  static const Color homeWelcomeCircle = Color(0x1AFFFFFF);
+
   /// Hero 卡内的浅色装饰圆（小）。
   /// Figma：`rgba(255,255,255,0.07)`。
   static const Color homeHeroCircleFaint = Color(0x12FFFFFF);
@@ -657,6 +666,23 @@ abstract final class AppColors {
   /// ⚠️ 与 [textSecondary]（`#6B7280`）**不同值**（更冷、略亮），
   /// 是首页卡片专用的描述灰。
   static const Color homeCardDesc = Color(0xFF6E717C);
+
+  static const LinearGradient homeStatusCardGradient = LinearGradient(
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+    colors: <Color>[Color(0x8CF7A8D8), Color(0x8CFFCCD5)],
+  );
+
+  static const Color homeStatusCardBorder = Color(0xFFFFFFFF);
+  static const Color homeStatusChipFill = Color(0x1A4F7EF5);
+  static const Color homeStatusChipText = Color(0xFF4F70D8);
+  static const Color homeStatusScoreLabel = Color(0xFF737887);
+  static const Color homeStatusActionText = Color(0xFF4F70D8);
+  static const Color homeCardActionText = Color(0xFF000000);
+  static const Color homeQuoteBorder = Color(0xFFC49EF7);
+  static const Color homeQuoteDate = Color(0xFF6D55A0);
+  static const Color homeQuoteDateMuted = Color(0xFF9978BF);
+  static const Color homeQuoteMark = Color(0x387C3AED);
 
   /// 卡片描述文字的高亮色（橙）。Figma:「影响 3 个目标岗位」：`#e07840`。
   static const Color homeCardHighlight = Color(0xFFE07840);
@@ -949,7 +975,6 @@ abstract final class AppColors {
   /// ⚠️ 落在 [onBrandMuted]（`0.60`）与 [onBrandStrong]（`0.80`）之间，
   /// 三档不可互换。
   static const Color profileOnBrandStrong = Color(0xBFFFFFFF);
-
 
   // ---------------------------------------------------------------------------
   // 我的 · 渐变（Phase 8）

@@ -1,7 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/router/back_navigation.dart';
+import '../../../data/repositories/resume_repository.dart';
 import '../../../data/models/models.dart';
 import '../../../design_system/components/components.dart';
 import '../../../design_system/tokens/tokens.dart';
@@ -17,7 +21,7 @@ import 'widgets/resume_share_sheet.dart';
 /// 顶栏   Resume {version} + 右侧分享钮
 /// 信息行 「当前简历」胶囊 + 更新于 {date}      （右端「最高匹配」见下）
 /// 分段   PDF 预览 / 原始内容
-/// 内容   PDF 卡（渐变头 + 分段 + 页脚）/ 原始内容的玻璃卡
+/// 内容   PDF 卡（渐变头 + 分段 + 页脚）/ 上传的原始 PDF
 /// 底栏   「导出 PDF」+「编辑简历」
 /// ```
 ///
@@ -32,12 +36,8 @@ import 'widgets/resume_share_sheet.dart';
 /// 因此该行右侧整块不渲染。要补上它，先要在数据层定义「简历版本的匹配度」
 /// 从哪来 —— 属产品侧裁决，已登记 `docs/05_progress/TODO.md` §3.1。
 ///
-/// ## ⚠️ 「原始内容」不是简历的原始文本
-///
-/// Figma 的原始内容是**同一批分段的结构化排布**（`RESUME_SECTIONS`
-/// 换个卡样式重画），并不是把简历原文贴出来。因此这里两页签读的是
-/// **同一份数据**、不同的视觉层次，没有「原文」字段 ——
-/// 后端 `GET /resume` 的 `text` 字段（简历原文）因此**没有进模型**。
+/// 「原始内容」从按版本授权的接口读取上传 PDF 原稿；解析画像只用于
+/// 「PDF 预览」重排卡片，不会冒充用户原文件。
 ///
 /// ## 未接线的两处（Figma 有入口，App 里没有去向）
 ///
@@ -128,6 +128,103 @@ class _ResumeDetailPageState extends State<ResumeDetailPage> {
   }
 }
 
+class _OriginalPdfView extends StatefulWidget {
+  const _OriginalPdfView({required this.version});
+
+  final ResumeVersion version;
+
+  @override
+  State<_OriginalPdfView> createState() => _OriginalPdfViewState();
+}
+
+class _OriginalPdfViewState extends State<_OriginalPdfView> {
+  late Future<List<int>> _pdf;
+
+  bool get _hasPdf =>
+      widget.version.fileName?.toLowerCase().endsWith('.pdf') ?? false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pdf = _hasPdf ? _fetchPdf() : Future<List<int>>.value(const <int>[]);
+  }
+
+  @override
+  void didUpdateWidget(covariant _OriginalPdfView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.version.id != widget.version.id) {
+      _pdf = _hasPdf ? _fetchPdf() : Future<List<int>>.value(const <int>[]);
+    }
+  }
+
+  Future<List<int>> _fetchPdf() {
+    return context.read<ResumeRepository>().fetchVersionOriginalPdf(
+      widget.version.id,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_hasPdf) {
+      return const _OriginalPdfMessage(
+        message: '此版本没有上传 PDF 原稿',
+        icon: Icons.picture_as_pdf_outlined,
+      );
+    }
+
+    return FutureBuilder<List<int>>(
+      future: _pdf,
+      builder: (BuildContext context, AsyncSnapshot<List<int>> snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return const _OriginalPdfMessage(
+            message: '该版本未保存原始 PDF，或暂时无法读取',
+            icon: Icons.error_outline,
+          );
+        }
+        final List<int>? bytes = snapshot.data;
+        if (bytes == null || bytes.isEmpty) {
+          return const _OriginalPdfMessage(
+            message: '该版本没有可预览的原始 PDF',
+            icon: Icons.picture_as_pdf_outlined,
+          );
+        }
+        return ClipRRect(
+          borderRadius: AppRadius.borderMd,
+          child: PdfViewer.data(
+            Uint8List.fromList(bytes),
+            sourceName: widget.version.id,
+            params: const PdfViewerParams(),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _OriginalPdfMessage extends StatelessWidget {
+  const _OriginalPdfMessage({required this.message, required this.icon});
+
+  final String message;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 36, color: AppColors.textTertiary),
+          const SizedBox(height: AppSpacing.sm),
+          Text(message, style: AppTypography.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
 /// 页签取值。
 enum _Tab { pdf, raw }
 
@@ -153,26 +250,34 @@ class _DetailBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _VersionMetaRow(version: version),
-        _TabSwitcher(current: tab, onChanged: onTabChanged),
+        _TabSwitcher(current: tab, onChanged: onTabChanged        ),
         Expanded(
-          child: ListView(
-            // Figma `px-4 pb-8`。
-            padding: const EdgeInsetsDirectional.fromSTEB(
-              _DetailMetrics.contentInset,
-              0,
-              _DetailMetrics.contentInset,
-              _DetailMetrics.contentBottom,
-            ),
-            children: <Widget>[
-              if (tab == _Tab.pdf)
-                _PdfPreviewCard(profile: profile, version: version, sections: sections)
-              else
-                for (final ResumeSection section in sections) ...<Widget>[
-                  _RawSectionCard(section: section),
-                  const SizedBox(height: _DetailMetrics.rawCardGap),
+          child: tab == _Tab.pdf
+              ? ListView(
+                  // Figma `px-4 pb-8`。
+                  padding: const EdgeInsetsDirectional.fromSTEB(
+                    _DetailMetrics.contentInset,
+                    0,
+                    _DetailMetrics.contentInset,
+                    _DetailMetrics.contentBottom,
+                  ),
+                  children: <Widget>[
+                  _PdfPreviewCard(
+                    profile: profile,
+                    version: version,
+                    sections: sections,
+                  ),
                 ],
-            ],
-          ),
+              )
+            : Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  _DetailMetrics.contentInset,
+                  0,
+                  _DetailMetrics.contentInset,
+                  _DetailMetrics.contentBottom,
+                ),
+                child: _OriginalPdfView(version: version),
+              ),
         ),
         const _BottomActions(),
       ],
@@ -564,61 +669,6 @@ class _PdfFooter extends StatelessWidget {
   }
 }
 
-/// 「原始内容」里的一个分段卡。Figma L4693-4709。
-class _RawSectionCard extends StatelessWidget {
-  const _RawSectionCard({required this.section});
-
-  final ResumeSection section;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: AppRadius.borderXl,
-      child: BackdropFilter(
-        filter: GlassFilters.blur(_DetailMetrics.rawCardBlur),
-        child: Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: const BoxDecoration(
-            color: AppColors.resumeGlassCardFill,
-            borderRadius: AppRadius.borderXl,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                section.title,
-                style: AppTypography.resumeDetailRawTitle,
-              ),
-              for (final ResumeItem item in section.items) ...<Widget>[
-                const SizedBox(height: AppSpacing.sm),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        item.label,
-                        style: AppTypography.resumeDetailRawLabel,
-                      ),
-                    ),
-                    if (item.value != null) ...<Widget>[
-                      const SizedBox(width: AppSpacing.sm),
-                      Text(
-                        item.value!,
-                        style: AppTypography.resumeDetailRawValue,
-                        textAlign: TextAlign.right,
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// 底部动作条：`导出 PDF` + `编辑简历`。Figma L4712-4740。
 class _BottomActions extends StatelessWidget {
   const _BottomActions();
@@ -821,11 +871,6 @@ abstract final class _DetailMetrics {
 
   /// Figma `border-top: 0.5px`。
   static const double pdfFooterBorderWidth = 0.5;
-
-  // ── 原始内容卡 ─────────────────────────────────────────────────────
-  /// Figma `blur(12px)`。
-  static const double rawCardBlur = 12;
-  static const double rawCardGap = 12;
 
   // ── 底栏 ────────────────────────────────────────────────────────────
   static const double actionBarTop = 12;

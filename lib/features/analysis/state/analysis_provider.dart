@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/errors/app_error.dart';
 import '../../../core/state/state.dart';
+import '../../../data/api/api_client.dart';
 import '../../../data/models/analysis_project.dart';
+import '../../../data/models/analysis_task.dart';
 import '../../../data/models/job.dart';
 import '../../../data/models/parsed_job.dart';
 import '../../../data/models/quota_state.dart';
@@ -40,6 +42,12 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   /// 这里不再重复处理。
   int _runId = 0;
 
+  /// 引擎实时节点进度。见 [taskProgress]。
+  ///
+  /// 每次发起分析清零，终态（成功 / 失败 / 退出）也清零 —— 否则它会在
+  /// 下一次分析开始前残留上一轮的步号，让「正在分析」页从第 4 步开始。
+  AnalysisTaskProgress? _taskProgress;
+
   /// 当前额度状态。为 `null` 表示尚未读取。
   QuotaState? get quota => _quota;
 
@@ -50,6 +58,13 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   bool get canAnalyze => _quota?.canAnalyze ?? false;
 
   AsyncState<AnalysisProject> get analysisState => _analysisState;
+
+  /// 引擎**真实节点**的进度（P1-1b）。
+  ///
+  /// 为 `null` 表示「没有真实进度可报告」—— 要么还没开始（排队中），
+  /// 要么数据源是 Mock（它背后没有 agent 流程）。两种情况都表示
+  /// 「正在分析」页应退回组件内时钟驱动，而**不是**进度为 0%。
+  AnalysisTaskProgress? get taskProgress => _taskProgress;
 
   AnalysisProject? get latestProject => _analysisState.dataOrNull;
 
@@ -173,6 +188,24 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   }
 
   /// 创建单岗位分析。额度只在这里扣减，失败时立即回滚。
+  ///
+  /// ## 两条执行路径（P1-1b，2026-10-05）
+  ///
+  /// ```text
+  /// 数据源实现 AnalysisProgressSource（真实后端）
+  ///   → 202 + 轮询：进度来自引擎**真实节点**，节点慢则动画等待
+  /// 否则（Mock）
+  ///   → 同步 analyze()：进度由「正在分析」组件内的时钟驱动（原行为）
+  /// ```
+  ///
+  /// **为什么不统一成一条**：Mock 背后没有 agent 流程 —— 它的「分析」
+  /// 是一次 `Future.delayed`，没有 `crawl` / `routing` 可言。强行统一只能
+  /// 靠编造节点名，那是 `CLAUDE.md` §7 禁止的「编造产品数据」。
+  /// 能力按实现者区分，比假装统一更诚实。
+  ///
+  /// ⚠️ 这**取代**了 D73「进度读数由组件内部 UI 时钟驱动」在本屏的适用性：
+  /// 实测引擎单是 `routing` 一个节点就可能跑 100 秒以上，而组件内时钟
+  /// 固定 7.3 秒就定形「分析完成」—— 那是一个真实的行为缺陷。
   Future<void> startAnalysis({
     required String title,
     required String rawJd,
@@ -193,23 +226,120 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
 
     _quota = _quota!.consume();
     final int run = ++_runId;
+    _taskProgress = null;
     _setAnalysisLoading(progress: 0.15, message: '准备岗位信息');
+
+    // 能力探测：只有真实后端能报节点进度（见 AnalysisProgressSource 的文档）。
+    //
+    // 这里的 `as` 是必要的：两个 interface 类型互不相关，Dart 不会为
+    // `is` 检查产生类型提升（不是「多余的转换」）。
+    final AnalysisProgressSource? source =
+        _repository is AnalysisProgressSource
+            ? _repository as AnalysisProgressSource
+            : null;
     try {
-      _setAnalysisLoading(progress: 0.45, message: '理解岗位要求');
-      final AnalysisProject project = await _repository.analyze(
-        title: title,
-        rawJd: rawJd,
-      );
-      if (run != _runId) return; // 已退出：结果作废，额度已回滚
-      _setAnalysisLoading(progress: 0.8, message: '建立能力匹配');
+      final AnalysisProject? project = source != null
+          ? await _runWithRealProgress(
+              source,
+              run: run,
+              title: title,
+              rawJd: rawJd,
+            )
+          : await _runWithLocalClock(run: run, title: title, rawJd: rawJd);
+      if (project == null) return; // 已退出：结果作废，额度已回滚
+      _taskProgress = null;
       _analysisState = AsyncState<AnalysisProject>.success(project);
       _replaceProjects(<AnalysisProject>[project, ..._projects]);
     } catch (error, stackTrace) {
       if (run != _runId) return; // 已退出：失败也作废
       _quota = _quota!.rollback();
+      _taskProgress = null;
       _setAnalysisFailure(AppError.from(error, stackTrace));
     }
     notifyListeners();
+  }
+
+  /// 真实后端路径：202 拿句柄 → 轮询 → 取结果。
+  ///
+  /// 返回 `null` 表示本次运行已被取代（用户退出 / 又发起了一次），
+  /// 调用方应直接丢弃结果 —— 额度已由 [exitAnalysis] 回滚。
+  Future<AnalysisProject?> _runWithRealProgress(
+    AnalysisProgressSource source, {
+    required int run,
+    required String title,
+    required String rawJd,
+  }) async {
+    AnalysisTask task = await source.startAnalysisTask(
+      title: title,
+      rawJd: rawJd,
+    );
+    if (run != _runId) return null;
+    _applyTaskProgress(task);
+
+    while (!task.isTerminal) {
+      await Future<void>.delayed(ApiClient.analysisPollInterval);
+      if (run != _runId) return null;
+      task = await source.fetchAnalysisTask(task.taskId);
+      if (run != _runId) return null;
+      _applyTaskProgress(task);
+    }
+
+    if (task.isFailed) {
+      // 后端的 errorMessage 已是给用户看的中文（P1-2 归一化过），原样上屏。
+      throw UnknownError(
+        message: task.errorMessage ?? '分析失败，请稍后重试',
+        detail: task.errorCode ?? 'ANALYSIS_FAILED',
+      );
+    }
+
+    final String? projectId = task.projectId;
+    if (projectId == null) {
+      throw const UnknownError(
+        message: '分析已完成，但没有返回结果',
+        detail: 'AnalysisTask.projectId == null',
+      );
+    }
+    final AnalysisProject? project = await _repository.fetchProject(projectId);
+    if (run != _runId) return null;
+    if (project == null) {
+      throw const UnknownError(
+        message: '分析结果读取失败，请稍后重试',
+        detail: 'fetchProject returned null',
+      );
+    }
+    return project;
+  }
+
+  /// Mock 路径：原行为逐字保留（进度由组件内时钟驱动，这里只是
+  /// 同步等待期间的状态标记）。
+  Future<AnalysisProject?> _runWithLocalClock({
+    required int run,
+    required String title,
+    required String rawJd,
+  }) async {
+    _setAnalysisLoading(progress: 0.45, message: '理解岗位要求');
+    final AnalysisProject project = await _repository.analyze(
+      title: title,
+      rawJd: rawJd,
+    );
+    if (run != _runId) return null;
+    _setAnalysisLoading(progress: 0.8, message: '建立能力匹配');
+    return project;
+  }
+
+  /// 把一次任务快照翻译成 UI 状态并通知监听者。
+  ///
+  /// ⚠️ [AsyncState.loading] 的 `progress` 是**产品步骤**刻度的粗粒度读数，
+  /// 与引擎的 `completedCount / totalNodes` **不是**同一个刻度，
+  /// 故用 `totalSteps` 而非 `totalNodes` 换算。
+  void _applyTaskProgress(AnalysisTask task) {
+    _taskProgress = task.progress;
+    final int? step = task.progress?.stepIndex;
+    final int total = task.progress?.totalSteps ?? 1;
+    _setAnalysisLoading(
+      progress: step == null ? 0 : ((step + 1) / total).clamp(0.0, 1.0),
+      message: '正在分析',
+    );
   }
 
   Future<void> retryAnalysis() =>
@@ -231,6 +361,8 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
     if (wasLoading) {
       _quota = _quota!.rollback();
     }
+    // 不清掉的话，下一次分析的「正在分析」页会从上一轮遗留的步号开始。
+    _taskProgress = null;
     _analysisState = const AsyncState<AnalysisProject>.initial();
     notifyListeners();
   }

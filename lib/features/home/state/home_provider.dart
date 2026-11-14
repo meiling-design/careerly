@@ -27,7 +27,7 @@ import '../../../data/repositories/home_repository.dart';
 ///
 /// ```text
 /// 是否有职业基线（ResumeProfile.hasBaseline）  →  State 01 / 02 的分界
-/// 是否存在岗位分析（matchChanges 是否为空）    →  State 02 / 03 的分界
+/// 是否有分析数据（建议 / 匹配度标题 / 匹配变化） →  State 02 / 03 的分界
 /// ```
 ///
 /// ⚠️ 判定**只读 [HomeSummary]**，不跨域去读 `ResumeProvider`。
@@ -71,8 +71,11 @@ class HomeProvider extends AsyncStateNotifier<HomeSummary> {
   HomeStage get stage {
     final HomeSummary? summary = data;
     if (summary == null || !summary.hasBaseline) return HomeStage.firstUse;
-    return summary.matchChanges.isEmpty
-        ? HomeStage.baselineOnly
-        : HomeStage.analyzed;
+    final bool hasAnalysis =
+        summary.matchChanges.isNotEmpty ||
+        summary.suggestions.isNotEmpty ||
+        // 首次分析或分数未变化时，后端不会产生 matchChanges。
+        summary.headline.trim().startsWith('当前与目标岗位的匹配度');
+    return hasAnalysis ? HomeStage.analyzed : HomeStage.baselineOnly;
   }
 }

@@ -5,6 +5,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 import '../../../../app/router/back_navigation.dart';
+import '../../../../data/models/analysis_task.dart';
 import '../../../../design_system/components/components.dart';
 import '../../../../design_system/tokens/tokens.dart';
 
@@ -15,19 +16,34 @@ import '../../../../design_system/tokens/tokens.dart';
 /// 当前任务行 → 5 步时间线卡（Glass 卡）→ 「退出分析」→ 退出确认
 /// Bottom Sheet（[CareerlyBottomSheetTone.confirm]，即 D27 归纳的变体 A）。
 ///
-/// ## 两条时钟（同 D73 的 on-parsing 先例）
+/// ## 两种驱动模式（P1-1b，2026-10-05）
 ///
-/// - **UI 时钟**：本组件内部驱动。5 步节拍取
-///   [AppMotion.analysisBeats]，缓动取 [AppMotion.analysisEaseExponent]，
-///   与 Figma 逐位一致。百分比读数**只来自这条时钟**。
-/// - **数据时钟**：[AnalysisProvider] 的 `analysisState`。真实分析何时
-///   完成（Mock 是 `Future.delayed`，将来是真实 API）由 Provider 决定；
-///   成功后由页面的状态分发切到结果页。**本组件不因 UI 时钟走完而导航**
-///   —— [onDone] 只是对外通知「UI 时钟已定格」，页面可用它做兜底，
-///   但切页的依据仍是 Provider 的 [AsyncState]。
+/// 由 [progress] 是否为 `null` 决定，**不是**一个可配置开关 ——
+/// 能不能拿到真实进度，取决于数据源背后有没有真的 agent：
 ///
-/// 因此：真实分析比 7.3s 的时间线快，结果页提前出现（本组件直接被替换）；
-/// 比 7.3s 慢，本组件定格在「分析完成！· 100%」等待。
+/// ```text
+/// progress == null        本地时钟模式（Mock）
+///   5 步节拍取 AppMotion.analysisBeats，与 Figma 逐位一致。
+///   整个时间线 7.3s 走完并定形「分析完成」。
+///
+/// progress != null        真实进度模式（真实后端）
+///   步号来自后端（引擎 8 节点 → 产品 5 步，映射见后端 router.py）。
+///   组件只在当前步内推进百分比，推到该步 endPercent 后**停住等**
+///   下一个节点；本步耗时仍沿用 Figma 的节拍时长作为**节奏**，
+///   但不再是「限时跑完」。**永不自行定形** —— 完成与否由任务终态决定。
+/// ```
+///
+/// ⚠️ 本地时钟模式那 7.3s 是**原型节奏**，不是分析时长。实测引擎单是
+/// `routing` 一个节点就可能跑 100 秒以上（契约 C2：10–210s）。真实进度
+/// 模式的存在就是为了不把原型节奏误当成真实流程（原缺陷：页面在 7.3s
+/// 显示「分析完成」，而请求还在飞）。
+///
+/// ## 数据时钟（两种模式共用）
+///
+/// [AnalysisProvider] 的 `analysisState` 决定**切页**：成功后由页面的
+/// 状态分发切到结果页。**本组件不因时间线走完而导航** —— [onDone] 只是
+/// 本地时钟模式的对外通知，页面可用它兜底，但切页的依据仍是 Provider 的
+/// [AsyncState]。
 ///
 /// ## 相对 on-parsing 光晕球的关系
 ///
@@ -49,6 +65,7 @@ class CareerlyAnalysisProgress extends StatefulWidget {
     required this.jobCount,
     this.onExit,
     this.onDone,
+    this.progress,
   });
 
   /// 上下文胶囊的岗位数（「1 份简历 × N 个目标岗位」）。
@@ -61,7 +78,22 @@ class CareerlyAnalysisProgress extends StatefulWidget {
   final VoidCallback? onExit;
 
   /// UI 时钟定格为「分析完成」后触发（[AppMotion.analysisAdvance] 前）。
+  ///
+  /// ⚠️ **仅在本地时钟模式下会触发**。真实进度模式下本组件不会自己
+  /// 定形 —— 定形的依据是任务真的完成了，由页面按 Provider 的
+  /// [AsyncState] 替换本组件（见类注释「两种驱动模式」）。
   final VoidCallback? onDone;
+
+  /// 引擎**真实节点**进度（P1-1b）。
+  ///
+  /// `null` = 本地时钟模式：整个时间线由组件自己的 [AppMotion.analysisBeats]
+  /// 节拍表推进（原行为，Mock 路径）。
+  ///
+  /// 非 `null` = 真实进度模式：**步骤切换由后端节点决定**，组件只在
+  /// 当前步内做百分比推进，推到该步的 `endPercent` 后**停住等**，
+  /// 直到后端把 [AnalysisTaskProgress.stepIndex] 推进到下一步。
+  /// 这正是「节点慢则动画等待」。
+  final AnalysisTaskProgress? progress;
 
   @override
   State<CareerlyAnalysisProgress> createState() =>
@@ -90,6 +122,30 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
 
   Duration _elapsed = Duration.zero;
   bool _done = false;
+
+  // -- 真实进度模式（见 widget.progress）--
+
+  /// 后端最近一次报出的步号，0 基。
+  ///
+  /// `null` 在真实进度模式下表示「后端给了未知节点」—— 此时**停住等**，
+  /// 不是退回本地时钟。判据是 [_realMode]，不是这个字段。
+  int? _serverStep;
+
+  /// 是否处于真实进度模式。
+  ///
+  /// ⚠️ 判据是 `widget.progress != null`（「这次分析有没有真实进度源」），
+  /// **不是** `_serverStep != null`（「这一步映射出来没有」）。
+  /// 用后者会漏掉一种情况：后端报了映射表外的节点 → `stepIndex` 为 null
+  /// → 组件以为「没有真实进度」→ 退回本地时钟 → 7.3 秒定形「分析完成」。
+  /// 那正是本模式要修掉的缺陷。
+  bool get _realMode => widget.progress != null;
+
+  /// **进入当前步之后**经过的时间，用于步**内**的百分比推进。
+  ///
+  /// 与 [_elapsed] 的区别：[_elapsed] 是整条时间线的累计时长，
+  /// [_serverStep] 变化时这里要归零 —— 否则第 2 步会带着第 1 步的
+  /// 已用时长，一进来就直接跳到该步终点。
+  Duration _inStep = Duration.zero;
   Timer? _ticker;
   Timer? _halo2Delay;
   Timer? _settleTimer;
@@ -133,6 +189,9 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
     _halo2Delay = Timer(AppMotion.orbHaloDelay, () {
       if (mounted && !_done) _halo2.repeat();
     });
+    // 首帧就带着进度进来时（轮询比组件挂载快），这里必须补一次初始化 ——
+    // didUpdateWidget 只在**变化**时触发，不会为初始值补课。
+    _serverStep = widget.progress?.stepIndex;
     _ticker = Timer.periodic(AppMotion.analysisTick, _onTick);
   }
 
@@ -150,9 +209,46 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(CareerlyAnalysisProgress oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final int? next = widget.progress?.stepIndex;
+    // 后端给了未知节点（next == null）时**保持现状**：既不倒回第 0 步，
+    // 也不换模式 —— 继续按当前步停住，等引擎走到下一个已知节点。
+    if (next == null || next <= (_serverStep ?? -1)) return;
+    final Duration? seed = _inStepForHandoff(next);
+    setState(() {
+      _serverStep = next;
+      _inStep = seed ?? Duration.zero;
+    });
+  }
+
+  /// 从本地时钟切到真实进度时的**无缝交接**。
+  ///
+  /// 组件先以本地时钟起步（拿到第一次轮询结果前没有进度可报），约 1 秒后
+  /// 真实步号到达。若此时把 [_inStep] 归零，百分比会从本地时钟已经走到的
+  /// 读数（第 0 步约 15%）**倒退**回 1% —— 肉眼可见地跳一下。
+  ///
+  /// 只有当后端报的正是第 0 步时才需要交接（否则是直接跳到后面的步，
+  /// 从该步起点开始才是对的），此时用 [_elapsed] 接着走即可 —— 两种模式下
+  /// 第 0 步的节拍时长相同，所以接得上。
+  Duration? _inStepForHandoff(int next) {
+    if (_serverStep != null || next != 0) return null;
+    final Duration cap = AppMotion.analysisBeats[0].duration;
+    return _elapsed < cap ? _elapsed : cap;
+  }
+
   /// UI 时钟。Figma 的 `setInterval(tickMs=40)` + 每步 `setTimeout(duration)`。
+  ///
+  /// 真实进度模式下它**只推进步内百分比**，不推进步号、也永不定形 ——
+  /// 步号的唯一来源是后端。
   void _onTick(Timer timer) {
-    if (!mounted || _done || _elapsed >= _total) return;
+    if (!mounted || _done) return;
+    if (_realMode) {
+      _onTickRealProgress();
+      return;
+    }
+    if (_elapsed >= _total) return;
     Duration next = _elapsed + AppMotion.analysisTick;
     final bool crossed = next >= _total;
     if (crossed) next = _total;
@@ -173,6 +269,25 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
         });
       });
     }
+  }
+
+  /// 真实进度模式的节拍：只推进 [_inStep]，并在该步的节拍时长处**停住**。
+  ///
+  /// 停住 = 百分比停在该步的 `endPercent`，等后端把步号推到下一步。
+  /// **不设** [_done]、**不调** [CareerlyAnalysisProgress.onDone] ——
+  /// 定形的依据是任务终态，不是动画播完。
+  void _onTickRealProgress() {
+    final int? step = _serverStep;
+    // 未知节点（step == null）或步号越界：**停住等**下一个已知节点，
+    // 既不前推也不定形。
+    if (step == null) return;
+    final List<AppMotionBeat> beats = AppMotion.analysisBeats;
+    if (step >= beats.length) return;
+    final Duration cap = beats[step].duration;
+    if (_inStep >= cap) return; // 本步已推到头 —— 等待后端推进
+    Duration next = _inStep + AppMotion.analysisTick;
+    if (next > cap) next = cap;
+    setState(() => _inStep = next);
   }
 
   Duration get _total {
@@ -197,6 +312,9 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
   /// 百分比初值 [AppMotion.analysisStartPercent]（1，不是 0）。
   (int, int, double) _compute() {
     final List<AppMotionBeat> beats = AppMotion.analysisBeats;
+    // 真实模式：步号未知时按第 0 步起点显示（「排队中」的样子），
+    // 而不是回退到本地时钟那条会自行定形的路径。
+    if (_realMode) return _computeFromServer(_serverStep ?? 0, beats);
     if (_done || _elapsed >= _total) {
       return (beats.length, 100, 1);
     }
@@ -220,6 +338,37 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
       acc = end;
     }
     return (beats.length, 100, 1);
+  }
+
+  /// 真实进度模式的读数推导。
+  ///
+  /// 与本地时钟模式的唯一区别是**谁决定步号**：这里由后端节点决定
+  /// （[step]），组件只负责在当前步内把百分比推到该步的 `endPercent`。
+  /// 缓动、起点读数 [_pctStart]、初值 [AppMotion.analysisStartPercent]
+  /// 与 Figma 逐值一致 —— 视觉不变，变的只是「什么时候进下一步」。
+  ///
+  /// ⚠️ 本模式下**没有** `(beats.length, 100, 1)` 这个收尾分支：后端从不
+  /// 报出「第 5 步之后」，第 5 步推到 `endPercent` 后停住，直到任务终态
+  /// 让页面替换本组件。自己凑一个 100% 就又回到「假完成」的老问题。
+  (int, int, double) _computeFromServer(int step, List<AppMotionBeat> beats) {
+    if (step >= beats.length) {
+      // 后端步号越界（映射变更 / 版本错配）：显示已到末步读数，不崩。
+      // 这不是「完成」—— 完成由任务终态表达。
+      return (beats.length, beats.last.endPercent, 1);
+    }
+    final AppMotionBeat beat = beats[step];
+    final double from = _pctStart(step);
+    final double to = beat.endPercent.toDouble();
+    final double frac =
+        (_inStep.inMicroseconds / beat.duration.inMicroseconds).clamp(0.0, 1.0);
+    final double eased =
+        1 - math.pow(1 - frac, AppMotion.analysisEaseExponent).toDouble();
+    final int pct = math.max(
+      AppMotion.analysisStartPercent,
+      (from + (to - from) * eased).round(),
+    );
+    final double stepPct = to <= from ? 1 : ((pct - from) / (to - from));
+    return (step, pct, stepPct.clamp(0.0, 1.0));
   }
 
   Future<void> _showExitSheet() {

@@ -5,18 +5,16 @@ import 'package:provider/provider.dart';
 import '../../../app/router/app_routes.dart';
 import '../../../data/models/home_summary.dart';
 import '../../../design_system/components/components.dart';
-import '../../../design_system/tokens/tokens.dart';
+import '../../profile/state/growth_celebration_provider.dart';
 import '../state/home_provider.dart';
 import 'home_content.dart';
 import 'widgets/home_analysis_section.dart';
-import 'widgets/home_header.dart';
 import 'widgets/home_hero_card.dart';
 import 'widgets/home_stil_cards.dart';
 
 /// 首页 —— 「我现在在哪？」
 ///
-/// 真值来源：Figma `HomePage`（`App.tsx` L987-1182），
-/// 版面为 `px-5 pt-3 pb-6 space-y-4`（左右 20 / 上 12 / 下 24 / 块间 16）。
+/// 真值来源：Figma `HomePage`（`App.tsx` L1341-1480）。
 ///
 /// ## 三态（内容）与四态（加载）不是一回事
 ///
@@ -47,6 +45,9 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  GoRouter? _router;
+  final GlobalKey _matchChangesKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -57,55 +58,92 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final GoRouter? router = GoRouter.maybeOf(context);
+    if (identical(router, _router)) return;
+    _router?.routeInformationProvider.removeListener(_onRouteChanged);
+    _router = router;
+    _router?.routeInformationProvider.addListener(_onRouteChanged);
+  }
+
+  @override
+  void dispose() {
+    _router?.routeInformationProvider.removeListener(_onRouteChanged);
+    super.dispose();
+  }
+
+  void _onRouteChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
     final HomeProvider provider = context.watch<HomeProvider>();
+    final GrowthCelebrationProvider? celebrations =
+        Provider.of<GrowthCelebrationProvider?>(context);
+    final bool isHomeVisible =
+        _router == null ||
+        _router!.routeInformationProvider.value.uri.path == AppRoutes.home;
 
     return CareerlyScaffold(
-      // Figma 首页没有标题栏 —— 顶部是它自己的身份区（[HomeHeader]）。
+      // Figma 首页没有独立标题栏；欢迎 Hero 延伸至页面左右边缘。
       showAppBar: false,
-      // 页面内边距：Figma `px-5 pt-3 pb-6`。
-      //
-      // ⚠️ 底部这 24 **不是**导航避让 —— 导航避让（Figma 容器的 `pb-24`）
-      // 已由 [CareerlyShell] 统一提供（`navigationBarContentInset`）。
-      // 两者是**相加**关系（Figma 里就是容器 `pb-24` + 页面 `pb-6`），
-      // 故这里照抄页面的 24，不减。
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        AppSpacing.mdLg,
-        AppSpacing.sm,
-        AppSpacing.mdLg,
-        AppSpacing.lg,
-      ),
+      padding: EdgeInsets.zero,
       child: CareerlyAsyncStateView<HomeSummary>(
         state: provider.state,
         onRetry: provider.load,
         loadingMessage: '正在载入你的职业主页',
-        builder: (BuildContext context, HomeSummary summary) =>
-            _HomeContent(
-              content: HomeContent.forStage(provider.stage, summary),
-            ),
+        builder: (BuildContext context, HomeSummary summary) => _HomeContent(
+          content: HomeContent.forStage(provider.stage, summary),
+          celebration: isHomeVisible ? celebrations?.nextPending : null,
+          onCelebrationFinished: celebrations?.consume ?? _ignoreCelebration,
+          matchChangesKey: _matchChangesKey,
+          onJumpToChanges: _scrollToChanges,
+        ),
       ),
     );
   }
+
+  Future<void> _scrollToChanges() async {
+    final BuildContext? targetContext = _matchChangesKey.currentContext;
+    if (targetContext == null) return;
+    await Scrollable.ensureVisible(
+      targetContext,
+      alignment: 0.08,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  static void _ignoreCelebration(int _) {}
 }
 
 /// 三态共用的版面骨架。
 ///
 /// ```text
-/// Header           身份区
-/// Hero             职业主页主卡
+/// Hero             全宽欢迎区
 /// StilCards        2×2 卡片
-/// AnalysisSection  筛选行 + 岗位匹配变化
+/// AnalysisSection  最新变化操作 + 岗位匹配变化
 /// ```
 ///
-/// 块间一律 16（Figma `space-y-4`）—— 这是**页面级**节奏，
-/// 与各区块内部自己的 gap 不是一回事。
+/// Hero 与卡片之间、卡片与操作区之间均为 Figma 的 14px 间距。
 class _HomeContent extends StatelessWidget {
-  const _HomeContent({required this.content});
+  const _HomeContent({
+    required this.content,
+    required this.celebration,
+    required this.onCelebrationFinished,
+    required this.matchChangesKey,
+    required this.onJumpToChanges,
+  });
 
   final HomeContent content;
+  final GrowthCelebration? celebration;
+  final ValueChanged<int> onCelebrationFinished;
+  final GlobalKey matchChangesKey;
+  final VoidCallback onJumpToChanges;
 
-  /// Figma `space-y-4`。
-  static const double _blockGap = AppSpacing.md;
+  static const double _blockGap = 14;
 
   @override
   Widget build(BuildContext context) {
@@ -113,27 +151,41 @@ class _HomeContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          HomeHeader(title: content.headerTitle),
-          const SizedBox(height: _blockGap),
           HomeHeroCard(
             content: content.hero,
             onAction: _onHeroAction(context, content.hero.action),
+            celebration: celebration,
+            onCelebrationFinished: onCelebrationFinished,
           ),
           const SizedBox(height: _blockGap),
-          HomeStilCards(
-            cards: content.stilCards,
-            onOpenAi: () => context.go(AppRoutes.ai),
-            onOpenAnalysis: () => context.go(AppRoutes.analysis),
-            // 成长归属「我的 → 成长足迹」（IA §2.2），那一层尚未实现
-            // → 先落「我的」Tab。见 [HomeCardTarget.growth] / D81。
-            onOpenGrowth: () => context.go(AppRoutes.profile),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: HomeStilCards(
+                  cards: content.stilCards,
+                  onOpenAi: () => context.go(AppRoutes.ai),
+                  onOpenAnalysis: () => context.go(AppRoutes.analysis),
+                  onOpenCapability: () =>
+                      context.go(AppRoutes.profileCapability),
+                  onOpenGrowth: () => context.go(AppRoutes.profileGrowthRecord),
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: _blockGap),
-          HomeAnalysisSection(
-            content: content.section,
-            onNewAnalysis: () => context.go(AppRoutes.analysis),
-            onViewAll: () => context.go(AppRoutes.analysis),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: HomeAnalysisSection(
+              content: content.section,
+              changesKey: matchChangesKey,
+              onNewAnalysis: () => context.go(AppRoutes.analysis),
+              onJumpToChanges: onJumpToChanges,
+              onViewAll: () => context.go(AppRoutes.analysis),
+            ),
           ),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -150,8 +202,9 @@ class _HomeContent extends StatelessWidget {
   /// 该归属问题登记 **待裁决 · D80**。
   VoidCallback _onHeroAction(BuildContext context, HomeHeroAction action) {
     return switch (action) {
-      HomeHeroAction.uploadResume => () =>
-        context.go(AppRoutes.onboardingResume),
+      HomeHeroAction.uploadResume => () => context.go(
+        AppRoutes.onboardingResume,
+      ),
       // 目标岗位来自 JD，而 JD 入口只在「分析」。
       HomeHeroAction.addJob => () => context.go(AppRoutes.analysis),
       HomeHeroAction.viewAnalysis => () => context.go(AppRoutes.analysis),

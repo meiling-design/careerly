@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +11,7 @@ import '../../../design_system/tokens/tokens.dart';
 import '../state/onboarding_provider.dart';
 import 'widgets/auth_social_row.dart';
 import 'widgets/back_pill.dart';
+import 'widgets/onboarding_login_ip.dart';
 import 'widgets/password_visibility_toggle.dart';
 
 /// 登录页 —— Onboarding 第 2 屏的**另一条入口**（注册 / 登录二选一）。
@@ -67,10 +70,10 @@ import 'widgets/password_visibility_toggle.dart';
 ///                  页面内容从它**下方**开始 —— 所以 `top: 12` / `top: 185`
 ///                  本来就是「安全区之内」的坐标。Android 状态栏高度因机而异，
 ///                  故用 SafeArea 表达同一件事，而不是硬编 44。
-/// 2. 忘记密码?      Figma 的按钮**没有 onClick**（是稿子里的死链），
-///                  且本轮没有密码找回链路（后端无端点、无路由）。
-///                  这里**不编造行为**，点击后如实提示「尚未接入」——
-///                  与 `MockAnalysisRepository` 对「岗位链接抓取」的处置同一先例。
+/// 2. 忘记密码?      Figma 的按钮**没有 onClick**（稿子里的死链）。
+///                  2026-11-13 产品侧要求补齐：点击进入
+///                  `/onboarding/reset-password`，后端**仅 DEV 模式**开放；
+///                  正式形态由重置页如实展示 501，不自造找回行为。
 /// 3. 记住我        Figma 只画了勾选框，**没有定义它改变什么**。
 ///                  当前令牌**总是**持久化（见 `AuthRepository` 实现对照表），
 ///                  因此本参数只驱动视觉，**不代表会话规则**。详见下方 [_remember]。
@@ -193,18 +196,13 @@ class _OnboardingLoginPageState extends State<OnboardingLoginPage> {
     );
   }
 
-  /// 「忘记密码?」—— Figma 没给动作，本轮也没有密码找回链路。
+  /// 「忘记密码?」→ 重置密码页（2026-11-13 产品侧要求补齐）。
   ///
-  /// ⚠️ 这里**刻意不做成静默的死链**（点了没反应正是本项目
-  /// 明确要避免的失败形态）。文案只陈述当前构建的事实，
-  /// **不是**一条产品规则；正式流程落地后替换本方法即可。
+  /// ⚠️ 后端当前只在 `AUTH_MODE=dev` 开放重置；正式形态返回 501，
+  /// 由重置页如实展示。这里**不**判断模式，也不假装一定能重置 ——
+  /// 能力边界属于后端，客户端只负责把错误展示出来。
   void _onForgotPassword() {
-    CareerlyToast.show(
-      context,
-      message: '密码找回尚未接入',
-      icon: Icons.info_outline,
-      bottomOffset: AppSpacing.xxl,
-    );
+    context.push(AppRoutes.onboardingResetPassword);
   }
 
   @override
@@ -226,20 +224,6 @@ class _OnboardingLoginPageState extends State<OnboardingLoginPage> {
         bottom: false,
         child: Stack(
           children: <Widget>[
-            Positioned(
-              left: _LoginMetrics.backInsetLeft,
-              top: _LoginMetrics.backInsetTop,
-              child: BackPill(
-                fill: AppColors.authGlassFill,
-                // ⚠️ 状态：Onboarding 全流程（6 屏）都是**平铺的一级路由**，
-                // 页面之间用 `context.go` 切换，导航栈里没有上一层，
-                // 因此这里**不能**用 `careerlyBack`（`Navigator.maybePop`
-                // 会找不到可 pop 的页面，返回键变成静默死键）。
-                // 本次沿用本流程既有做法（`go` 到上一屏），
-                // 未擅自改动整条流程的导航结构 —— 已作为发现项上报。
-                onTap: () => context.go(AppRoutes.onboardingSplash),
-              ),
-            ),
             Positioned(
               left: 0,
               right: 0,
@@ -270,6 +254,31 @@ class _OnboardingLoginPageState extends State<OnboardingLoginPage> {
                 onGoToRegister: submitting
                     ? null
                     : () => context.go(AppRoutes.onboardingRegister),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              right: MediaQuery.sizeOf(context).height <= 700 ? 16 : 18,
+              child: OnboardingLoginIp(
+                width: math.min(
+                  MediaQuery.sizeOf(context).width *
+                      (MediaQuery.sizeOf(context).height <= 700 ? 0.52 : 0.58),
+                  MediaQuery.sizeOf(context).height <= 700 ? 184 : 224,
+                ),
+              ),
+            ),
+            Positioned(
+              left: _LoginMetrics.backInsetLeft,
+              top: _LoginMetrics.backInsetTop,
+              child: BackPill(
+                fill: AppColors.authGlassFill,
+                // ⚠️ 状态：Onboarding 全流程（6 屏）都是**平铺的一级路由**，
+                // 页面之间用 `context.go` 切换，导航栈里没有上一层，
+                // 因此这里**不能**用 `careerlyBack`（`Navigator.maybePop`
+                // 会找不到可 pop 的页面，返回键变成静默死键）。
+                // 本次沿用本流程既有做法（`go` 到上一屏），
+                // 未擅自改动整条流程的导航结构 —— 已作为发现项上报。
+                onTap: () => context.go(AppRoutes.onboardingSplash),
               ),
             ),
           ],
@@ -442,8 +451,8 @@ class _LoginPanel extends StatelessWidget {
           CareerlyTextLink(
             label: '忘记密码?',
             style: AppTypography.authMeta,
-            // Figma 的按钮没有 onClick，本轮也没有找回链路 ——
-            // 但**不做成静默死链**（见 `_onForgotPassword`）。
+            // Figma 的按钮没有 onClick；2026-11-13 起接到重置页
+            // （DEV-only，见 `_onForgotPassword`）。
             onPressed: onForgotPassword,
             semanticsLabel: '忘记密码',
           ),
@@ -491,9 +500,7 @@ class _LoginPanel extends StatelessWidget {
   Widget _buildFooter() {
     return Padding(
       // Figma `marginTop: 20`。
-      padding: const EdgeInsetsDirectional.only(
-        top: _LoginMetrics.footerGap,
-      ),
+      padding: const EdgeInsetsDirectional.only(top: _LoginMetrics.footerGap),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[

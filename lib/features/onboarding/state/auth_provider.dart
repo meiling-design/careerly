@@ -18,6 +18,27 @@ import '../../../data/repositories/auth_repository.dart';
 /// | [failure] | 展示 [AuthProvider.error]，可重试 |
 enum AuthLogoutStatus { idle, submitting, success, failure }
 
+/// 注销账号的生命周期（发布基线 K19）。
+///
+/// ## 为什么不复用 [AuthLogoutStatus]
+///
+/// 两者状态**形状**相同（提交 → 成功 / 失败），但共用一个字段会串台：
+/// 「退出登录」成功后 `status == success`，紧接着打开注销页就会读到一个
+/// 属于**上一次操作**的 success。形状相同不等于同一个状态 ——
+/// `CLAUDE.md` §8.4 的「变体用参数」说的是**视觉变体**，
+/// 而这里两个流程的**生命周期互相独立**，因此是两个字段。
+///
+/// 行为差异（也是它们不能被当成同一件事的原因）：
+///
+/// ```text
+/// logout        结束本机会话      失败重试即可，账号无损
+/// deleteAccount 销毁账号本身      不可逆；确认层必须更重
+/// ```
+enum AuthDeleteAccountStatus { idle, submitting, success, failure }
+
+/// 保留账号的职业数据清理生命周期。
+enum AuthDeleteCareerDataStatus { idle, submitting, success, failure }
+
 /// 会话级状态。
 ///
 /// 分层：`UI(SettingsPage) → State(本类) → Repository(AuthRepository) → ApiClient`
@@ -42,6 +63,13 @@ class AuthProvider extends ChangeNotifier {
   AuthLogoutStatus _status = AuthLogoutStatus.idle;
   AppError? _error;
 
+  AuthDeleteAccountStatus _deleteStatus = AuthDeleteAccountStatus.idle;
+  AppError? _deleteError;
+  AuthDeleteCareerDataStatus _careerDataStatus =
+      AuthDeleteCareerDataStatus.idle;
+  AppError? _careerDataError;
+  CareerDataDeletionResult? _careerDataResult;
+
   /// 当前退出状态。
   AuthLogoutStatus get status => _status;
 
@@ -50,6 +78,22 @@ class AuthProvider extends ChangeNotifier {
 
   /// 是否正在退出。UI 据此禁用按钮。
   bool get isLoggingOut => _status == AuthLogoutStatus.submitting;
+
+  /// 当前注销状态。
+  AuthDeleteAccountStatus get deleteStatus => _deleteStatus;
+
+  /// 注销失败原因。仅在 [deleteStatus] 为 [AuthDeleteAccountStatus.failure] 时非空。
+  AppError? get deleteError => _deleteError;
+
+  /// 是否正在注销。UI 据此禁用按钮（四态 Disabled）。
+  bool get isDeletingAccount =>
+      _deleteStatus == AuthDeleteAccountStatus.submitting;
+
+  AuthDeleteCareerDataStatus get careerDataStatus => _careerDataStatus;
+  AppError? get careerDataError => _careerDataError;
+  CareerDataDeletionResult? get careerDataResult => _careerDataResult;
+  bool get isDeletingCareerData =>
+      _careerDataStatus == AuthDeleteCareerDataStatus.submitting;
 
   /// 退出登录。返回 `true` 表示成功。
   ///
@@ -69,12 +113,81 @@ class AuthProvider extends ChangeNotifier {
     return true;
   }
 
+  /// 注销账号。返回 `true` 表示后端已受理（账号进入注销状态）。
+  ///
+  /// ## ⚠️ 返回 `true` **不等于**数据已经被删除
+  ///
+  /// 后端是软删除：账号立刻不可登录、旧凭据立刻失效，
+  /// 但数据在 30 天缓冲期后才被物理清除（`work_agent/app/core/account_purge.py`）。
+  /// 页面据此如实告知，❌ 不得把 `true` 渲染成「数据已永久删除」。
+  ///
+  /// 成功后**必须由调用方导航回登录页** —— 本方法只负责状态，
+  /// 不碰路由（与 [logout] 同处置：State 层不决定「回到哪」）。
+  Future<bool> deleteAccount() async {
+    _setDelete(AuthDeleteAccountStatus.submitting, null);
+
+    try {
+      await _repository.deleteAccount();
+    } catch (error, stackTrace) {
+      _setDelete(
+        AuthDeleteAccountStatus.failure,
+        ErrorHandler.normalize(error, stackTrace),
+      );
+      return false;
+    }
+
+    _setDelete(AuthDeleteAccountStatus.success, null);
+    return true;
+  }
+
+  /// 清理职业数据但保留账号和当前会话。
+  Future<bool> deleteCareerData() async {
+    _setCareerData(AuthDeleteCareerDataStatus.submitting, null, null);
+
+    try {
+      final CareerDataDeletionResult result =
+          await _repository.deleteCareerData();
+      _setCareerData(AuthDeleteCareerDataStatus.success, null, result);
+      return true;
+    } catch (error, stackTrace) {
+      _setCareerData(
+        AuthDeleteCareerDataStatus.failure,
+        ErrorHandler.normalize(error, stackTrace),
+        null,
+      );
+      return false;
+    }
+  }
+
   /// 回到可操作状态（用于失败后重试）。
   void reset() => _set(AuthLogoutStatus.idle, null);
+
+  /// 注销失败后回到可操作状态。与 [reset] 分开 —— 两者状态字段独立。
+  void resetDeleteAccount() => _setDelete(AuthDeleteAccountStatus.idle, null);
+
+  void resetDeleteCareerData() =>
+      _setCareerData(AuthDeleteCareerDataStatus.idle, null, null);
 
   void _set(AuthLogoutStatus status, AppError? error) {
     _status = status;
     _error = error;
+    notifyListeners();
+  }
+
+  void _setDelete(AuthDeleteAccountStatus status, AppError? error) {
+    _deleteStatus = status;
+    _deleteError = error;
+    notifyListeners();
+  }
+
+  void _setCareerData(
+    AuthDeleteCareerDataStatus status,
+    AppError? error,
+    CareerDataDeletionResult? result,
+  ) {
+    _careerDataStatus = status;
+    _careerDataError = error;
+    _careerDataResult = result;
     notifyListeners();
   }
 }

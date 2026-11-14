@@ -10,6 +10,7 @@ import '../../../core/state/async_state.dart';
 import '../../../data/models/resume_profile.dart';
 import '../../../design_system/components/components.dart';
 import '../../../design_system/tokens/tokens.dart';
+import '../../profile/state/growth_celebration_provider.dart';
 import '../../profile/state/resume_provider.dart';
 
 /// 「建立职业基线」进行页 —— Onboarding 第 5 屏。
@@ -175,6 +176,11 @@ class _OnboardingParsingPageState extends State<OnboardingParsingPage>
       // 数据侧失败 → 停下时间线，交给 Error 态接管（D73）。
       _stopAll();
       return;
+    }
+    if (provider.data?.hasBaseline == true) {
+      context.read<GrowthCelebrationProvider>().record(
+        GrowthMilestone.careerBaselineEstablished,
+      );
     }
     _baselineDone = true;
     _maybeAdvance();

@@ -11,6 +11,7 @@ import '../../../data/models/ai_message.dart';
 import '../../../design_system/components/components.dart';
 import '../../../design_system/tokens/tokens.dart';
 import '../state/ai_provider.dart';
+import 'widgets/ai_copilot_character.dart';
 import 'widgets/ai_markdown_text.dart';
 
 const LinearGradient _aiChatGradient = LinearGradient(
@@ -32,10 +33,10 @@ class _AIPageState extends State<AIPage> {
   bool _historyOpen = false;
 
   static const List<String> _suggestions = <String>[
-    '为什么这个岗位匹配度只有 82%？',
-    '帮我优化这个项目的描述',
-    '我目前最需要提升什么能力？',
-    '下一步我应该做什么？',
+    '帮我解释最近一次岗位分析结果',
+    '我和目标岗位的主要能力差距是什么？',
+    '结合已有分析，建议我优先提升什么？',
+    '帮我优化简历中的一段项目描述',
   ];
 
   @override
@@ -71,6 +72,12 @@ class _AIPageState extends State<AIPage> {
   @override
   Widget build(BuildContext context) {
     final AIProvider provider = context.watch<AIProvider>();
+    final AICopilotMotionState copilotState = !provider.isLoading
+        ? AICopilotMotionState.idle
+        : provider.streamingMessage == null
+        ? AICopilotMotionState.thinking
+        : AICopilotMotionState.responding;
+    final String? completionId = provider.responseState.dataOrNull?.id;
     final bool hasConversation =
         provider.messages.isNotEmpty || provider.streamingMessage != null;
 
@@ -104,9 +111,7 @@ class _AIPageState extends State<AIPage> {
                               const _TypingIndicator(),
                             if (provider.responseState
                                 case AsyncFailure<AIMessage>())
-                              _RetryMessage(
-                                onRetry: provider.retryLastMessage,
-                              ),
+                              _RetryMessage(onRetry: provider.retryLastMessage),
                           ],
                         ),
                       ),
@@ -115,6 +120,8 @@ class _AIPageState extends State<AIPage> {
                         enabled: !provider.isLoading,
                         onChanged: (_) => setState(() {}),
                         onSend: () => _sendMessage(_controller.text),
+                        copilotState: copilotState,
+                        completionId: completionId,
                       ),
                     ],
                   )
@@ -147,6 +154,8 @@ class _AIPageState extends State<AIPage> {
                           welcome: true,
                           onChanged: (_) => setState(() {}),
                           onSend: () => _sendMessage(_controller.text),
+                          copilotState: copilotState,
+                          completionId: completionId,
                         ),
                       ),
                     ],
@@ -414,30 +423,13 @@ class _AIHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF00BC7D),
-                      shape: BoxShape.circle,
-                      boxShadow: <BoxShadow>[
-                        BoxShadow(color: Color(0xE600BC7D), blurRadius: 5),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'AI 职业顾问 · 在线',
-                    style: AppTypography.caption.copyWith(
-                      fontSize: 11,
-                      height: 16.5 / 11,
-                      color: const Color(0xFF626579),
-                    ),
-                  ),
-                ],
+              Text(
+                'AI 职业顾问',
+                style: AppTypography.caption.copyWith(
+                  fontSize: 11,
+                  height: 16.5 / 11,
+                  color: const Color(0xFF626579),
+                ),
               ),
             ],
           ),
@@ -516,17 +508,14 @@ class _ConversationContext extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Container(
-                width: 6,
-                height: 6,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF00BC7D),
-                  shape: BoxShape.circle,
-                ),
+              const Icon(
+                Icons.auto_awesome,
+                size: 13,
+                color: Color(0xFF5B7CFA),
               ),
               const SizedBox(width: 8),
               Text(
-                '已关联分析：AI 产品经理 · 86% 匹配',
+                '有分析时参考最近一次分析；否则提供通用建议',
                 style: AppTypography.caption.copyWith(
                   fontSize: 11,
                   color: const Color(0xFF5B7CFA),
@@ -568,22 +557,8 @@ class _Welcome extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Text.rich(
-          const TextSpan(
-            children: <InlineSpan>[
-              TextSpan(
-                text: '你好，',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              TextSpan(
-                text: 'ALEX',
-                style: TextStyle(
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
+        Text(
+          '你好，今天想聊些什么？',
           textAlign: TextAlign.center,
           style: AppTypography.bodyStrong.copyWith(
             fontSize: 16,
@@ -696,6 +671,8 @@ class _AIInput extends StatelessWidget {
     required this.enabled,
     required this.onChanged,
     required this.onSend,
+    required this.copilotState,
+    required this.completionId,
     this.welcome = false,
   });
 
@@ -703,6 +680,8 @@ class _AIInput extends StatelessWidget {
   final bool enabled;
   final ValueChanged<String> onChanged;
   final VoidCallback onSend;
+  final AICopilotMotionState copilotState;
+  final String? completionId;
   final bool welcome;
 
   @override
@@ -710,86 +689,103 @@ class _AIInput extends StatelessWidget {
     final bool hasText = controller.text.trim().isNotEmpty;
     return Padding(
       padding: EdgeInsets.fromLTRB(welcome ? 0 : 33, 0, welcome ? 0 : 33, 0),
-      child: Container(
+      child: SizedBox(
         height: 62,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xB8FFFFFF),
-          borderRadius: AppRadius.borderPill,
-          border: Border.all(color: const Color(0xE0FFFFFF), width: 1.2),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(
-              color: Color(0x215B7CFA),
-              blurRadius: 24,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
+        child: Stack(
+          clipBehavior: Clip.none,
           children: <Widget>[
-            if (welcome) ...<Widget>[
-              const Icon(Icons.add, size: 24, color: Color(0xFFD3CEF4)),
-              Container(
-                height: 24,
-                width: 1,
-                margin: const EdgeInsets.only(left: 8, right: 12),
-                color: const Color(0x80D3CEF4),
-              ),
-            ] else ...<Widget>[
-              Container(
-                width: 32,
-                height: 32,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: const Color(0x14635BDB),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '∞',
-                  style: AppTypography.body.copyWith(
-                    color: const Color(0xFF635BDB),
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-            ],
-            Expanded(
-              child: TextField(
-                enabled: enabled,
-                controller: controller,
-                onChanged: onChanged,
-                onSubmitted: (_) => onSend(),
-                textInputAction: TextInputAction.done,
-                style: AppTypography.bodySmall.copyWith(
-                  fontSize: 12,
-                  color: AppColors.textPrimary,
-                ),
-                decoration: InputDecoration.collapsed(
-                  hintText: '输入你想问的问题...',
-                  hintStyle: AppTypography.bodySmall.copyWith(fontSize: 12),
-                ),
+            Positioned(
+              left: 25,
+              top: -68,
+              child: AICopilotCharacter(
+                state: copilotState,
+                completionId: completionId,
               ),
             ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: hasText && enabled ? onSend : null,
-              child: Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  gradient: hasText ? _aiChatGradient : null,
-                  color: hasText ? null : const Color(0x19635BDB),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.send_rounded,
-                  size: 16,
-                  color: hasText && enabled
-                      ? Colors.white
-                      : const Color(0x66635BDB),
-                ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xB8FFFFFF),
+                borderRadius: AppRadius.borderPill,
+                border: Border.all(color: const Color(0xE0FFFFFF), width: 1.2),
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(
+                    color: Color(0x215B7CFA),
+                    blurRadius: 24,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: <Widget>[
+                  if (welcome) ...<Widget>[
+                    const Icon(Icons.add, size: 24, color: Color(0xFFD3CEF4)),
+                    Container(
+                      height: 24,
+                      width: 1,
+                      margin: const EdgeInsets.only(left: 8, right: 12),
+                      color: const Color(0x80D3CEF4),
+                    ),
+                  ] else ...<Widget>[
+                    Container(
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: const Color(0x14635BDB),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '∞',
+                        style: AppTypography.body.copyWith(
+                          color: const Color(0xFF635BDB),
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: TextField(
+                      enabled: enabled,
+                      controller: controller,
+                      onChanged: onChanged,
+                      onSubmitted: (_) => onSend(),
+                      textInputAction: TextInputAction.done,
+                      style: AppTypography.bodySmall.copyWith(
+                        fontSize: 12,
+                        color: AppColors.textPrimary,
+                      ),
+                      decoration: InputDecoration.collapsed(
+                        hintText: '输入你想问的问题...',
+                        hintStyle: AppTypography.bodySmall.copyWith(
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: hasText && enabled ? onSend : null,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        gradient: hasText ? _aiChatGradient : null,
+                        color: hasText ? null : const Color(0x19635BDB),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.send_rounded,
+                        size: 16,
+                        color: hasText && enabled
+                            ? Colors.white
+                            : const Color(0x66635BDB),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -858,10 +854,7 @@ class _AIHistoryDrawer extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: <Color>[
-                        Color(0xF7E6EBFF),
-                        Color(0xF7F0E6FF),
-                      ],
+                      colors: <Color>[Color(0xF7E6EBFF), Color(0xF7F0E6FF)],
                     ),
                     border: Border(
                       left: BorderSide(color: Color(0xB3FFFFFF), width: 1),
@@ -912,11 +905,9 @@ class _AIHistoryDrawer extends StatelessWidget {
                                     ),
                                     conversation: conversation,
                                     selected:
-                                        conversation.id ==
-                                        activeConversationId,
+                                        conversation.id == activeConversationId,
                                     enabled: enabled,
-                                    onTap: () =>
-                                        onSelect(conversation.id),
+                                    onTap: () => onSelect(conversation.id),
                                   );
                                 },
                               ),
@@ -931,7 +922,6 @@ class _AIHistoryDrawer extends StatelessWidget {
       ],
     );
   }
-
 }
 
 class _HistoryHeader extends StatelessWidget {
@@ -1103,8 +1093,10 @@ class _ConversationCard extends StatelessWidget {
   final VoidCallback onTap;
 
   static Color _colorForTag(String tag) {
+    if (RegExp(r'^\d{1,3}%$').hasMatch(tag)) {
+      return const Color(0xFF4F7EF5);
+    }
     return switch (tag) {
-      '86%' || '82%' => const Color(0xFF4F7EF5),
       '简历' => const Color(0xFF34C759),
       '能力' => const Color(0xFFFF9500),
       _ => const Color(0xFF635BDB),
@@ -1131,9 +1123,7 @@ class _ConversationCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: selected
-                ? const Color(0x1A5B7CFA)
-                : const Color(0x99FFFFFF),
+            color: selected ? const Color(0x1A5B7CFA) : const Color(0x99FFFFFF),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: selected

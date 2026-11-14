@@ -141,6 +141,7 @@ class _ResumeHistoryPageState extends State<ResumeHistoryPage> {
                               ),
                             ResumeSwipeCard(
                               version: archived[i],
+                              onTap: () => _openDetail(archived[i]),
                               // 归档版本一律不是当前版本，故「设为当前」恒可用。
                               onSetCurrent: () => _setCurrent(archived[i]),
                               onDelete: () => _delete(archived[i]),

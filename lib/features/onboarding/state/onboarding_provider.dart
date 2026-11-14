@@ -93,6 +93,23 @@ class OnboardingProvider extends ChangeNotifier {
     );
   }
 
+  /// 重置密码（「忘记密码?」→ 重置页）。
+  ///
+  /// 与 [login] **同一条状态机**：四态、错误归一化、`Future<bool>` 语义完全
+  /// 一致 —— 页面不需要为它写第二套 loading / error 处理。
+  /// 成功**不代表已登录**：重置后应回到登录页，让用户用新密码重登。
+  Future<bool> resetPassword({
+    required String phone,
+    required String newPassword,
+  }) {
+    return _run(
+      () => _repository.resetPassword(
+        phone: phone.trim(),
+        newPassword: newPassword,
+      ),
+    );
+  }
+
   /// 第三方登录（微信 / QQ）。
   ///
   /// 与上面两个**同样走 `_run`**，因此失败会落进同一条错误展示路径 ——
