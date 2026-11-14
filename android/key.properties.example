@@ -1,0 +1,13 @@
+# Release 签名配置模板 —— 复制为 android/key.properties 后填入真实值。
+#
+# ⚠️ key.properties 与 *.jks 均被 android/.gitignore 忽略，**绝不入库**。
+#    （可用 `git check-ignore -v android/key.properties` 实测确认。）
+#
+# 生成 keystore：  powershell -File scripts/gen_keystore.ps1
+# 详见：           docs/09_Release/RELEASE_SIGNING.md
+
+storePassword=
+keyPassword=
+keyAlias=careerly
+# 相对 android/app/ 解析 —— ../careerly-release.jks 即 android/careerly-release.jks
+storeFile=../careerly-release.jks

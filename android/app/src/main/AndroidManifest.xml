@@ -4,7 +4,7 @@
          供 hot reload 使用）声明了该权限，导致 release 包无网络能力。 -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="careerly"
+        android:label="Careerly"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">

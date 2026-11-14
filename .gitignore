@@ -51,6 +51,17 @@ local.properties
 google-services.json
 GoogleService-Info.plist
 
+# Android 发布签名 —— 绝不入库（TODO K7）
+#
+# ⚠️ 这几条**是冗余的**：`android/.gitignore:12-14` 早已有同义规则
+# （Flutter 默认模板自带），keystore 本来就进不了库。
+# 保留在此仅作**纵深防御** —— 万一有人把 keystore 建在 android/ 之外。
+# 判断某文件是否真被忽略，用 `git check-ignore -v <路径>` 实测，别读文件推断。
+*.jks
+*.keystore
+key.properties
+**/key.properties
+
 # Local tool artifacts
 .flutter
 .flutter_tool_state
