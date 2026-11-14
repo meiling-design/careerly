@@ -63,6 +63,8 @@ dependencies:
     sdk: flutter
   file_picker: ^13.1.0
   flutter_secure_storage: ^11.2.0
+  pdfrx: ^2.4.8
+  flutter_svg: ^2.3.4
 
 dev_dependencies:
   flutter_test:
@@ -85,6 +87,24 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # 协议正文（用户协议 / 隐私政策 / AI 数据处理说明）。
+  #
+  # 依据 `TODO.md` §1.0f ③ · E3：App 内**唯一来源**就是这里，
+  # `work_agent/docs/09_Release/` 下的同名文件是它的镜像，
+  # 由 `scripts/sync_legal_docs.ps1` 生成（防止两份漂移）。
+  #
+  # ⚠️ 当前是**占位骨架**（运营主体 / 生效日期待 D120 裁决），
+  # 替换正文只需改 `assets/legal/` 下的 .md，**不需要改任何代码**。
+  #
+  # 注：`assets/fonts/` **不在此列** —— Noto Sans SC 字体仍未到位（K1），
+  # 登记一个空目录没有意义；字体到位时再一并添加。
+  assets:
+    - assets/legal/
+    - assets/help/
+    - assets/about/
+    - assets/images/home/
+    - assets/images/nebula/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
