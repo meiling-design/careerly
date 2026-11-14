@@ -55,6 +55,18 @@ class MockAuthRepository implements AuthRepository {
     await _config.simulate();
   }
 
+  /// 重置密码 —— 与注册 / 登录同一条 Mock 语义：只模拟一次网络往返。
+  ///
+  /// ⚠️ Mock 层**没有账号表**，因此不判断「手机号是否存在」「新密码是否满足
+  /// 规则」—— 那些是后端与真实数据的行为，编一套只会在接真实后端后消失。
+  @override
+  Future<void> resetPassword({
+    required String phone,
+    required String newPassword,
+  }) async {
+    await _config.simulate();
+  }
+
   /// 第三方登录 —— Mock 层**同样如实失败**。
   ///
   /// 这里有一个真实的风险：Mock 模式下一按微信就成功，会让
@@ -78,6 +90,37 @@ class MockAuthRepository implements AuthRepository {
   Future<void> logout() async {
     // Mock 层**没有会话可清**（令牌是传输层的实现细节，见 AuthRepository 的实现对照表）。
     // 只模拟「一次网络往返」，让 UI 的 Loading / Error 两态仍可被走到。
+    await _config.simulate();
+  }
+
+  /// 只模拟职业数据清理，不产生持久化副作用。
+  @override
+  Future<CareerDataDeletionResult> deleteCareerData() async {
+    await _config.simulate();
+    return const CareerDataDeletionResult(
+      deletedRows: 0,
+      deletedFiles: 0,
+      orphanArtifacts: 0,
+      warnings: <String>[],
+    );
+  }
+
+  /// 注销账号 —— Mock 层同样只模拟一次网络往返。
+  ///
+  /// ⚠️ 这里有一个**只有 Mock 才存在**的假象需要点明：真实实现会调后端
+  /// 软删除并吊销令牌，Mock 层没有账号也没有会话，因此**什么都没发生**。
+  /// 页面在 Mock 下走完流程会回到登录页，看起来「注销成功了」——
+  /// 那只是 UI 流程通了，不代表删除能力已验证。
+  ///
+  /// 真实删除行为的验证在：
+  /// ```text
+  /// 后端   work_agent/tests/test_release_security_baseline.py
+  ///        （注销后 access / refresh 立即失效、无法重新登录）
+  /// 级联   work_agent/tests/test_account_purge.py
+  ///        （数据一间不留，且不误删别人的）
+  /// ```
+  @override
+  Future<void> deleteAccount() async {
     await _config.simulate();
   }
 }

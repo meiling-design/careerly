@@ -1,12 +1,16 @@
 /// Careerly 真实 API 数据层 barrel。
 ///
-/// 与 `../mock/` 平行：Mock First（Phase 1 §十八）默认走 Mock，
-/// 接真实后端时在 `lib/app/providers.dart` 里换绑即可。
+/// 与 `../mock/` 平行：接真实后端时在 `lib/app/providers.dart` 里换绑即可。
 ///
 /// ```bash
-/// flutter run --dart-define=CAREERLY_USE_API=true \
-///             --dart-define=CAREERLY_API_BASE_URL=http://10.0.2.2:8000
+/// adb reverse tcp:8000 tcp:8000   # 每次重插 USB 后跑一次
+/// flutter run                      # main() 默认即接真实后端
+/// flutter run --dart-define=CAREERLY_USE_API=false   # 回到 Mock
+/// flutter run --dart-define=CAREERLY_API_BASE_URL=http://192.168.x.x:8000
 /// ```
+///
+/// 默认值由**入口**决定：`main()` 取真实后端，测试与 `CareerlyApp`
+/// 的自身默认仍是 Mock（见 `providers.dart` 的 `useApi` 参数）。
 ///
 /// 当前只实现后端已建端点对应的接口（auth / analysis / resume / quota /
 /// growth / career assets / home summary / profile / ai）。

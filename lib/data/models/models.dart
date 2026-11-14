@@ -3,6 +3,7 @@ library;
 
 export 'analysis_project.dart';
 export 'analysis_result.dart';
+export 'analysis_task.dart';
 export 'award.dart';
 export 'capability.dart';
 export 'career_assets.dart';

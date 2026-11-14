@@ -42,6 +42,23 @@ class ApiAuthRepository implements AuthRepository {
     await _storeTokens(data);
   }
 
+  /// 重置密码（DEV-only，见接口文档）。
+  ///
+  /// ⚠️ 成功响应**不含 token** —— 重置不等于登录，页面应回到登录页，
+  /// 让用户用新密码重新登录。这里也**不**改动 [ApiClient] 的会话：
+  /// 后端已借 token_version 吊销旧令牌，本机若继续持有旧 access token
+  /// 只会得到 401。
+  @override
+  Future<void> resetPassword({
+    required String phone,
+    required String newPassword,
+  }) async {
+    await _client.post(
+      '/api/v1/auth/reset-password',
+      body: <String, dynamic>{'phone': phone, 'new_password': newPassword},
+    );
+  }
+
   /// 第三方登录 —— **当前必然抛错，且这是刻意的**。
   ///
   /// 见 [AuthRepository.signInWithOAuth] 的说明：后端一律返回 501 +
@@ -67,6 +84,38 @@ class ApiAuthRepository implements AuthRepository {
   /// 因此退出后冷启动 [ApiClient.restoreSession] 不会再恢复出身份。
   @override
   Future<void> logout() => _client.clearSession();
+
+  /// 删除职业数据但保留登录态。不会清除 token 或本地身份。
+  @override
+  Future<CareerDataDeletionResult> deleteCareerData() async {
+    final dynamic data = await _client.delete('/api/v1/account/career-data');
+    if (data is! Map<String, dynamic> ||
+        data['deleted'] != true ||
+        data['account_retained'] != true) {
+      throw const FormatException('Invalid career data deletion response');
+    }
+    return CareerDataDeletionResult.fromJson(data);
+  }
+
+  /// 注销账号 = **调后端软删除，然后清本地凭据**。
+  ///
+  /// 两步缺一不可，且**顺序是有意的**：
+  ///
+  /// ```text
+  /// 先 DELETE /api/v1/account   后端吊销全部令牌（token_version += 1）
+  /// 后 clearSession             本机丢弃 access / refresh
+  /// ```
+  ///
+  /// 若反过来先清凭据，请求就带不上 Authorization，后端只能回 401 ——
+  /// 用户会看到「注销失败」，而账号其实没被动过。
+  ///
+  /// 若只调后端不清本地：令牌虽已在服务端失效，本机仍持有一份，
+  /// 冷启动 `restoreSession` 会恢复出一个「登录着但每个接口都 401」的身份。
+  @override
+  Future<void> deleteAccount() async {
+    await _client.delete('/api/v1/account');
+    await _client.clearSession();
+  }
 
   /// [signInWithOAuth] 请求体里 `code` 的占位值。
   ///

@@ -14,6 +14,9 @@ abstract interface class ResumeRepository {
   /// 读取简历版本列表（当前简历 + 历史简历）。
   Future<List<ResumeVersion>> fetchVersions();
 
+  /// 读取该简历版本上传时保存的 PDF 原稿。
+  Future<List<int>> fetchVersionOriginalPdf(String versionId);
+
   /// 设置当前简历版本。
   ///
   /// Phase 1 只定义签名，不接入真实实现。

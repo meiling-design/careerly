@@ -1,3 +1,4 @@
+
 import '../models/resume_file.dart';
 import '../models/resume_profile.dart';
 import '../repositories/resume_repository.dart';
@@ -24,11 +25,8 @@ import 'api_client.dart';
 /// 后端两条版本动作（设为当前 / 删除）落在 `/resume/versions/...`，
 /// 与当前基线的读写分开：前者动的是**历史**，后者动的是**现在**。
 ///
-/// ⚠️ **画像只属于当前版本**。`GET /resume` 返回的 `profile` 是当前基线的，
-/// 因此「历史版本 → 打开详情」拿不到那份历史版本的画像 ——
-/// 界面上历史卡也确实没有进详情的入口（只有左滑的设为当前 / 删除）。
-/// 真要做「查看历史版本的详情」，需要后端补
-/// `GET /resume/versions/{id}`，届时再加，不预先建。
+/// `GET /resume` 返回的结构化画像属于当前基线；各版本上传的 PDF 原稿
+/// 则由 `GET /resume/versions/{id}/original` 按用户权限单独读取。
 ///
 /// ⚠️ **提交即解析** —— `POST /api/v1/resume` 在同一请求内跑完
 /// ResumeAgent 并把 `profile` 落进 `careerly_resumes`。
@@ -90,10 +88,8 @@ class ApiResumeRepository implements ResumeRepository {
         ? null
         : DateTime.tryParse(map['updatedAt'] as String);
 
-    // ⚠️ 上面那三行画像字段**恒属于当前版本** —— 后端 `profile` 取自
-    // `careerly_resumes`（当前基线）。历史版本的画像不在这个响应里，
-    // 所以「历史版本 → 详情」这条路径目前不存在（界面上历史卡也只有
-    // 左滑的两个动作，没有进入详情的入口）。
+    // 当前 profile 取自 careerly_resumes；历史版本原稿由
+    // fetchVersionOriginalPdf(versionId) 按版本读取。
     return ResumeProfile(
       versions: _versions(map['versions'], fallbackUploadedAt: updatedAt),
       // ⚠️ 字段名对齐后端 —— `profile` 是引擎 `ResumeProfile.model_dump()`：
@@ -109,6 +105,11 @@ class ApiResumeRepository implements ResumeRepository {
       fullName: profile['name'] as String?,
       email: profile['email'] as String?,
       phone: profile['phone'] as String?,
+      // 工作年限 —— 「设置 → 个人信息」的「工作经验」一行读取它。
+      // 与上面三项同一类：引擎一直在返回 `experience_years`（实测为 `5.0`），
+      // 此前只是 Dart 映射丢掉它（2026-10-07 补）。
+      // 取整用 `round()`：本字段只用于展示「N 年」（见 `ResumeProfile.experienceYears`）。
+      experienceYears: (profile['experience_years'] as num?)?.round(),
       // awards / capabilities 后端**没有来源**（assets.py 明确 awards
       // 「not parsed」，画像里也没有能力分值）→ 保持空，不编造（D110）。
       updatedAt: updatedAt,
@@ -119,6 +120,11 @@ class ApiResumeRepository implements ResumeRepository {
   Future<List<ResumeVersion>> fetchVersions() async {
     // 单版本基线：有则一项，无则空（不编造历史版本）。
     return (await fetchProfile()).versions;
+  }
+
+  @override
+  Future<List<int>> fetchVersionOriginalPdf(String versionId) async {
+    return _client.getBytes('/api/v1/resume/versions/$versionId/original');
   }
 
   @override

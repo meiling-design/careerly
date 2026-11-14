@@ -65,6 +65,29 @@ abstract interface class AuthRepository {
   /// 没有可编造的返回数据（`CLAUDE.md` §7）。
   Future<void> login({required String phone, required String password});
 
+  /// 重置密码 —— 「忘记密码?」链路（2026-11-13 产品侧要求补齐）。
+  ///
+  /// ## ⚠️ 当前是 **DEV-only** 能力，不是正式找回通道
+  ///
+  /// 后端 `POST /api/v1/auth/reset-password` 只在 `AUTH_MODE=dev` 时开放；
+  /// 正式形态返回 `501 PASSWORD_RESET_UNAVAILABLE`。原因：
+  ///
+  /// ```text
+  /// 密码是 bcrypt 哈希，无法「找回」，只能重置；
+  /// DEV 模式下手机号本身就是可直登的凭据，因此不额外降低安全性；
+  /// 正式找回需要短信 / 邮箱验证码，属 P5 的独立通道。
+  /// ```
+  ///
+  /// 成功后后端会**吊销全部旧令牌**（token_version + 1），
+  /// 其他设备上的会话立即失效。
+  ///
+  /// 失败时抛异常（与 [register] / [login] 一致），由 State 层归一化为
+  /// `AppError`，页面如实展示后端错误码对应的文案。
+  Future<void> resetPassword({
+    required String phone,
+    required String newPassword,
+  });
+
   /// 第三方登录（微信 / QQ）。
   ///
   /// ## ⚠️ **当前必然失败**，而且这是**刻意的**
@@ -107,4 +130,74 @@ abstract interface class AuthRepository {
   ///
   /// 返回 `void`，语义同 [register]：只有「退出成功 / 失败」。
   Future<void> logout();
+
+  /// 删除当前账号的职业数据，保留账号与登录会话。
+  ///
+  /// 后端清理简历、版本、JD、分析结果、匹配记录、能力快照、成长记录、
+  /// 相关引擎 session 及可归属文件。返回结果包含清理数量和未能清除的提示；
+  /// 此动作不清除 token、不退出登录。
+  Future<CareerDataDeletionResult> deleteCareerData();
+
+  /// 注销账号 —— **删除账号本身，不只是结束会话**。
+  ///
+  /// ## 与 [logout] 的区别（这两件事不能混）
+  ///
+  /// ```text
+  /// logout        结束本机会话。账号还在，换个设备/重登还能进来。
+  /// deleteAccount 账号进入注销状态。旧凭据全部失效，无法再登录。
+  /// ```
+  ///
+  /// 后端是**软删除**（`status='deleted'` + 吊销全部令牌），
+  /// 数据在 30 天缓冲期后由离线任务物理清除 —— 缓冲期内误删可恢复。
+  /// 响应里的 `purge_after_days` 表达了这一点，页面据此如实告知用户，
+  /// ❌ **不得**把它写成「立即永久删除」（那是另一个事实）。
+  ///
+  /// ## 调用方必须做的两件事
+  ///
+  /// 1. 成功后**清本地凭据** —— 后端已吊销，但本机若还留着 token，
+  ///    下次冷启动 `restoreSession` 会恢复出一个**已失效的身份**，
+  ///    用户会看到一个「登录着但什么都打不开」的界面。本层（API 实现）
+  ///    已清；State 层仍需回到未登录状态，见设置页的调用点。
+  /// 2. 强确认。这是**不可逆**操作（缓冲期内可由运营恢复，但用户无法自助恢复），
+  ///    不得做成单击即生效。
+  ///
+  /// 返回 `void`，语义同 [register]：只有「这次注销成功 / 失败」。
+  Future<void> deleteAccount();
+}
+
+/// 后端职业数据清理结果。
+class CareerDataDeletionResult {
+  const CareerDataDeletionResult({
+    required this.deletedRows,
+    required this.deletedFiles,
+    required this.orphanArtifacts,
+    required this.warnings,
+  });
+
+  final int deletedRows;
+  final int deletedFiles;
+  final int orphanArtifacts;
+  final List<String> warnings;
+
+  bool get complete => orphanArtifacts == 0 && warnings.isEmpty;
+
+  factory CareerDataDeletionResult.fromJson(Map<String, dynamic> json) {
+    final Object? rows = json['deleted_rows'];
+    final Object? files = json['deleted_files'];
+    final Object? orphanArtifacts = json['orphan_artifacts'];
+    final Object? rawWarnings = json['warnings'];
+    if (rows is! int ||
+        files is! int ||
+        orphanArtifacts is! int ||
+        rawWarnings is! List<dynamic> ||
+        rawWarnings.any((Object? warning) => warning is! String)) {
+      throw const FormatException('Invalid career data deletion response');
+    }
+    return CareerDataDeletionResult(
+      deletedRows: rows,
+      deletedFiles: files,
+      orphanArtifacts: orphanArtifacts,
+      warnings: List<String>.unmodifiable(rawWarnings.cast<String>()),
+    );
+  }
 }

@@ -88,6 +88,7 @@ class ResumeProfile {
     this.fullName,
     this.email,
     this.phone,
+    this.experienceYears,
     this.updatedAt,
   });
 
@@ -120,6 +121,19 @@ class ResumeProfile {
   /// 解析出的电话。见 [fullName] 的说明。
   final String? phone;
 
+  /// 工作年限（整年）。后端画像里的 `experience_years`。
+  ///
+  /// ⚠️ 2026-10-07 新增 —— 「设置 → 个人信息」的「工作经验」一行需要它，
+  /// 而后端**一直在返回**这个键（`ResumeProfile.model_dump()` 的
+  /// `experience_years`，已实测为 `5.0`），只是此前的 Dart 映射把它丢掉了。
+  /// 因此与 [fullName] / [email] / [phone] 属**同一类补齐既有字段**，
+  /// 不是新增产品数据（`CLAUDE.md` §7）。解析不出时为 `null`。
+  ///
+  /// 后端给的是 `float`（`4.0` / `5.0`），这里收成 `int` —— 本字段只用于
+  /// 展示「N 年」，`double` 会渲染出「5.0 年」。取整用 `round()` 而不是
+  /// `toInt()`：将来若出现 `4.9`，截断会显示成 4 年。
+  final int? experienceYears;
+
   final DateTime? updatedAt;
 
   /// 当前简历版本。
@@ -150,6 +164,7 @@ class ResumeProfile {
     String? fullName,
     String? email,
     String? phone,
+    int? experienceYears,
     DateTime? updatedAt,
   }) {
     return ResumeProfile(
@@ -162,6 +177,7 @@ class ResumeProfile {
       fullName: fullName ?? this.fullName,
       email: email ?? this.email,
       phone: phone ?? this.phone,
+      experienceYears: experienceYears ?? this.experienceYears,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -184,6 +200,7 @@ class ResumeProfile {
       fullName: _nonEmpty(json['fullName']),
       email: _nonEmpty(json['email']),
       phone: _nonEmpty(json['phone']),
+      experienceYears: (json['experienceYears'] as num?)?.round(),
       updatedAt: json['updatedAt'] == null
           ? null
           : DateTime.tryParse(json['updatedAt'] as String),
@@ -200,6 +217,7 @@ class ResumeProfile {
     'fullName': fullName,
     'email': email,
     'phone': phone,
+    'experienceYears': experienceYears,
     'updatedAt': updatedAt?.toIso8601String(),
   };
 }

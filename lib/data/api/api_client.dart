@@ -1,6 +1,7 @@
-import 'dart:async';
+   import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:http/http.dart' as http;
@@ -39,26 +40,35 @@ import 'token_store.dart';
 ///
 /// ## baseUrl 配置
 ///
+/// 默认 `http://127.0.0.1:8000`，配合 `adb reverse` 使用：
+///
 /// ```bash
-/// flutter run --dart-define=CAREERLY_USE_API=true \
-///             --dart-define=CAREERLY_API_BASE_URL=http://10.0.2.2:8000
+/// adb reverse tcp:8000 tcp:8000   # 每次重插 USB 后跑一次
+/// flutter run                      # 零参数即接真实后端
 /// ```
 ///
-/// 默认值 `http://10.0.2.2:8000` 是 **Android 模拟器访问宿主机** 的固定地址；
-/// 真机联调时改成局域网 IP（如 `http://192.168.x.x:8000`）。
+/// `adb reverse` 把**设备**的回环端口转发到**开发机**，真机与模拟器都适用，
+/// 且不受开发机局域网 IP 变化影响 —— 旧默认 `http://10.0.2.2:8000` 只是
+/// Android 模拟器访问宿主机的固定地址，真机上连不通。
+///
+/// 需要直连局域网 IP 时显式覆盖：
+///
+/// ```bash
+/// flutter run --dart-define=CAREERLY_API_BASE_URL=http://192.168.x.x:8000
+/// ```
 class ApiClient {
   ApiClient({String? baseUrl, http.Client? httpClient, TokenStore? tokenStore})
-      : baseUrl = _normalizeBaseUrl(
-          baseUrl ??
-              const String.fromEnvironment(
-                'CAREERLY_API_BASE_URL',
-                defaultValue: 'http://10.0.2.2:8000',
-              ),
-        ),
-        _http = httpClient ?? http.Client(),
-        // 默认内存：单测与「明确不持久化」的场景不受 D-B 影响。
-        // 生产装配（main.dart）显式传入 SecureTokenStore。
-        _tokenStore = tokenStore ?? InMemoryTokenStore();
+    : baseUrl = _normalizeBaseUrl(
+        baseUrl ??
+            const String.fromEnvironment(
+              'CAREERLY_API_BASE_URL',
+              defaultValue: 'http://127.0.0.1:8000',
+            ),
+      ),
+      _http = httpClient ?? http.Client(),
+      // 默认内存：单测与「明确不持久化」的场景不受 D-B 影响。
+      // 生产装配（main.dart）显式传入 SecureTokenStore。
+      _tokenStore = tokenStore ?? InMemoryTokenStore();
 
   /// `CAREERLY_USE_API` 的 dart-define 键名（providers.dart 使用）。
   static const String useApiDefineKey = 'CAREERLY_USE_API';
@@ -66,8 +76,23 @@ class ApiClient {
   /// `CAREERLY_API_BASE_URL` 的 dart-define 键名。
   static const String baseUrlDefineKey = 'CAREERLY_API_BASE_URL';
 
-  /// 编译期传入的「接真实后端」开关；默认 false（保持 Mock First）。
-  static const bool useApi = bool.fromEnvironment(useApiDefineKey);
+  /// 编译期传入的「接真实后端」开关的**原始值**。
+  ///
+  /// 未传时是**空串**而不是 `false` —— `String.fromEnvironment` 的语义如此。
+  /// 这一点是刻意的：它让下面能区分「未设置」与「显式设成 false」，
+  /// 而 `bool.fromEnvironment` 做不到（两者都返回 `false`）。
+  static const String _useApiRaw = String.fromEnvironment(useApiDefineKey);
+
+  /// `--dart-define=CAREERLY_USE_API=...` 的解析结果。
+  ///
+  /// `null` = **未显式设置**，由调用方决定默认值：
+  /// [main]（`flutter run` 的入口）取**真实后端**，
+  /// 测试与 `CareerlyApp` 的自身默认取 **Mock**。
+  ///
+  /// `true` / `false` = 显式指定，覆盖调用方的默认值。
+  /// 想在本机强制回到 Mock：`flutter run --dart-define=CAREERLY_USE_API=false`。
+  static bool? get useApiOverride =>
+      _useApiRaw.isEmpty ? null : _useApiRaw.toLowerCase() == 'true';
 
   final String baseUrl;
   final http.Client _http;
@@ -107,6 +132,19 @@ class ApiClient {
   /// 取值需覆盖首字延迟（推理模型要先想再答），属 Flutter 侧实现选择，
   /// 不是产品规则。
   static const Duration aiStreamIdleTimeout = Duration(seconds: 60);
+
+  /// 异步分析任务的轮询间隔（P1-1b）。
+  ///
+  /// 引擎跑完 8 个节点需要 10–210s，期间客户端靠轮询
+  /// `GET /api/v1/analysis/tasks/{id}` 读真实节点进度。
+  ///
+  /// 取值是**Flutter 侧实现选择**，不是产品规则：
+  /// - 太快 → 每个节点打一串没有信息量的重复 GET；
+  /// - 太慢 → 「正在分析」页的步骤切换看起来卡顿。
+  ///
+  /// 1s 的取舍：单节点最快也要数秒，1s 足以在节点切换后立刻反映到 UI，
+  /// 而一次分析总请求量仍在 10–210 次这个可接受量级。
+  static const Duration analysisPollInterval = Duration(seconds: 1);
 
   // ── 会话（内存态 + 持久化，见类注释「裁决 D-B」） ────────────────────
 
@@ -159,18 +197,68 @@ class ApiClient {
     return _send('GET', path, timeout: timeout ?? defaultTimeout);
   }
 
+  /// 获取非 envelope 的二进制响应，并对认证失效执行一次 token 刷新重试。
+  Future<Uint8List> getBytes(String path, {Duration? timeout}) async {
+    final Duration requestTimeout = timeout ?? defaultTimeout;
+    final http.Response response = await _rawSend(
+      'GET',
+      path,
+      null,
+      requestTimeout,
+    );
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return response.bodyBytes;
+    }
+
+    Map<String, dynamic> envelope;
+    try {
+      envelope =
+          jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    } catch (error) {
+      throw ParseError(
+        detail: '响应不是合法 JSON envelope（HTTP ${response.statusCode}）',
+        cause: error,
+        source: 'api',
+      );
+    }
+
+    final AppError error = _mapError(envelope, response.statusCode);
+    if (error is AuthError && _refreshToken != null) {
+      final bool refreshed = await _tryRefresh();
+      if (refreshed) {
+        final http.Response retried = await _rawSend(
+          'GET',
+          path,
+          null,
+          requestTimeout,
+        );
+        if (retried.statusCode >= 200 && retried.statusCode < 300) {
+          return retried.bodyBytes;
+        }
+        try {
+          envelope =
+              jsonDecode(utf8.decode(retried.bodyBytes))
+                  as Map<String, dynamic>;
+        } catch (retryError) {
+          throw ParseError(
+            detail: '响应不是合法 JSON envelope（HTTP ${retried.statusCode}）',
+            cause: retryError,
+            source: 'api',
+          );
+        }
+        throw _mapError(envelope, retried.statusCode);
+      }
+    }
+    throw error;
+  }
+
   /// POST（JSON body）并解 envelope，返回 `data`。
   Future<dynamic> post(
     String path, {
     Map<String, dynamic>? body,
     Duration? timeout,
   }) {
-    return _send(
-      'POST',
-      path,
-      body: body,
-      timeout: timeout ?? defaultTimeout,
-    );
+    return _send('POST', path, body: body, timeout: timeout ?? defaultTimeout);
   }
 
   /// POST `multipart/form-data` 并解 envelope，返回 `data`。
@@ -205,12 +293,7 @@ class ApiClient {
     Map<String, dynamic>? body,
     Duration? timeout,
   }) {
-    return _send(
-      'PUT',
-      path,
-      body: body,
-      timeout: timeout ?? defaultTimeout,
-    );
+    return _send('PUT', path, body: body, timeout: timeout ?? defaultTimeout);
   }
 
   /// DELETE 并解 envelope，返回 `data`。
@@ -375,8 +458,8 @@ class ApiClient {
 
     Map<String, dynamic> envelope;
     try {
-      envelope = jsonDecode(utf8.decode(response.bodyBytes))
-          as Map<String, dynamic>;
+      envelope =
+          jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     } catch (e) {
       throw ParseError(
         detail: '响应不是合法 JSON envelope（HTTP ${response.statusCode}）',
@@ -454,6 +537,7 @@ class ApiClient {
         'GET' => _http.get(uri, headers: headers),
         'POST' => _http.post(uri, headers: headers, body: jsonEncode(body)),
         'PUT' => _http.put(uri, headers: headers, body: jsonEncode(body)),
+        'DELETE' => _http.delete(uri, headers: headers),
         _ => throw ArgumentError('unsupported method: $method'),
       };
     }
@@ -555,7 +639,11 @@ class ApiClient {
     // 这两条错误描述的是「服务端这个能力没有」，不是「你的凭据不对」，
     // 故取中性的 [NetworkError]（保留服务端原文 message，不触发任何重试分支）。
     if (code.startsWith('OAUTH_')) {
-      return NetworkError(message: message, detail: code, statusCode: statusCode);
+      return NetworkError(
+        message: message,
+        detail: code,
+        statusCode: statusCode,
+      );
     }
 
     // 输入 / 解析类（422：无简历基线、JD 为空、校验失败）。

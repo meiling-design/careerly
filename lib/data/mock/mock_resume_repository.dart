@@ -30,6 +30,15 @@ class MockResumeRepository implements ResumeRepository {
   }
 
   @override
+  Future<List<int>> fetchVersionOriginalPdf(String versionId) async {
+    await _config.simulate();
+    throw const UnknownError(
+      message: 'Mock 简历存储没有原始 PDF',
+      detail: 'MockResumeRepository.fetchVersionOriginalPdf',
+    );
+  }
+
+  @override
   Future<void> setCurrentVersion(String versionId) async {
     await _config.simulate();
     // Phase 1 无本地/远端存储，写入操作明确失败，

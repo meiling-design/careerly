@@ -1,5 +1,6 @@
 import '../../core/errors/app_error.dart';
 import '../models/analysis_project.dart';
+import '../models/analysis_task.dart';
 import '../models/job.dart';
 import '../models/parsed_job.dart';
 import '../models/quota_state.dart';
@@ -10,7 +11,10 @@ import 'api_client.dart';
 ///
 /// 契约：`docs/careerly/BACKEND_API_CONTRACT.md` §1/§2。
 /// 失败时抛 [AppError]（由 State 层归一化），与接口注释一致。
-class ApiAnalysisRepository implements AnalysisRepository {
+///
+/// 同时实现 [AnalysisProgressSource]：只有真实后端有节点可报告
+/// （理由见该接口的文档）。
+class ApiAnalysisRepository implements AnalysisRepository, AnalysisProgressSource {
   ApiAnalysisRepository(this._client);
 
   final ApiClient _client;
@@ -72,6 +76,27 @@ class ApiAnalysisRepository implements AnalysisRepository {
       timeout: ApiClient.analysisTimeout,
     );
     return AnalysisProject.fromJson(data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<AnalysisTask> startAnalysisTask({
+    required String title,
+    required String rawJd,
+  }) async {
+    // 这个请求**立刻**返回 202 + taskId（引擎在后台跑），
+    // 所以用普通超时即可，不需要 [ApiClient.analysisTimeout] 那种加长等待。
+    final dynamic data = await _client.post(
+      '/api/v1/analysis/tasks',
+      body: <String, dynamic>{'title': title, 'rawJd': rawJd},
+    );
+    return AnalysisTask.fromJson(data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<AnalysisTask> fetchAnalysisTask(String taskId) async {
+    // 轮询用的读接口：引擎在另一个线程里跑，这个 GET 本身很快。
+    final dynamic data = await _client.get('/api/v1/analysis/tasks/$taskId');
+    return AnalysisTask.fromJson(data as Map<String, dynamic>);
   }
 
   @override
