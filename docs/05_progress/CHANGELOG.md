@@ -19,6 +19,341 @@
 
 ---
 
+## Session 025 — 补齐「设置 → 个人信息」（**只读**）· 并回撤初版的跨仓库可编辑方案
+
+**日期**：2026-10-07
+**阶段**：`TODO.md` §4.6 · C5（`settings_page.dart` 的空壳入口）· §1.0g ③「内测用户会立刻撞上」一类
+**结论**：✅ 入口已接线、页面已落地、**10 条新测试全绿** ·
+⚠️ **本轮范围被用户中途收窄**（见 §1，这是本轮最重要的一笔）·
+⚠️ 后端 `work_agent` **一行未改**
+
+> ⚠️ 本轮**只动 `careerly` 单仓库**。`work_agent` 的改动**全部撤回**（§1）。
+
+---
+
+### 1. ⚠️ 范围收窄 —— 本轮最重要的一笔
+
+初版方案经 `AskUserQuestion` 锁定为**跨仓库可编辑**：
+后端新增 `PUT /api/v1/profile` + `AuthStore.update_name` + 13 条后端测试，
+前端加输入框与保存按钮。
+
+**后端与前端都已实现、pytest 尚未跑时，用户裁决：**
+
+> 「暂时先不支持信息修改吧，先跑通只读」
+
+三个后端文件的改动**整批撤回**：
+
+```text
+work_agent/app/core/auth_store.py        ← update_name()         已删
+work_agent/app/careerly/router.py        ← PUT /api/v1/profile + Body 导入  已删
+work_agent/tests/test_p3_endpoints.py    ← 3b 段 ~13 条用例      已删（回到 328 行）
+```
+
+撤回后 grep 全仓 `*.py`：`update_name` / `update_profile` /
+`PUT /api/v1/profile` / `Body(` —— **零匹配**。
+
+> 📌 **撤回是正确动作，不是浪费**：跨仓库方案里 **90% 的工作量在后端**，
+> 而收益只是「能改姓名」。用户否掉的是**范围**，不是实现质量 ——
+> 把「已经写好的」部分变相保留（例如留着端点不给 UI 用）会制造
+> **无人消费的死代码**（`CLAUDE.md` §6.3 明令不预建占位）。
+>
+> 📌 **同时撤回的还有一个产品假设**：本页**没有 Figma 规格**，
+> 「可编辑」意味着 Flutter 侧要自己发明「哪些字段可改 / 改完落到哪」——
+> 那是产品规则，不是实现细节（`CLAUDE.md` §0 第一禁令）。
+> 「只读」把这个问题**整个绕开**了。
+
+### 2. 交付内容（全部在 `careerly`）
+
+`settings_page.dart` 的「个人信息」自 Phase 8 起就是空壳
+`_SettingsRow(label: '个人信息', onTap: () {})` —— 同页其余入口都已接线，
+只有这一行点了没反应。本轮补齐。
+
+| 层 | 产物 |
+|---|---|
+| 页面 | `lib/features/profile/presentation/personal_info_page.dart`（**新建**） |
+| 路由 | `app_routes.dart` + `app_router.dart` —— `/settings/personal-info`（**二级页**，与 `settingsDeleteCareerData` 同构） |
+| 接线 | `settings_page.dart` —— 空壳 → `context.push(AppRoutes.settingsPersonalInfo)` |
+| 映射补齐 | `resume_profile.dart` 新增 `experienceYears`（`int?`）+ `api_resume_repository.dart` 映射 `experience_years` |
+| 测试 | `test/personal_info_test.dart`（**新建**，8 条）+ `test/data/api_resume_repository_test.dart`（+3 改 2） |
+| 文档 | 本条目 · `TODO.md` §3.1（**D125**）+ §4.6（C5 部分收口 + 数字刷新）· `CURRENT_STATUS.md` |
+
+**数据源全部是已存在的接口 —— 没有新增任何数据来源、没有新增后端端点**：
+
+```text
+姓名 / 手机号 / 会员状态   ←  GET /api/v1/profile   （账号身份）
+邮箱 / 职位 / 工作经验      ←  GET /api/v1/resume    （简历画像）
+```
+
+#### 2.1 唯一的「真实缺口」在 Dart 侧，不在后端
+
+「工作经验」这一行最初恒为空。查证结果：**后端一直在返回 `experience_years`**
+（`ResumeProfile.model_dump()`；`dbdump.txt` 实证为 `5.0`），
+只是 **Dart 的 `fromJson` 把它丢掉了**。
+
+这与 `fullName` / `email` / `phone` 是**同一类补齐既有字段**
+（那三者的注释在 2026-10-04 就写明了同一件事），**不是新增产品数据**
+（`CLAUDE.md` §7）。
+
+取整口径：收成 `int?` 并用 `.round()` 而非 `.toInt()` ——
+本字段只用于展示「N 年」，`double` 会渲染出「5.0 年」；
+而 `.toInt()` 遇到将来的 `4.9` 会截成 4 年。补 3 条测试钉住
+「缺键 → `null`（不编造 0 年）」与「显式 `0.0` → 保留 `0`」的区别。
+
+#### 2.2 三处 Flutter 侧自拟 → 登记 **D125**
+
+Figma 全稿**没有这一页**，因此以下三处是 Flutter 补的（详见 `TODO.md` §3.1 · D125）：
+简历三项全空时收起分区换中性文案 · 「职位」用 `join('、')` 而非取首项 ·
+「会员状态」空值显示「非会员」（而不是「普通用户」—— 后者暗示一套 PRD
+未定义的等级体系，**D87**）。
+
+#### 2.3 一个必须写进注释的陷阱
+
+`UserProfile.isEmpty` 在三个字段全空时为 `true`，而**新注册用户恰好就是全空**。
+若把它传给 `CareerlyAsyncStateView`，整页会渲染成 Empty 占位 ——
+**用户看不到自己已经有的资料**。本页**刻意不消费**那个 `isEmpty`
+（它是给「我的」主页身份卡用的），并配了一条**回归用例**。
+
+### 3. 实测结果（**当次输出**）
+
+```text
+flutter analyze                      →  No issues found! (12.6s)
+flutter test test/personal_info_test.dart
+        test/data/api_resume_repository_test.dart  →  18 / 18 全绿（当次）
+flutter test（全量）                 →  +326 ~1 -2
+                                          329 用例 = 326 通过 + 1 skip + 2 失败
+```
+
+那 2 条红灯仍是 `test/legal_pages_test.dart` 的加粗用例
+（Session 024 已归因、产品侧已裁「只留档，不动它」），**非本轮引入**。
+
+真机未跑 —— vivo V2359A 的安装拦截要求人工点「授权本次安装」，需产品侧配合
+（见 `CURRENT_STATUS.md` 的环境记录）。
+
+### 4. 需要裁决 / 知悉（详见 `TODO.md` §3.1）
+
+```text
+⬜ D125  「设置 → 个人信息」页没有 Figma 规格 + 三处 Flutter 侧自拟
+        （另含一条明确的**范围**记录：本轮只读，不做修改）
+⬜ D87   「会员状态」空值的措辞沿用既有待裁决项
+✅ §4.6 · C5  **部分收口** —— 入口接线并有 8 条测试；
+        仍剩 2 个空回调（帮助中心 / 关于 Careerly）
+```
+
+### 5. 停止点
+
+**个人信息页到此为止，停在这里。** 编辑能力**不在本轮范围内**，
+若要恢复，需先由产品侧裁决「哪些字段可改 / 改完落到哪」，
+后端才有写端点的依据 —— 届时另立 D 编号。
+
+---
+
+## Session 024 — 修复 §4.6 · C8（`test/widget_test.dart`「可以切换到 AI」）
+
+**日期**：2026-10-07
+**阶段**：`TODO.md` §4.6 测试覆盖缺口 —— **C8**（全仓唯一红灯，连挂 Session 021–023）
+**结论**：✅ C8 已修复并**当次实测**通过 · ⚠️ 全量套件仍有 **2 个红灯**，**非本单元引入**（见 §5）
+
+> ⚠️ 本轮**只改 `test/widget_test.dart` 一个文件**（+31 / −8）。
+> **不动任何生产代码**，也不动 `lib/features/legal/**` —— 那是另一笔在飞的改动（见 §5）。
+
+---
+
+### 1. 交付内容
+
+C8 的失败**不是一个原因，是两个**。两个都用插桩实测确认过（临时 harness +
+`debugPrint` 打印每个命中 `Text` 的 `fontSize` / `fontWeight` / 祖先链 / 屏幕坐标），
+**不是从代码推断的**。
+
+| # | 缺陷 | 事实 |
+|---|---|---|
+| ① | **计数过期**（`:194` / `:213` 原断言 `findsNWidgets(3)`） | `AIConversation.title` 取**首条**消息、`preview` 取**最后一条**（`lib/data/models/ai_chat.dart:24,45`）。用例自己在 `:187` `pump(2s)` 让 Mock 回复落地后，预览行显示的是 **AI 的回复** —— 于是这句提问只剩「用户气泡」+「会话标题」两处。`:186` 那个 3 **仍然正确**（那时回复还没到），**过期的只有 `:194` / `:213`** |
+| ② | **抽屉动画只推了一帧**（`:190`–`:211` 整段） | 抽屉是 `AnimatedPositioned`，**从状态变化后的下一帧才开始动画**。`tap(); pump(350ms);` 只够让动画*起步*，面板仍停在屏幕外 → 紧接着的 tap 落在空处。**flutter_test 只打印 hit-test 警告，不会让用例变红** —— 所以「关闭 → 打开 → 选中历史会话」整段其实是**空操作**，「选中历史会话」从未发生过 |
+
+**修复**：
+
+```text
+① 两处计数改 2，并写明「标题取首条 / 预览取最后一条」的理由
+② 新增 pumpDrawer() 助手（pump() 起一帧 + pump(350ms) 走完 300ms），
+   替换抽屉相关 tap 后的全部单发 pump；
+   并补注：抽屉展开时「关闭」按钮与顶栏「聊天记录」按钮**同坐标**
+   （面板右缘与屏幕右缘对齐）—— 已展开时点「聊天记录」命中的是关闭按钮
+```
+
+### 2. 实测结果（**当次输出**）
+
+```text
+flutter analyze                       →  No issues found! (12.6s)
+flutter test test/widget_test.dart    →  10 / 10 全绿（无 hit-test 警告）
+flutter test（全量）                  →  +309 ~1 -2
+                                         312 用例 = 309 通过 + 1 skip + 2 失败
+```
+
+> 修前 `test/widget_test.dart` 单跑为 `+9 -1`，红灯即「可以切换到 AI」。
+> **修后该用例转绿**，且全量输出里**不再有 hit-test 警告**。
+
+### 3. 为什么这不是「把测试改绿」
+
+依据是**代码里的既有契约**，不是失败信息：
+
+```text
+AIConversation.titleFrom   取首条消息      ai_chat.dart:45-50
+AIConversation.preview     取 messages.last ai_chat.dart:24-28
+```
+
+预览行 = 最后一条消息是**有意的定义**（与主流聊天列表一致）。用例在 `:187`
+**主动** pump 2 秒等 Mock 回复落地；回复一落地，`preview` 就不再是那句提问。
+**断言 3 只在该回复尚不存在时成立**，而「Chat 接真实回复」是 Session 021 的事。
+**属陈旧断言，不是产品回归** —— 生产代码一行未改。
+
+### 4. 明确未做
+
+```text
+❌ 未改任何生产代码（`lib/features/ai/**` 一行未动）
+❌ 未动 `lib/features/legal/**` 与 `test/legal_pages_test.dart`（见 §5）
+❌ `flutter build apk` / 真机 —— 本单元是纯测试改动；且真机安装需人工点
+   「授权本次安装」（TODO §1.0f ⑤-1、CURRENT_STATUS 的环境记录）
+❌ git 提交 —— 工作区仍混着 A–D / Stage E 与 legal 那批未提交改动
+```
+
+### 5. 未解决问题 —— **全量套件仍有 2 个红灯，不在本单元范围内**
+
+```text
+test/legal_pages_test.dart   ← 单独跑同样红（与 widget_test.dart 无任何依赖）
+  · `**加粗**` 摘掉星号并标成 strong，其余文字照常
+  · 一行里的多段加粗各自成段（非贪婪匹配）
+
+实测  Expected: '这是 重点 的一句'    Actual: '这是 **重点** 的一句'
+```
+
+**归属**：该文件与 `lib/features/legal/legal_markdown.dart` 的最后修改时间是
+**2026-10-07 03:39 / 03:41**（Session 023 交付之后）。Session 023 记的是
+**17/17 全绿**，且当时**没有** `/legal/ai-data` 这条路由 —— 现在两条都不成立，
+即**另一轮在飞的改动**（D123 的实现）把该文件扩到 32 条用例，其中 2 条红。
+
+**成因已定位**：`legal_markdown.dart:294` 的 `_textBlock` 把 `text:` 传成
+**带 `**` 的原文**，而 `spans:` 走 `_parseInline`（已摘星号），
+违反它自己在 `:120` 写下的不变式 `text == spans.map((s) => s.text).join()`。
+**处置：本轮裁决「只留档，不动它」** —— 避免与在飞改动撞车
+（本项目有 Session 012 记录的双会话并发写同一工作区的前科）。
+
+### 6. 停止点
+
+**C8 到此为止，停在这里。** §5 那 2 个红灯是**独立的一笔**，
+等产品侧决定是并入 legal 那一轮一起收口，还是单独立项。
+
+---
+
+## Session 023 — Release V1.0 基线 Stage E（E2 注册同意门禁 + E3 App 内协议页）
+
+**日期**：2026-10-07
+**阶段**：`TODO.md` §1.0f · Stage E 的 E2 / E3（E1 只出骨架，E4 仍阻塞）
+**结论**：✅ E2 / E3 已落地并**当次实测**通过 · ⛔ 停在 E1 正文（等产品侧提供）
+
+> ⚠️ **本轮只动了 Stage E，不碰 A–D** —— A–D 那批（Session 022）仍在工作区里
+> **未被验收**，其文档收尾（§3.2 豁免登记、D118 移档、K 项勾销）**本轮依然没做**。
+> 两笔改动**混在同一个工作区**，**本轮不提交 git**。
+
+---
+
+### 1. 交付内容
+
+`TODO.md` §1.0f ③ 原本停在「先裁决 D120，再开 E1」。产品侧改走
+**「先做 E2 + E3」**（E2 不依赖 D120，且是 Google Play「收集数据前须取得同意」的硬项），
+本轮据此落地。**产品侧当轮裁决六条**见 `TODO.md` §3.2 · D-E2E3。
+
+| 层 | 产物 |
+|---|---|
+| 正文资产 | `careerly/assets/legal/{PRIVACY_POLICY,TERMS_OF_SERVICE,AI_DATA_PROCESSING}.md` —— **骨架**（结构 + 显式占位符 + 已核实事实），不是可发布条文 |
+| 镜像 | `work_agent/docs/09_Release/` 下同名三份，由脚本生成 |
+| 同步 | `careerly/scripts/sync_legal_docs.ps1` —— PowerShell 5.1，单向 + `-Check` 防漂移；**双向实跑验证**过（写入方向 / 校验方向） |
+| 依赖 | `pubspec.yaml` 开 `assets:` 段，**只加 `assets/legal/`**（`assets/fonts/` 不加 —— K1 字体仍未到位，加空目录无意义） |
+| 解析 | `lib/features/legal/legal_markdown.dart` —— **纯 Dart**（不 import Flutter），可脱离 widget 树单测 |
+| 渲染 | `lib/features/legal/presentation/widgets/legal_document_body.dart` —— 块 → `Text` 的映射，**未新增任何 Token** |
+| 页面 | `lib/features/legal/presentation/legal_document_page.dart` —— 两份文档**共用一个类**、一个枚举参数（`CLAUDE.md` §8.4） |
+| 路由 | `AppRoutes.legalTerms` / `legalPrivacy` + 两条**顶级** `GoRoute` |
+| 门禁 | `onboarding_register_page.dart` —— `_AgreeRow` + `_canSubmit` 合取项 + 微信/QQ 同受约束 |
+| 接线 | `settings_page.dart` 「隐私与数据」→ `/legal/privacy`（**K22 ② 的事实修复**） |
+| 文档 | 本条目 · `TODO.md` §1.0f ⑦ + §3.1（D122–D124）+ §3.2（D-E2E3）· `CURRENT_STATUS.md` |
+
+**未引入新依赖**（`CLAUDE.md` §6.5）：Markdown 只用到极小一个子集，
+为一个标题层级引一个已停止维护的渲染包，代价大于收益。
+
+### 2. 实测结果（**当次输出**）
+
+```text
+flutter analyze  →  No issues found!  (ran in 8.6s)
+flutter test     →  +295 ~1 -1        （全量，当次）
+                     新建 test/legal_pages_test.dart         17/17 通过
+                     改动 test/phase4_onboarding_test.dart   30/30 通过
+```
+
+真机未跑 —— vivo V2359A 的安装拦截要求人工点「授权本次安装」，
+**需要产品侧配合点一次确认**（见 `CURRENT_STATUS.md` 的环境记录）。
+
+### 3. 需要裁决 / 知悉（详见 `TODO.md` §3.1）
+
+```text
+⬜ D122  协议正文「源 → 镜像」的同步方向 —— Flutter 侧拟的方案，未经确认
+⬜ D123  AI_DATA_PROCESSING.md 的 App 内入口 —— E1 三份齐，E2 的同意文案只点了两份
+⬜ D124  同意行 / 协议页的视觉无 Figma 依据 —— Flutter 侧补齐，待视觉复核
+⬜ D120  运营主体 / 生效日期 —— 三份正文里的占位符仍留着，正文到位后才能填
+```
+
+分类：D122【技术实现差异】· D123【IA 冲突】· D124【视觉/交互差异】。
+
+### 4. 明确未做
+
+```text
+❌ 三份文档的正式正文 —— 等产品侧提供草案；本轮只落地骨架与整条链路
+❌ AI 数据处理说明的 App 内入口页（即 D123 的三条候选路，一条都没实现）
+❌ E4：Play 要求的 Privacy Policy 外部 URL / 托管（依赖 D121 域名）
+❌ D118 / D119 / D120 / D121 的裁决 —— 都是产品 / 运营侧的事
+❌ A–D 那批的验收与 §1.0f ⑥ 的 §3.2 豁免登记 —— 另一笔欠账，**不并入本轮**
+❌ K22 整体销账 —— 只做了 ② 的事实修复，四件套是否销账另议
+❌ 设置页「帮助中心」「关于 Careerly」的接线（仍为空壳）
+❌ 改 CareerlyCheckbox / CareerlyAsyncStateView 等已交付未验收的组件
+❌ git 提交
+```
+
+### 5. 未解决问题
+
+**🔴 C8（`test/widget_test.dart:194`「可以切换到 AI」）本轮复现，未修** ——
+全量 `+295 ~1 -1` 里的那 1 个红灯就是它，失败形态与 §4.6 的记录逐字一致。
+本轮的改动**不在该用例的依赖路径上**（它只 tap「AI」Tab，
+从不构建 `list/legal/**` 或注册页），且该用例**单跑同样红**。
+属另一笔独立欠账，**未动**。详见 `TODO.md` §4.6。
+
+**🟡 三份 .md 里刻意保留的两句禁令**（防止后来者「顺手补全」时踩坑）—— 见 `TODO.md` §1.0f ③ E1 与 ⑤-2。
+
+### 6. 停止点
+
+**本单元交付后停在这里。** 下一步的前置条件是**产品侧提供三份文档的正式正文**
+—— 链路（资产 → 解析 → 渲染 → 入口 → 同意门禁）已全部打通并有测试守着，
+正文到位后是**纯文件替换，不需要改任何代码**。
+
+---
+
+### 🐞 附：本轮踩到的一个 Flutter 测试坑（值得记住）
+
+**现象**：同一个资产的 widget test，**第一个用例读得到，之后全部读不到**
+（页面永远停在 Loading）。表现在 `legal_pages_test.dart` 里就是
+「单独跑过、跟在前一条后面跑挂」。
+
+**成因**：`rootBundle` 是 `CachingAssetBundle`，它按路径缓存**第一次**读取返回的
+`Future`；而 **`Future` 的续体在「创建它的 Zone」里调度**，
+widget test 每个 `testWidgets` 各有一个**用完即弃**的 FakeAsync Zone
+—— 第二个用例 await 到第一个用例缓存的 Future 时，
+续体被排进那个**已经作废的 Zone**，永远不执行。
+
+**处理**：`legal_document_page.dart` 改读 `rootBundle.loadString(path, cache: false)`。
+**关缓存是故意的**，代码里有对应的类文档说明。生产侧代价为零
+（本页每次打开只读一次、几 KB），换来的是**一组真正读 bundled 资产的测试**
+—— 少写 `pubspec.yaml` 的 `assets:` 声明会直接变红。
+
+> 📌 与 `CLAUDE.md` §10「环境陷阱」同类：**踩过一次就别再踩**。
+
+---
+
 ## Session 021 — 接通 work_agent：真机联调用例首次跑通 + §9-4 首页筛选行溢出修复
 
 **日期**：2026-10-04

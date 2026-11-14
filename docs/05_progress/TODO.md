@@ -4,7 +4,32 @@
 >
 > 现状 → `CURRENT_STATUS.md` ｜ 为什么这么决定 → `CHANGELOG.md` ｜ 怎么做 → `DEVELOPMENT_WORKFLOW.md`
 >
-> 最后更新：**2026-10-02**（Session 020 —— ③ 岗位 URL 接线：后端 + Flutter 双端）
+> 最后更新：**2026-10-07**（**D120 部分裁决** —— 运营主体 / 联系邮箱落进三份协议）
+> ｜ 上一版：**2026-10-07**（发布就绪度摸底 —— 新增 §1.0g；只读，未改任何代码）
+> ｜ 再上一版：**2026-10-07**（Session 024 —— 修 §4.6 · C8，只改测试文件）
+>
+> 📌 **D120 部分裁决（2026-10-07 产品侧）**：运营主体 = **LingDesign（个人开发）**、
+> 联系邮箱 = **l1350900062@163.com**、隐私联系人 = **与运营主体合并** ——
+> 已填入三份协议（信源 `assets/legal/`，并同步 `work_agent/docs/09_Release/`
+> 与 `careerly/docs/09_Release/` 两处镜像）。
+> ⏳ **仍未定**：**生效日期 / 最后更新日期**（6 处）。
+> 见 **§3.2 · D120**（裁决留档）与 **§3.1 · D120**（剩余项）。
+>
+> 📌 **上一轮新增 §1.0g「发布就绪度摸底」** —— 回答「**距离能发内测还差什么**」，
+> 按「硬阻塞 / 应该做 / 可推迟」分档，并点名**需要拍板的决策**
+> （内测渠道 · 生产域名 D121 · 协议生效日期）。
+> 同时顺带**修正了 §2.1 / §2.2 里 K7 / K19 / K22 三条过期状态**（见 §1.0g ⑥）。
+>
+> 📌 **Session 024 只动 §4.6**：C8（`widget_test.dart`「可以切换到 AI」）已修复并归因，
+> 同时登记了**两个新的红灯**（`test/legal_pages_test.dart`，属另一轮在飞改动，
+> 本轮裁决「只留档，不动它」）。**其余各节的结论一律未改。**
+>
+> 📌 **本轮新增 §1.0e（上线基线核查）**，产出两条 🔴 卡点
+> **K19**（§2.1）、四条 🟡 排期项 **K21–K24**（§2.2）、
+> 四条待裁决 **D118–D121**（§3.1）。
+> **这一节与 Phase 进度无关，是「能不能上线」这条线** ——
+> 此前本项目所有 Phase 记录都只回答「功能做完没有」，
+> **从未回答「做完之后能不能真的发出去」**。
 >
 > 📌 本文件 §3.1 新增 **D112–D116**，**D107 已裁决**（移入 §3.2）；
 > 交付经过见 `CHANGELOG.md` **Session 019 / 020**。
@@ -22,6 +47,496 @@
 ---
 
 ## 一、接下来做什么
+
+### 1.0g 📋 **2026-10-07 发布就绪度摸底 —— 距离「能发内测」还差什么**
+
+> **本轮是一次只读摸底**：未改任何代码、未改任何产品规则、未新增页面。
+> 输入 = §1.0f（A–E 落地情况）+ §1.0e（六大类基线）+ 一次 Android 工程实地体检。
+> 与 §1.0f 的关系：**§1.0f 记「做了什么」，本节记「还没做什么才能发出去」**；
+> §1.0f 只对「什么时候发」给判断，本节第一次把「发出去还差哪些件」逐条点名。
+> ⚠️ 本节**不替代** §1.0f / §1.0e，**不改变任何既有裁决**，也不构成任何新的授权。
+
+#### ① 一句话结论
+
+```text
+卡点不在代码质量。A–D 已落地、release 通道跑通过、签名脚本已写。
+挡在内测门口的是两件事：
+  两个**非工程的决策**（运营主体 D120 / 生产域名 D121）
+  三样**从未开工的发布工程产物**（正式 keystore / 商店素材 / 协议正式正文）
+```
+
+最长的那根杆子：**运营主体已于 2026-10-07 确定为 LingDesign**（D120 部分裁决，见 §3.2），
+三份协议的「运营主体 / 联系邮箱」占位符已落位；
+**但生效日期、E4 托管 URL、Data Safety 仍锁在 D120 剩余项与 D121 域名上。**
+
+#### ② 决定路线的前置问题（**不拍板则后续全白做**）
+
+| # | 问题 | 为什么挡路 |
+|---|---|---|
+| ① | **内测走哪个渠道**：Google Play 内测轨道 / 直接发 APK / 国内商店 | 决定要不要 AAB、Data Safety、商店素材；国内渠道另需 ICP 备案。账本目前只按 Google Play 写（§2.2 · K22） |
+| ② | ~~**运营主体是谁**~~ ✅ **已定：LingDesign（个人开发）**（2026-10-07，→ §3.2 · D120） | 运营主体 / 联系邮箱 / 隐私联系人占位符**已填进三份协议**。⚠️ **仍缺：生效日期 / 最后更新日期**（6 处）—— D120 剩余项 |
+| ③ | **生产域名 + 后端部署归属**（→ **D121**） | release 包当前**根本连不上后端**，见 ③-2 |
+
+> 📌 **一条账外信息（供排期用，非本仓库核查结论）**：
+> Google Play 对**个人**开发者账号有「先在封闭测试跑满测试员人数与天数、
+> 才能申请正式发布」的要求（2023-11 起为 **12 人 / 14 天**，
+> ⚠️ **请以 Play Console 当时实际政策为准**）。
+> **它不挡内测本身** —— 内测能发；它挡的是「内测 → 正式上线」这一段，
+> 排期时必须把它算进关键路径。
+> ✅ **2026-10-07 更新**：运营主体已确认为**个人**开发（LingDesign），
+> 因此**若走 Google Play，本条适用**；若改走对公主体的账号则不适用。
+> 这条影响的是**发布路径与排期**，不是文案。
+
+#### ③ 硬阻塞 —— 不做完，包装上去是废的
+
+| # | 缺口 | 现状（2026-10-07 实地核实） | 前置 |
+|---|---|---|---|
+| **1** | **正式签名**（K7） | `android/key.properties` **不存在** → release 回退 `signingConfigs.getByName("debug")`（`build.gradle.kts:59-67`）；`build/app/outputs/flutter-apk/app-release.apk` **是 debug 签名的产物**；`scripts/gen_keystore.ps1` 已就绪 **但从未执行**（§1.0f ⑤-1） | 无（D118 已落地） |
+| **2** | **后端生产 HTTPS 域名**（D121 / K24） | `ApiClient` 默认 `http://127.0.0.1:8000`（`api_client.dart:60-67`）；**全仓库无任何生产域名**；release 保留平台明文限制 → **内测包连不上后端**；CORS 仍 `["*"]`（K24） | **D121** |
+| **3** | **协议正式正文 + 外部托管 URL**（E1 / E4） | 运营主体 / 联系邮箱 / 隐私联系人**已落位**（2026-10-07）；三份仍 `V0.1 Draft`，**剩 6 处 `【待确定】`**（生效日期 / 最后更新日期 ×3 份）；正文其余部分与 **E4 托管 URL** 未做 | **D120 剩余项 + D121** |
+| **4** | **账号删除的收口**（K19） | 能力**已落地**（D1 / D2 / D3），但 ① **D119 六个语义点未裁决**；② 孤儿产物盲区（§1.0f ⑤-2：2,960 文件无法归属、291 含 PII）；③ **Play 要求的「网页版删除入口」未做** | **D119** |
+| **5** | **商店素材 + Data Safety + 内容分级**（K22 / §1.0f ⑤-5） | §1.0f ⑤-5 明列为「本轮明确不做」；启动图标**仍是 Flutter 默认蓝底白 F**，且无 `mipmap-anydpi-v26/` 自适应图标 | 素材（**设计侧**） |
+| **6** | **测试全绿** | 当前 `+326 ~1 -2`（2026-10-07 · Session 025 实测），2 条红灯在 `test/legal_pages_test.dart`（§4.6） | 产品侧裁决（上轮已裁「只留档，不动它」） |
+
+#### ④ 应该做 —— 不阻塞上架，但**内测用户会立刻撞上**
+
+- **崩溃 / 错误监控**（K23）：前后端零实现，原文「用户报修 → 无从复现」。
+- **中文字体**（K1）：`assets/fonts/` 只有 README，`pubspec.yaml` 的 `fonts:` 段整块被注释；现靠 Android 平台回退渲染 —— 内测正是看排版的阶段，各机型会不一致。
+- **敏感日志**（K21）：LLM 原始输出前 300 字符以 **ERROR** 级落日志，「已在生产生效」，而隐私政策 §五 已作承诺（§1.0e ③）。
+- **AI 真实上下文**（§4.4 · N5）：`mock_ai_repository` 是固定回复文案，「UI 在、智能不在」。
+- **文档收尾**：`CHANGELOG.md` **缺 Session 022 正文**；A–D 未验收；K7 / K19 / K22 状态改写（见 ⑥）。
+
+#### ⑤ 可以推迟 —— 挡的是「视觉盖章」，不是「上架」
+
+§3.1 的 D 系列几十条（Token 归纳值 D40–D42、视觉取值 D68–D100、
+组件合并 K10 / K12、交付缺口 G1–G7）全属这一类。
+
+#### ⑥ 顺带修正的三条过期条目（K7 / K19 / K22）
+
+> 这三条在 §2.1 / §2.2 里的写法停留在 **09-30**，与 A–D / E 的落地事实冲突
+> —— 即 §1.0f ③ 里登记的那笔「K7 / K19 / K21 / K22 / K23 / K24 状态待勾销」欠账。
+> 本轮**只修正 K7 / K19 / K22 三条**（K21 / K23 / K24 属后端，未复核，**原文保持不动**）。
+>
+> ⚠️ **改写保留 §1.0f ⑥ 的告诫**：A–D 属「**已落地、未验收**」——
+> **不得**因本节把 K7 / K19 / K22 读成「已验证通过」。
+
+| 条目 | 账本原写 | 实际（证据） |
+|---|---|---|
+| **K7** | `applicationId` 仍是 `com.example.careerly`；`android:label` 是小写 `careerly` | **已是 `com.lingdesign.careerly`**（`build.gradle.kts:30` namespace / `:41` applicationId）；`MainActivity.kt` 已迁到新包；源清单 `android:label` **已是 `Careerly`**（`AndroidManifest.xml:7`）。⚠️ **改动尚未提交**（`git status`：`M build.gradle.kts`、`D android/app/src/main/kotlin/com/example/careerly/MainActivity.kt`）。**keystore / AAB 那部分仍成立** |
+| **K19** | 「删除账号能力前后端**双双为零**」 | 能力**已落地**（§1.0f ② · D1 / D2 / D3，**未验收**）。剩余开放项见 ③-4 |
+| **K22** | ① ② ③ ④ ⑤ 全缺 | ③ 注册页同意门禁 ✅、② 设置页接线 ✅、④ `docs/09_Release/` ✅ —— 均已落地（§1.0f ⑦）。剩余：**E1 正文、E4 URL、D120** |
+
+#### ⑦ 最短路径（**关键路径不在代码**）
+
+```text
+运营主体定名（D120）→ 三份协议定稿（E1）→ 法务过 → 外部托管拿 URL（E4）
+生产 HTTPS 域名 + 后端部署归属（D121）→ CORS 白名单 + TLS
+        ↑ 这两条并行，都卡在「谁拍板」
+
+工程侧（可与上面并行）：
+  跑 gen_keystore.ps1 → 出 AAB → 自定义图标 → 接崩溃监控 → 收 2 条红灯
+```
+
+**需要产品侧拍板的事**：① 内测渠道；② 生产域名与部署归属（**D121**）；
+③ **协议生效日期**（D120 剩余项 —— 运营主体已于 2026-10-07 定为 LingDesign）。
+**这三条不解决，其余工作全做完了也发不出去。**
+
+---
+
+### 1.0f ⏸ **2026-10-06 Release V1.0 上线基线 —— 执行中 · 已暂停（产品侧叫停）**
+
+> **状态：Stage A / B / C / D 已落地；Stage E 的 E2 / E3 已于 2026-10-07 落地
+> （E1 只有骨架、E4 仍阻塞）；A–D 的文档收尾仍未做。**
+> 产品侧在执行到 Stage E 前的侦察阶段时叫停，要求先计入 TODO；
+> 随后产品侧当面裁决了 E2 / E3 的做法，Flutter 侧据此开工并落地。
+> 本轮**没有停在自然停止点**，因此 §1.0e ⑤ 里那条「依次进行」的顺序
+> 已被实际执行打破 —— 见下方 ⑥ 的豁免登记。
+
+#### ① 一句话状态
+
+```text
+A 发布身份 / B 安全基线 / C 数据备份 / D 删除账号  →  已落地（见 ②，均有实测证据）
+E 隐私与协议
+  ├ E2 注册页同意门禁                              →  ✅ 已落地（2026-10-07，见 ⑦）
+  ├ E3 设置页接线 + App 内协议页 + 正文落位         →  ✅ 已落地（2026-10-07，见 ⑦）
+  ├ E1 三份文档                                    →  🟡 只有**骨架**，正式正文待产品侧提供
+  └ E4 Play 要求的托管 URL                         →  ❌ 未做（阻塞在 D121 域名）
+文档收尾（CHANGELOG / CURRENT_STATUS / 本文件 §3.2） →  🟡 本轮只写了 ⑦；
+                                                        **A–D 那笔仍未做**（见 ⑥）
+```
+
+⚠️ **「已落地」不等于「已验收」** —— 本轮全程未走批次间停止点，
+A–D 四块**合并到最后一次总验收**，且该验收**尚未进行**。
+
+#### ② 已完成（附当次实测证据）
+
+| 块 | 事项 | 证据 |
+|---|---|---|
+| A2 | `AndroidManifest.xml` `android:label` → `Careerly` | 已实测：`android:label="Careerly"` |
+| A3 | 删除空目录 `kotlin/com/example/` | 已实测：`kotlin/` 下只剩 `com/lingdesign/careerly/MainActivity.kt` |
+| A4 | 新增 `android/key.properties.example`（模板入库） | 文件存在，558 B |
+| A5 | `build.gradle.kts` 读 `key.properties` 配 release 签名；**缺失时回退 debug 并打警告** | 已实测 `:52-64` 的三分支逻辑 |
+| A6 | 新增 `scripts/gen_keystore.ps1`（**由产品侧本人执行 keytool**） | 文件存在，6,953 B |
+| A7 | **仅验证了回退方向** —— `Variant: release / Config: debug / debug.keystore` + 警告如期触发 | ⚠️ **生产方向未验证**：需要真实 keystore，见 ⑤-1 |
+| B1 | JWT Secret 生产缺失 → **拒绝启动**（原为仅告警） | `tests/test_release_security_baseline.py` 16 项通过 |
+| B2 | CORS 生产未配置 → **拒绝启动**（原为静默回退 `*`） | 同上 |
+| B3 | `token_version` 吊销位（`users` 表 + JWT 声明 + 每请求比对 + refresh 同比对） | 同上 |
+| B4 | `tests/test_redact.py` 补齐并提交 | 通过 |
+| B5 | `work_agent/.gitignore` 补 `data/resumes/` / `data/uploads/` | 已改 |
+| B6 | 无密码账号清理脚本，**已 `--apply` 执行** | 删 12 个账号 / 42 行 / 0 文件；复核后剩 8 个用户、0 个无密码；`careerly.db` 的 projects 6→3、jobs 6→3、resumes 12→4、resume_versions 6→1、两张关联表各 6→3 且无孤儿 |
+| B8 | DashScope Key **未进过 git 历史** → 无需轮换 | 全 425 个 commit 扫 `sk-[a-zA-Z0-9]{20,}` 零命中 |
+| C1 | `scripts/backup_sqlite.sh`（`.backup` API，非 `cp`；含 `integrity_check` + 保留策略 + 可选 OSS） | **已实跑**：4 个库、12/2/6/1 张表、全部完整性校验通过 |
+| C3 | `docs/09_Release/RESTORE_DRILL.md` + 一次真实还原演练记录 | 已有实测行「2026-10-06 ✅ 通过 … 行数逐表一致」 |
+| D1 | `status` / `deleted_at` / `token_version` + `DELETE /api/v1/account` + `get_current_user` 拒注销账号 | `test_release_security_baseline.py` |
+| D2 | `app/core/account_purge.py`（跨四库级联）+ `scripts/purge_deleted_accounts.py` | `tests/test_account_purge.py` 6 项通过（含「他人数据不被误删」） |
+| D3 | Flutter：`AuthRepository.deleteAccount()` 三实现 + 设置页入口 + 二级页 `delete_account_page.dart` + 路由 | `test/delete_account_test.dart` 10 项通过 |
+| D4 | 独立删除职业数据：`DELETE /api/v1/account/career-data` + 隐私与数据二次确认页；保留账号与 token，报告无法归属/删除失败文件 | `test_release_security_baseline.py`、`test_account_purge.py`、`test/delete_career_data_test.dart`、`test/data/api_auth_repository_test.dart` |
+| — | `flutter analyze` | **`No issues found!`**（2026-10-07，含 D4） |
+
+#### ③ 未完成
+
+> 🟡 **2026-10-07 起本节部分条目已完成** —— E2 / E3 已落地（见 ⑦），
+> 下方保留**原始侦察记录**不改，便于对照「当时知道什么」。
+> 逐条状态：E1 🟡 骨架 · E2 ✅ · E3 ✅ · E4 ❌。
+
+**Stage E（隐私与协议）—— 事实侦察记录**（写文档时直接用，不用再查）：
+
+```text
+AI 服务商   阿里云 DashScope（通义千问）
+             LLM qwen3.5-plus  ·  Embedding text-embedding-v3
+             出口走 OpenAI 兼容客户端（app/services/llm_service.py · embedding_service.py）
+数据出境    简历 raw_text / profile 与 JD 原文**确实会发往阿里云**
+Android 权限 **只有 INTERNET** —— 无相机 / 定位 / 通讯录 / 存储权限（可如实写进政策）
+应用包名    com.lingdesign.careerly
+```
+
+待做清单：
+
+```text
+E1  work_agent/docs/09_Release/ 下三份文档
+    PRIVACY_POLICY.md · TERMS_OF_SERVICE.md · AI_DATA_PROCESSING.md
+    ⚠️ D120 未裁决 → 先出**占位版本**，运营主体留显式占位符
+    ⚠️ 百炼「默认不用于训练」的说法，**必须先由产品侧确认订购的不是 Coding Plan**
+       （其 5.2 条恰授权用于模型优化且不可撤回）—— 未确认前不得写进政策
+    ✅ 2026-10-07：三份**骨架**已落地（assets/legal/ 为源 + 09_Release/ 为镜像）。
+       ❌ 正式正文仍未提供 —— 骨架是**结构 + 占位 + 已核实事实**，不是可发布条文。
+E2  注册页同意勾选：CareerlyCheckbox + CareerlyTextLink
+    （照 onboarding_login_page.dart:437 写法；CareerlyCheckbox.label 是纯 String，
+      不支持富文本）→ onboarding_register_page.dart:102-105 的 _canSubmit 加合取项
+    → 测试补进 test/phase4_onboarding_test.dart
+    ✅ 2026-10-07 落地。形态改为**两行式**（产品侧裁决），
+       `CareerlyCheckbox` **一字未改**。门禁同时覆盖微信 / QQ。
+E3  设置页 settings_page.dart:160 的「隐私与数据」onTap: () {} 接线
+    ⚠️ 已侦察到的新问题：Flutter 侧目前没有任何协议正文来源。
+       需先定「正文放哪」——建议 `careerly/assets/legal/*.md` 作为 App 内唯一来源，
+       从 docs/09_Release/ 同步，并加同步脚本（否则两份必然漂移）。pubspec.yaml
+       目前**没有 assets 段**，需一并开启。
+    ✅ 2026-10-07 落地：接线 + 自建 `/legal/terms` `/legal/privacy` 两个二级页
+       + 最小 Markdown 渲染器 + 同步脚本 + pubspec 开 assets 段。
+       方向待产品侧确认 → **D122**。
+E4  Play 要求的 Privacy Policy **URL** 需外部托管（域名随 D121 未定）
+```
+
+**文档收尾**：
+
+```text
+✅ 2026-10-07：CHANGELOG.md Session 条目 / CURRENT_STATUS.md 现状更新
+   —— 但**只覆盖 E2 / E3 这一轮**（见 ⑦）
+❌ 本文件 §3.2：D118 移入已裁决留档 + 豁免登记（见 ⑥）—— **仍未做**
+❌ K7 / K19 / K21 / K22 / K23 / K24 的状态勾销或改写
+   —— K22 ②（设置页「隐私与数据」空壳）已随 E3 **事实修复**，
+      但 K22 整体（四件套）是否销账**不在本轮范围内**，故此处不改 K22 状态。
+```
+
+**验证 —— 缺当次全量数字**：
+
+```text
+❌ `pytest`（work_agent）**全量**数字 —— 只跑了两个新文件（16 + 6 项），
+   全量套件数未采集。⚠️ DEVELOPMENT_WORKFLOW §1.3 明令不许沿用旧数字。
+❌ `flutter test` **全量**数字 —— 只跑了 test/delete_account_test.dart（10 项）。
+⚠️ test_matching.py::TestSkillOverlap::test_skill_synonyms **既有失败**，
+   已隔离复现确认**非本轮引入**，未修（超出范围）。
+```
+
+#### ④ 下一步第一件事
+
+```text
+🟡 2026-10-07 更新：E2 已落地、E3 已落地（见 ⑦）。原「先做 E2 拿可审核产物」
+   的那条路已经走完 —— 现在的第一件事换成**产品侧提供三份文档的正式正文**：
+   链路（资产 → 渲染 → 入口 → 同意门禁）已全部打通并有测试守着，
+   正文到位后是**纯文件替换，不需要改任何代码**。
+
+   其后依次是：
+     1. 裁决 D122（同步方向）/ D123（AI 数据处理说明的入口）
+     2. 裁决 D120（运营主体 / 生效日期）→ 正文里的占位符才能填上
+     3. D121（域名）→ 才能做 E4 的托管 URL
+```
+
+原第 ④ 节记录的判断仍然成立，留档在此：
+
+```text
+先裁决 D120（运营主体 / 生效日期），再开 E1。
+理由：三份文档的正文可以在主体未定时写完，但**生效日期与主体一旦写错就得重写**；
+      且 E4 的托管 URL 也挂在同一个决策上。
+```
+
+若产品侧希望**先拿到可审核的产物**，可只做 E2（注册同意勾选）——
+它不依赖 D120，且是 Play「数据收集前须取得同意」的硬要求。**（已于 2026-10-07 完成）**
+
+#### ⑤ 本轮新发现的欠账（**都不阻塞暂停，但必须留档**）
+
+**1. 🔴 keystore 仍未生成 → 签名链路只验了一半**
+
+`scripts/gen_keystore.ps1` 已就绪，但**必须由产品侧本人执行**（密码不经我，
+这是事前约定的边界）。在此之前：
+`flutter build appbundle --release` 只能产出**用 debug key 签名**的 AAB。
+**A7 的「生产方向」未验证**，不得记作通过。
+
+**2. 🔴 库外产物无法按用户归属 —— 删除账号有已知盲区**
+
+```text
+app/data/outputs/ 下 3,016 个文件里，**2,960 个无法归属到任何用户**
+其中 **291 个 `resume_parsed_session-*.json` 内含完整 PII**（姓名 / 邮箱 / 手机 / raw_text）
+成因：引擎 `sessions` 表 13 行**全部 `user_id = NULL`**
+```
+
+`PurgeReport.orphan_artifacts` 已**如实上报**该数量，而**没有**猜测性地删除
+（猜测 = 误删他人数据）。已写进 `DEPLOY_ECS.md` §3。
+**这需要一条产品侧决策**：这些历史孤儿产物是手工清理、还是随上线一并公告。
+❗ 在此之前，隐私政策**不得**写「注销后数据全部清除」。
+
+**3. 🟡 `data/outputs` 路径写错（既有 bug，本轮未修）**
+
+`app/api/router_v1.py:760` 与 `app/api/server.py:395` 解析到**不存在的**
+`data/outputs`（应为 `app/data/outputs`）。超出本轮范围，未动。
+
+**4. 🟡 缓冲期天数在两处硬编码**
+
+`delete_account_page.dart:45` 的 `purgeGraceDays = 30` 与后端
+`router_auth.py` 的 `PURGE_GRACE_DAYS` 是两份。改一处必须改两处。
+
+**5. ⏸ 本轮明确不做**（与 §1.0e ⑥ 一致，无变化）
+
+崩溃监控（R2，按产品侧排序后置）· App 图标 / 截图 / Store Listing / Data Safety ·
+Noto Sans SC 字体（§8.3 明令不得自行下载）· ECS 实际部署 / 域名 / DNS / 证书 ·
+真机 T1–T14 · 迁移 PostgreSQL（V1 继续 SQLite）。
+
+> ⚠️ **因第 5 条，D4「端到端」只验到契约层** —— 无真实 ECS、无真机，
+> 「注册 → 登录 → 删除 → 旧 JWT 401 → 数据不可见」的**真机全链路未跑过**。
+> 后端侧由两个测试文件覆盖，Flutter 侧由 Mock 覆盖；**中间的 HTTP 链路未验**。
+
+#### ⑥ 停止点豁免登记（待补入 §3.2）
+
+按 `DEVELOPMENT_WORKFLOW.md` §8.1 的三条要求，本轮实际已发生一次豁免 ——
+**A / B / C / D / E 之间的四次停止点被跳过，合并为末端一次总验收**：
+
+```text
+1. 产品侧知情选择    ✅ 已明示「A 到 E 一次做完」，且被告知「删除账号是跨四库
+                        大工程，一次性验收风险高」
+2. 豁免内容具名      ✅ 豁免的是 **A/B/C/D/E 之间的四次停止点**，不是全部验收
+3. 留档              ❌ **未落** —— §3.2 的登记条目尚未写入（本轮暂停时未做）
+```
+
+**欠账**：A–D 已落地但**从未单独验收**，且 ⑤-1 / ⑤-2 决定其中两项
+（A7 生产方向签名、D4 真机端到端）**在现有条件下无法验到**。
+这两笔必须随 §3.2 登记一并写明，**不得在后续会话里被读成「已验收通过」**。
+
+#### ⑦ 2026-10-07 —— Stage E（E2 + E3）落地记录
+
+> 本节是**在 §1.0f 暂停之后新开的一轮**，由产品侧当面裁决做法后开工。
+> 与前六节的关系：①–⑥ 记录 A–D 那轮；⑦ 只记录 E2 / E3 这一轮。
+
+**产品侧当轮裁决（六条，全部当面确认）**：
+
+```text
+1  同意文案    「我已阅读并同意《用户协议》与《隐私政策》」
+2  链接去向    建 App 内 /legal/terms 与 /legal/privacy 两个**二级页**
+3  正文来源    **由产品侧提供草案**（仓库内不存在该草案）
+4  渲染方式    自写最小渲染器，**不引入新依赖**（守 CLAUDE.md §6.5）
+5  同意行形态  **两行式**（勾选框一行 + 两个链接一行）→ CareerlyCheckbox 一字未改
+6  门禁范围    微信 / QQ **同样要勾选**（它们也会创建账号）
+```
+
+**落地内容**：
+
+| 项 | 产物 |
+|---|---|
+| 资产 | `careerly/assets/legal/{PRIVACY_POLICY,TERMS_OF_SERVICE,AI_DATA_PROCESSING}.md`（**骨架**，见下） |
+| 镜像 | `work_agent/docs/09_Release/` 下同名三份，由脚本生成 |
+| 同步 | `careerly/scripts/sync_legal_docs.ps1`（单向 + `-Check` 防漂移；已双向实跑验证） |
+| 依赖 | `pubspec.yaml` 开 `assets:` 段，**只加 `assets/legal/`**（`assets/fonts/` 不加：K1 字体仍未到位） |
+| 解析 | `lib/features/legal/legal_markdown.dart`（纯 Dart，可脱离 widget 树单测） |
+| 渲染 | `lib/features/legal/presentation/widgets/legal_document_body.dart` |
+| 页面 | `lib/features/legal/presentation/legal_document_page.dart`（两份文档**共用一个类**，§8.4） |
+| 路由 | `/legal/terms` `/legal/privacy` **两条顶级路由**（`/legal` 自己无页面，不套父子） |
+| 门禁 | `onboarding_register_page.dart` · `_AgreeRow` + `_canSubmit` + OAuth 同受约束 |
+| 接线 | `settings_page.dart` 「隐私与数据」→ `/legal/privacy`（K22 ② 的事实修复） |
+| 测试 | `test/legal_pages_test.dart`（新建 17 项）· `test/phase4_onboarding_test.dart`（改 + 新增） |
+
+**⚠️ 骨架 ≠ 可发布正文**：三份 .md 目前只有标题 / 结构 / 显式占位符（`待定（D120）`）
++ 已核实事实。**E1 不算完成**，正文由产品侧提供后整份替换。
+
+**⚠️ 骨架里刻意写进了两句禁令**（防止后来者「顺手补全」时踩坑）：
+
+```text
+❌ 不得写「百炼默认不用于训练」—— 须先确认订购的不是 Coding Plan（E1 条）
+❌ 不得写「注销后数据全部清除」—— D119 未决，且 app/data/outputs/ 下
+   3,016 个文件中有 2,960 个无法归属到任何用户（⑤-2）
+```
+
+**本轮新登记的待裁决**：**D122**（同步方向）· **D123**（AI 数据处理说明的 App 内入口）·
+**D124**（协议相关新增界面的视觉无 Figma 依据）—— 详见 §3.1 对应条目。
+
+**本轮的一处生产代码改动值得单独说明**：`legal_document_page.dart` 读资产时
+用了 `rootBundle.loadString(path, cache: false)`。**关缓存是故意的** ——
+`CachingAssetBundle` 会把第一次读取的 `Future` 按路径缓存下来，而
+**`Future` 的续体在「创建它的 Zone」里调度**，widget test 每个用例各有一个
+用完即弃的 FakeAsync Zone，于是「同一资产第一个用例读得到、之后全都读不到」。
+关掉缓存后每次都是新请求，行为与测试环境无关。
+生产侧代价为零（本页每次打开只读一次、几 KB），换来的是
+**一组真正读 bundled 资产的测试** —— 少写 `pubspec.yaml` 的 `assets:` 声明会直接变红。
+
+**验证（当次实测）**：
+
+```text
+flutter analyze  →  No issues found!                  （当次输出）
+flutter test     →  +295 ~1 -1                        （当次输出，见下）
+                    新建 test/legal_pages_test.dart       17/17 通过
+                    改动 test/phase4_onboarding_test.dart 30/30 通过
+```
+
+> 🔴 **全量里的那 1 个失败不是本轮引入** —— 是 **§4.6 · C8**
+> （`test/widget_test.dart:194`「可以切换到 AI」），
+> 已在 §4.6 记为「当前唯一红灯」，本轮复现的失败形态与记录**完全一致**。
+> 本轮改动**不触及** `lib/features/ai/**` 与 `lib/features/home/**`，
+> 该用例单独跑同样红。**未修**（超出本轮范围，且属另一笔独立欠账）。
+
+---
+
+### 1.0e ▶ **2026-10-06 Release V1.0 上线基线核查 —— 现状 / 缺口 / 执行顺序**
+
+> **本轮是一次只读核查**：未改任何业务代码、未改任何产品规则、未新增页面。
+> 核查对象 = 本仓库（Flutter）+ `G:\ai_agent\work_agent`（FastAPI 后端）。
+> 对照基准 = 产品侧给出的「Careerly Release V1.0」六大类上线基线
+> （App 签名 / 账号体系 / AI 数据处理 / 隐私与协议 / 崩溃监控 / 真机测试）。
+>
+> 产出 = 本节 + §2.1 的 K19 + §2.2 的 K21–K24 + §3.1 的 D118–D121；
+> ⚠️ 另一条 **K20 经复核已撤销**（误报），见 §2.4。
+
+#### ① 一句话结论
+
+```text
+功能线（Phase 0–10）走得很好；上线线（Release V1.0）此前**完全没有开过工**。
+
+缺的不是代码质量，是「发布工程 + 合规 + 运维」这三块**从未被列进任何 Phase**。
+```
+
+**本项目此前所有 Phase 记录回答的都是「功能做完没有」，
+没有一条回答「做完之后能不能真的发出去」。** 本节补这条线。
+
+#### ② 六大类对照
+
+| 类别 | 结论 | 关键证据 |
+|---|---|---|
+| **01 App 签名** | ❌ **全缺（但清单第 3 条已满足）** | `android/app/build.gradle.kts:19` applicationId 仍是 `com.example.careerly`；`:32` release 用 **debug key** 签名；`android/key.properties` 不存在。✅ **「keystore 未提交 Git」这一条本来就成立** —— `android/.gitignore:12-14` 已有 `key.properties` / `**/*.keystore` / `**/*.jks`（Flutter 默认模板自带），全历史零密钥对象（→ **K20 已关闭**） |
+| **02 账号体系** | ⚠️ **差一项，且是审核硬项** | 注册 / 登录 / 会话保持 / 登出均已交付；**「删除账号」前后端双双为零** —— `lib/` grep `deleteAccount\|注销\|删除账号` 无匹配，后端 `work_agent` grep `delete_user\|DELETE FROM users` 亦无匹配（→ **K19**） |
+| **03 AI 数据处理** | ⚠️ **架构对，治理缺** | ✅ API Key 全在服务端（Flutter 侧零 LLM SDK）；✅ AI 会话历史**后端刻意不落库**（`work_agent/app/careerly/schemas.py:164`）；❌ **无生产 HTTPS 地址**（`api_client.dart:65` 默认 `http://127.0.0.1:8000`）；❌ 无 AI 使用说明 |
+| **04 隐私与协议** | ❌ **全缺** | `lib/` 内「隐私政策 / 用户协议」零匹配；设置页「隐私与数据」是空壳 `onTap: () {}`（`settings_page.dart:150`）；**注册页无同意勾选**（`onboarding_register_page.dart` 仅 名字 / 手机号 / 密码）；`docs/09_Release/` 目录不存在 |
+| **05 崩溃监控** | ❌ **仅一处占位注释** | `lib/core/errors/error_handler.dart:76`「Phase 1 不接入上报 SDK」；`pubspec.yaml` 无 crash / analytics 依赖；后端同样零 SDK。**接入点已预留**（`AppError` 六分类 + `ErrorHandler.guard`），不必满仓库埋点 |
+| **06 真机测试** | ⏳ **进行中** | 设备 `V2359A` 已连（K3 已解除）；Phase 10 状态 = APK 已构建 / 安装 / 启动，**T1–T14 待执行** |
+
+#### ③ 后端侧核查结论（`work_agent`，本轮首次覆盖）
+
+> 本节是本仓库**第一次**把后端当核查对象写进 TODO。此前 K18 已指出
+> 「后端契约文档不在本仓库」，本轮进一步发现：**上线的合规与安全基线也在后端**。
+
+**AI 服务商已可点名**（隐私政策此前卡在这一条）：
+
+```text
+LLM        qwen3.5-plus            work_agent/app/services/llm_service.py:175
+Embedding  text-embedding-v3       work_agent/app/core/config.py:75-77
+提供方      阿里云 DashScope（通义千问），OpenAI 兼容客户端
+密钥        LLM_API_KEY → DASHSCOPE_API_KEY（环境变量）
+```
+
+**即：简历全文（`raw_text` / `profile`）与 JD 原文确实会被发送至阿里云。**
+这条直接决定隐私政策 §四「具体第三方服务名称」与 Google Play **Data Safety** 的填法。
+
+**敏感信息进日志 —— 已确认存在，且有一条在生产生效**（→ **K21**）：
+
+| 内容 | 级别 | 位置 | 生产是否输出 |
+|---|---|---|---|
+| 完整手机号 | INFO | `app/core/auth_store.py:186-191` | ✅ |
+| 候选人姓名 | INFO | `app/agents/resume_agent.py:207-208` | ✅ |
+| 上传文件名（常含真实姓名） | INFO | `app/api/router_app.py:214` | ✅ |
+| **LLM 原始输出前 300 字符** | **ERROR** | `app/services/llm_service.py:601` / `:621` | ✅ **是** |
+
+最后一行是关键：它在 JSON 解析失败时打印**模型响应片段**（内容来自简历 / JD），
+而默认日志级别 INFO 下 **ERROR 照样输出**。
+**这不是「不要写进 Crash Log」的理论风险，是已经在跑的。**
+
+未发现简历全文或 JD 全文原样入日志 —— 这点好于预期。
+
+**安全基线为开发态**（→ **K24**）：
+
+```text
+✅ 已有    Dockerfile / render.yaml / railway.toml / HOW_TO_DEPLOY.md
+✅ 已有    全局异常处理器三套（server.py:92 验参 / :109 兜底 / :123 领域异常）
+✅ 已有    DEV 直登模式的 fail-fast（ENV=production + AUTH_MODE=dev → 拒绝启动，server.py:35）
+❌ 无 nginx / 无 TLS 配置 —— HTTPS 完全依赖 Railway / Render 边缘终止
+⚠️ CORS 默认 allow_origins=["*"]（server.py:57-58，CORS_ALLOW_ORIGINS 未启用）
+⚠️ JWT 密钥有硬编码 fallback "dev-insecure-change-me"，**只告警不报错**（security.py:36-41）
+⚠️ .env 内 DashScope API Key 为本机明文（已 gitignore，未进 git）
+```
+
+#### ④ 删除账号的真实工程量（K19 详述，**比表观大得多**）
+
+```text
+用户数据散在 3 个 SQLite 库 + 1 处库外明文文件，无 ORM、无外键、无级联删除：
+
+careerly.db    11 张表    resumes(简历全文) · resume_versions(原始 PDF BLOB)
+                         · jobs(JD 原文) · analysis_results · job_matches
+                         · capability_snapshots · growth_events · 额度…
+auth.db        users 表   手机号 / password_hash
+graph_state.db 5 张表      sessions · resume(含 raw_text) · match_results …
+data/resumes/*.json       解析结果明文 JSON（★ 最容易漏的库外残留）
+                         app/api/router_app.py:132-133
+```
+
+⚠️ **另有一条独立于「删数据」的正确性缺口**：后端**没有 refresh token 吊销表**
+（`app/core/security.py:60-63` 自述此缺口）。即使用户注销、账号记录被删，
+**已签发的 JWT 在过期前仍然可用**。
+**注销账号若只删数据不处理令牌，是半成品** —— 这一条必须一并裁决（→ **D119**）。
+
+#### ⑤ 执行顺序（本轮建议，**依次进行，不并行**）
+
+| 序 | 事项 | 为什么排在这 | 谁做 |
+|---|---|---|---|
+| 0 | ~~`.gitignore` 补 keystore 规则~~ | ✅ **不需要** —— 核查时误判，`android/.gitignore` 早已防护（见 §2.4 · K20 更正）。**此项从执行清单移除。** | —— |
+| 1 | 定 `applicationId` | 发布后**永久不可改**，挡着签名与 AAB 全部后续 **← 现在这是第 0 项** | **产品侧裁决 D118** |
+| 2 | 后端安全基线（K24）+ 敏感日志（K21） | 与 App 侧无依赖，可并行于 3–5 | 后端 |
+| 3 | 删除账号（K19） | 工程量最大、跨两仓库，且是 Play 审核硬项 | **需先裁决 D119 再立项** |
+| 4 | 隐私政策 / 用户协议 / AI 说明（K22） | 内容现在**写得实**了（AI 服务商已确定），但**运营主体未定**（D120） | 产品侧出主体 → Flutter 侧落页面 |
+| 5 | 崩溃监控接线（K23） | 接入点现成，风险最低、收益最直接 | Flutter 侧 + 后端 |
+| 6 | Google Play 素材 + 真机 T1–T14 | 依赖 1–5 的结果 | 产品侧 + 真机 |
+
+> ⚠️ **顺序 0 的更正说明**：本节初稿把「`.gitignore` 补 keystore 规则」
+> 列为唯一的「不做就会出事」项，**该结论是错的**，已撤回。
+> 实际核查方式有漏洞：只读了根 `.gitignore`，未读嵌套的 `android/.gitignore`。
+> 正确做法是 `git check-ignore -v <路径>` 实测（会显示**是哪一层**规则命中），
+> 而不是靠肉眼读某一个文件。**这条方法学教训比结论本身更值得留档。**
+
+#### ⑥ 本轮明确不做
+
+```text
+❌ 不改任何业务代码          （只读核查）
+❌ 不动 applicationId       （D118 未裁决，属发布决策）
+❌ 不新建 /settings/privacy 页面（新增页面须先经产品侧确认，CLAUDE.md §0）
+❌ 不接入任何监控 SDK        （K23 需先立项）
+❌ 不回补 CHANGELOG          （本轮是 §1.0e + 卡点登记，不是一笔交付）
+```
+
+---
 
 ### 1.0d ▶ **2026-09-30 全量审查 —— 现状 / 偏差 / 下一步开发流程**
 
@@ -570,6 +1085,8 @@ Phase 10  Android QA
 | **K3** | ~~无 Android 设备~~ —— 已连接 `V2359A`（Android 16 / API 36） | **T1–T14 全部平台验证** | ✅ 已解除；继续执行真机清单 |
 | **K17** | 🔴 **文档与代码脱节** —— 09-23 起的四批交付（Back 统一 / 分析二级页 / 真实 API 层 / D67 接线）**全部无 CHANGELOG Session、无 D 编号、无交付报告**；连带 1 处幽灵引用、1 处文件内自相矛盾、2 个依赖未按 §6.5 登记（清单见 **§1.0d ③**） | **Phase 3–8A 合并验收的证据链** —— 验收要核「这份交付当初承诺了什么、明确没做什么」，而这些记录不存在；也阻塞 D67 的裁决状态 | AI 侧（补登）· 产品侧（§3.1 · **D102** 的授权追认） |
 | **K18** | 🔴 **后端契约文档不在本仓库** —— `ApiClient` 的类注释把 `docs/careerly/BACKEND_API_CONTRACT.md`（**后端仓库**）当作端点与 envelope 的真值源，本仓库既无副本也无版本锚点 | **真实后端联调**（§1.0d ④ · 2.3）—— 后端改端点 / 改字段时，本仓库**无法察觉**，会在运行期才暴露 | 产品侧定文档归属（并入 K17 一起收口） |
+| **K19** | 🟡 **能力已落地、尚未验收；收口项仍开放**（**2026-10-07 修正，见 §1.0g ⑥**）。原记「前后端双双为零」**已过期** —— Flutter `deleteAccount()`、后端 `DELETE /api/v1/account` + `account_purge.py` 均已落地（§1.0f ② · D1 / D2 / D3）。**⚠️ 仍开放的收口项**：① **D119 六个语义点未裁决**（删除语义边界 + 令牌处置）；② **孤儿产物盲区** —— `app/data/outputs/` 3,016 文件中 2,960 无法归属、291 含 PII（§1.0f ⑤-2），故隐私政策**不得**写「注销后数据全部清除」；③ **Play 要求的「网页版删除入口」未做**；④ 后端**无 refresh token 吊销表**（`work_agent/app/core/security.py:60-63`），注销后已签发 JWT **到期前仍可用** | **Google Play 上架审核**（创建了账号就必须提供账号删除能力）—— 能力本体已就位，**剩下的是合规收口** | **先裁决 D119**；③ 属新增产物（网页入口），④ 属后端 |
+| **K20** | ✅ **已关闭（核查结论更正）** —— 本条**是误报**。详见 §2.4 | —— | —— |
 
 > **K11 的现状变更（2026-09-18）**：批 2 曾因它被判为「🔴 阻塞」。
 > 产品侧裁决走 **D26**（用**已有 Token** 补齐、不新造视觉语言）后，
@@ -606,9 +1123,13 @@ Phase 10  Android QA
 |---|---|---|
 | **K13** | 🟠 **Figma 有 `StatusBar` 组件，Flutter 侧零实现** —— `App.tsx` L5231 渲染 `StatusBar light={lightStatusBar}`（`on-splash` 全屏时隐藏，Onboarding / 分析中等屏用浅色图标）。`lib/` 内 `SystemChrome` / `AnnotatedRegion` / `SystemUiOverlayStyle` **零匹配** | **Phase 3 App Shell 视觉定稿**（属 Shell 层职责）。⚠️ 图标深浅是否生效**只能在真机上看**（K3） | Flutter 侧实现；**「哪些屏幕用浅色状态栏」的逐屏映射需产品侧确认**（见 §3.1 · D50） |
 | **K16** | 🟠 **「我的」头部 Logo 在 Figma 里是位图资源，仓库没有该资源** —— 图上只有一个图片节点、无文字节点。`assets/` 下无对应文件，且 `CLAUDE.md` §8.3 明令**不得自行下载/替代**美术资源 | **「我的」页头部一栏的视觉盖章**（现以已有品牌字标近似顶上） | **设计侧补齐位图**（放入 `assets/`）后替换；在此之前该栏**不得盖章** |
-| **K7** | `applicationId` 仍是 `com.example.careerly`，release 仍用 debug 签名 | **发版前必须处理**（属发布决策） |
+| **K7** | 🔴 **App 签名整条线未完工**（**2026-10-07 修正，见 §1.0g ⑥**）—— ① ~~`applicationId` 仍是 `com.example.careerly`~~ ✅ **已是 `com.lingdesign.careerly`**（`build.gradle.kts:30` namespace / `:41` applicationId；`MainActivity.kt` 已迁至新包。⚠️ **改动尚未提交**）；② release **仍用 debug key 签名**（`build.gradle.kts:59-67`，无 `key.properties` 时回退）；③ `android/key.properties` **不存在**；④ keystore **不存在**（`scripts/gen_keystore.ps1` 已就绪、**从未执行**，见 §1.0f ⑤-1）；⑤ 无 AAB 构建配置。⚠️ 源清单 `android:label` ✅ **已是 `Careerly`**（`AndroidManifest.xml:7`）；⚠️ 主源集**未开 cleartext**，故 release 包当前**连不上** `http://127.0.0.1:8000`，生产必须给 HTTPS 域名 | **发版前必须处理**（属发布决策）—— ~~依赖 **D118**~~ D118 已落地；keystore 的 git 防护**已存在**，无前置项 | 产品侧执行 `gen_keystore.ps1`（密码不经 AI 侧）→ Flutter 侧配置 |
 | **K9** | `CareerlyPlaceholderNote` 是 Phase 1 临时产物 —— 必须随各页面真实 UI 落地而**逐页删除** | 随 Phase 4–8 各页面落地 |
 | **K10** | **导航栏与 `GlassSurface` 存在重复的 Glass 实现**（两份功能重叠的代码） | **Phase 2 批 3** 合并，届时删除导航栏内的私有副本 |
+| **K21** | 🟠 **后端把用户敏感信息写进日志**（`work_agent`）—— 完整手机号（`app/core/auth_store.py:186-191`，INFO）、候选人姓名（`app/agents/resume_agent.py:207-208`，INFO）、上传文件名（`app/api/router_app.py:214`，INFO，常含真实姓名）。⚠️ **最严重的一条**：JSON 解析失败时打印 **LLM 原始输出前 300 字符**（`app/services/llm_service.py:601` / `:621`，**ERROR 级**）—— 内容来自模型对简历 / JD 的响应，而**默认 INFO 级别下 ERROR 照样输出**，**已在生产生效**。未发现简历全文 / JD 全文原样入日志 | **发版前必须处理**（隐私政策 §五 承诺了「必要的日志和安全监控」，当前状态与之不符） | 后端 |
+| **K22** | 🟠 **隐私与协议：页面/门禁已落地，正文与托管仍缺**（**2026-10-07 修正，见 §1.0g ⑥**）。原记「四件套全缺」中三条**已修复**：① `lib/` 内已有协议页与最小渲染器；② 设置页「隐私与数据」✅ **已接线**到 `/legal/privacy`（`settings_page.dart`）；③ 注册页 ✅ **已加同意勾选**（`_AgreeRow` + `_canSubmit`，OAuth 同受约束）；④ `docs/09_Release/` ✅ **已存在**（三份）。**⚠️ 仍未完成**：⑤ `lingdesign.top/privacy` 那个 web 页**不在本仓库**，无法核对；⑥ **E1 正文仍只有骨架**（**剩 6 处 `【待确定】`**：生效日期 / 最后更新日期）；⑦ **E4 的托管 URL 未做**（阻塞 D121）；⑧ 运营主体 ✅ **已定为 LingDesign**（2026-10-07），**生效日期未定**（→ **D120 剩余项**） | **Google Play 上架**（Store Listing 必须填 Privacy Policy URL） | **产品侧补生效日期（D120 剩余项）** → 正文写实 → 托管（D121）；AI 服务商已确定为阿里云 DashScope，见 §1.0e ③ |
+| **K23** | 🟠 **崩溃 / 错误监控零实现（前后端皆是）** —— Flutter 侧仅一处占位注释（`lib/core/errors/error_handler.dart:76`「Phase 1 不接入上报 SDK」），`pubspec.yaml` 无 crash / analytics 依赖。后端 `work_agent` grep `sentry\|arms\|bugsnag\|rollbar\|datadog\|opentelemetry` **无匹配**。✅ **但两侧的接入点都已预留**：Flutter 侧 `AppError` 已六分类（Network / Parse / Auth / Quota / AI / Unknown）且全部经 `ErrorHandler.guard()`；后端已有三套全局异常处理器（`app/api/server.py:92` / `:109` / `:123`）。**不必满仓库埋点，单点接线即可同时覆盖 Crash / API Error / AI Error 三类** | **上线后的问题定位能力** —— 当前线上出问题是「用户报修 → 无从复现」 | Flutter 侧 + 后端（需先立项） |
+| **K24** | 🟠 **后端安全基线为开发态**（`work_agent`）—— ✅ 已有 `Dockerfile` / `render.yaml` / `railway.toml` / `HOW_TO_DEPLOY.md`；✅ DEV 直登模式有 fail-fast（`ENV=production` + `AUTH_MODE=dev` → **拒绝启动**，`app/api/server.py:35`）。❌ **无 nginx / 无 TLS 配置**，HTTPS 完全依赖 Railway / Render 边缘终止；⚠️ **CORS 默认 `allow_origins=["*"]`**（`server.py:57-58`，`CORS_ALLOW_ORIGINS` 未启用）；⚠️ **JWT 密钥有硬编码 fallback `"dev-insecure-change-me"`，只告警不报错**（`app/core/security.py:36-41`）；⚠️ `.env` 内 DashScope API Key 为本机明文（已 gitignore，未进 git）。📌 **修正一处旧判**：`.backend_run.log` 里的 `AUTH MODE = DEV` 曾被列为「暗雷上生产」，实际有 fail-fast 兜底 —— 性质是**拦路虎**（部署时必硬失败），不是暗雷，风险等级下调 | **发版前必须处理** | 后端 |
 | **K12** | **`CareerlyBottomSheet` 成为第三处 Glass 组合** —— 因 `GlassSurface` 的圆角参数是单个 `double`，**表达不了非均匀圆角**，而 Figma 的 BottomSheet 正是 `S.glass` + 仅顶部圆角 | **Phase 2 批 3**，与 K10 一并处理；是否扩展 `GlassSurface` 见 **D30** |
 
 > **K10 详述**：批 1 把导航栏里的私有 `_GlassEdgePainter` / `_GlassFilters`
@@ -659,6 +1180,7 @@ Phase 10  Android QA
 | **K5** | Figma Glass 的多层 `inset box-shadow`，Flutter `BoxShadow` 不支持 inset | ✅ 方案**早已在 Phase 1 落地**（`_GlassEdgePainter` 用「裁剪到圆角矩形 + 沿边画内缩色带」还原，`_GlassFilters` 把 `backdrop-filter` 链翻译为 `ui.ImageFilter.compose`），只是当时未登记。批 1 已泛化为公共基元 —— 从「阻塞项」降级为「低风险重构」 | `CHANGELOG.md` Session 004 · D13 |
 | **K6** | 未引入 `flutter_localizations`，Material 内建组件标签为英文 | ✅ **2026-09-18 已落地**：写入 `pubspec.yaml` + `MaterialApp.router` 接线（delegates + `supportedLocales: [zh_CN]`）。⚠️ `supportedLocales` 的登记范围**未经产品侧裁决**，见 §3.1 | `CHANGELOG.md` Session 006 |
 | **K8** | 仓库未初始化 git | ✅ `fa4d290 chore: establish Careerly Phase 1 baseline`，Phase 1 基线已提交 | `CHANGELOG.md` Session 004 |
+| **K20** | **`.gitignore` 未防护 keystore** —— 曾判为 🔴「不做就会出事」 | ❌ **误报，本条撤销**。`android/.gitignore:12-14` 早有 `key.properties` / `**/*.keystore` / `**/*.jks`（Flutter 默认模板自带）；`git check-ignore -v` 实测四条假设路径**全部命中**；`git ls-files` 与全历史**零密钥对象**。**根因：核查时只读了根 `.gitignore`，漏了嵌套的那一个，且未用 `git check-ignore` 实测。** 教训：判断「某文件会不会被忽略」**必须实测**，不能读文件推断。⚠️ 根 `.gitignore` 现补有同义规则（纵深防御），**属冗余，非必需** | 2026-10-06 本轮核查（§1.0e） |
 
 ---
 
@@ -685,9 +1207,276 @@ Phase 10  Android QA
 
 ---
 
-> 📌 **以下是最新一批待裁决（D106–D111，2026-10-02「接通 work_agent 已有能力」新增）**，
+> 📌 **以下是最新一批待裁决（D118–D121，2026-10-06「Release V1.0 上线基线核查」新增）**，
 > 放在最前只为便于阅读 —— **编号大 ≠ 优先级高**。
-> 经过与理由见 `CHANGELOG.md` **Session 018**。
+> 这一批与既有 D 条目**性质不同**：D106–D117 都是「某个功能的实现细节待确认」，
+> **D118–D121 全部是「上线决策」** —— 它们不需要写代码就能回答，
+> 但**不回答就无法开工**。背景见 **§1.0e**。
+
+---
+
+## D118–D121 — 2026-10-06 · Release V1.0 上线基线核查
+
+> 📌 本节由 §1.0e 的只读核查产出的四条**上线决策**。
+> 四条的共同点：**都是产品 / 运营侧的决策，不是工程实现问题** ——
+> 工程侧无法自行定案，且**定得越晚返工越贵**（D118 尤其不可逆）。
+
+---
+
+#### D118 — `applicationId` 定名（**发布后永久不可改**）
+
+**分类：【发布决策】** —— 2026-10-06 核查新增
+
+当前 `android/app/build.gradle.kts` 的 `namespace` 与 `applicationId`
+均为 `com.example.careerly`（`:8` / `:19`），release 用 debug key 签名（`:32`）。
+
+**为什么它必须由产品侧裁决**：
+
+```text
+① Google Play 的 applicationId 一经发布**永久不可更改** ——
+   改名 = 换一个全新 App，用户 / 评价 / 安装量全部归零。
+② 它同时决定了包名、后端可能的来源校验、以及未来一切渠道包。
+③ 因此这是**不可逆决策**，工程侧不得自行「顺手改成 com.careerly.app」。
+```
+
+**待裁决**：正式的 `applicationId` 是什么（含是否使用 `lingdesign.top` 反向域名）。
+
+> ✅ **前置项已确认满足**：keystore / `key.properties` 的 git 防护
+> 早已存在于 `android/.gitignore:12-14`（Flutter 默认模板自带），
+> 全历史零密钥对象。**创建 keystore 没有顺序风险**，可直接进行。
+> （本条初稿曾误判为有顺序依赖，见 §2.4 · K20 更正。）
+
+---
+
+#### D119 — 「删除账号」的语义边界与令牌处置
+
+**分类：【产品冲突】/【发布决策】** —— 2026-10-06 核查新增
+
+Google Play 要求「创建了账号就必须提供账号删除能力」，**能力本身没有裁量空间**。
+需要裁决的是**删到什么程度**：
+
+| # | 待裁决点 | 可选口径 |
+|---|---|---|
+| 1 | 简历 / JD / 分析结果 / 成长记录 | 全部物理删除？还是**匿名化保留**（去 user_id 后留作统计）？ |
+| 2 | 简历历史版本里的**原始 PDF BLOB** | 同上 —— 这是最敏感的一类 |
+| 3 | 库外残留 `data/resumes/*.json`（`router_app.py:132-133`） | 必须一并清；仅删库会留明文残片 |
+| 4 | **已签发 JWT** | 后端**无吊销表**（`security.py:60-63`）。是否为此新建吊销机制？还是接受「到期自然失效」并在注销时强提示？ |
+| 5 | 是否需要**冷静期** | 立即删？还是「7 天内可撤销」的软删除？ |
+| 6 | 额度 / 订阅状态 | 一并清除还是保留审计记录？ |
+
+**为什么必须先裁决再立项**：这不是「加个按钮」，是**跨两个仓库、四个存储位置的删除语义设计**，
+且第 4 点要求后端补一个**当前不存在的能力**。
+按 CLAUDE.md §0 与 §11，这已超出「接线」范畴，属要产品侧裁决的决策。
+
+**待确认**：上面 6 点的口径。
+
+---
+
+#### D120 — 隐私政策 / 用户协议的**运营主体**与生效日期
+
+**分类：【发布决策】** —— 2026-10-06 核查新增 · **2026-10-07 部分裁决**
+
+> ✅ **已裁决（2026-10-07 产品侧，留档见 §3.2 · D120）**：
+> 运营主体 = **LingDesign**（个人独立开发项目）；联系邮箱 = **l1350900062@163.com**。
+> 已填入三份协议并同步两处镜像。
+>
+> ⏳ **仍未定（故本条不整条移出 §3.1）**：
+> **生效日期 / 最后更新日期** —— 三份文件各 2 处，共 **6 处 `【待确定】`**。
+> ✅ 「隐私联系人」（`PRIVACY_POLICY.md:284`）已于同日裁为**与运营主体合并**，
+> 写作 `LingDesign`。
+> ⚠️ 产品侧草案曾写「生效日期 2026-10-06」，**但那不是裁决**，不得直接采用。
+>
+> 📌 另：本条第 ③ 项（是否用仓库外 `lingdesign.top/privacy` 作 Play 的
+> Privacy Policy URL）**仍待确认**，且与 **D121** 域名绑定。
+
+**以下为 2026-10-06 原始记录，保留以追溯：**
+
+产品侧草案（隐私政策 V1.0）的生效日期写的是 **2026-10-06**，
+但正文第十节只写「通过 Careerly 应用内提供的联系方式」，**未出现运营主体名称**。
+
+**为什么卡在这**：草案自己已注明「正式发布前应根据**实际运营主体、服务器所在地**、
+用户所在地区和第三方 SDK 做法律审核」—— 而这三项目前**一项都没有定**：
+
+```text
+运营主体      未定  →  隐私政策第一句「Careerly（以下简称"我们"）」无法成立
+服务器所在地   未定  →  Railway / Render / 阿里云 ECS 三者法律管辖权不同
+第三方 SDK     已定  →  阿里云 DashScope（见 §1.0e ③），这条现在可以写实了
+```
+
+**待确认**：① 运营主体（个人 / 公司 / 主体名称）；② 服务器部署归属；
+③ 是否使用仓库外的 `lingdesign.top/privacy` 作为 Play 商店要求的 Privacy Policy URL。
+
+---
+
+#### D121 — 生产环境 HTTPS 域名与后端部署归属
+
+**分类：【技术实现差异】/【发布决策】** —— 2026-10-06 核查新增
+
+`ApiClient` 的默认 `baseUrl` 是 `http://127.0.0.1:8000`（`api_client.dart:65`），
+配合 `adb reverse` 使用 —— 这是**开发方案，不是生产方案**。
+
+且 `AndroidManifest.xml` 主源集**未开 cleartext**，
+因此 **release 包当前根本连不上 HTTP 后端**。这不是 bug，是 Android 9+ 的默认安全策略。
+
+**待确认**：① 生产域名；② 部署到 Railway / Render / 阿里云 ECS 中的哪一个
+（三者 TLS 终止方式不同，阿里云 ECS 需自行配 nginx + 证书，另两个由平台边缘终止）；
+③ 该域名写入 `--dart-define=CAREERLY_API_BASE_URL` 还是其他配置通道。
+
+> 📌 与 **K24**（CORS 默认 `*`）联动 —— 域名一旦确定，CORS 白名单即可收窄。
+
+---
+
+## D122–D124 — 2026-10-07 · Stage E（隐私与协议）落地时新产生的三条
+
+> 📌 本节由 §1.0f ③ · E2 / E3 的实施产出。
+> 三条的共同点：**都是为了「先让链路能跑」而由 Flutter 侧定的**，
+> 因此都**未经产品侧确认**，且都已在代码注释里双向登记（`DEVELOPMENT_WORKFLOW.md` §5.4）。
+> **D122 / D123 不阻塞任何东西**，D124 只影响视觉定稿。
+
+---
+
+#### D122 — 协议正文的「源 → 镜像」方向由 Flutter 侧拟定
+
+**分类：【技术实现差异】**
+
+`TODO.md` §1.0f ③ 里 E1 与 E3 两处原话互相冲突：
+
+```text
+E1  三份文档建在  work_agent/docs/09_Release/
+E3  careerly/assets/legal/*.md 作为 App 内唯一来源
+```
+
+两份正文若各存一处，**必然漂移**（这正是 E3 自己说的「否则两份必然漂移」）。
+
+**Flutter 侧拟定的方案**（⚠️ 未经产品侧确认）：`careerly/assets/legal/` 为**源**，
+`work_agent/docs/09_Release/` 为**镜像**，方向单向，由
+`careerly/scripts/sync_legal_docs.ps1` 生成（带 `-Check` 防漂移校验）。
+
+**待确认**：方向是否认可。若产品侧认为 `docs/09_Release/` 才是源
+（例如法务改稿在那里走），**只需反转脚本的路径两端** ——
+App 侧消费方（`LegalDocument.assetPath`、`pubspec.yaml`）一个字都不用改。
+
+> 📌 依据：`assets/legal/` 是**唯一被 App 读取**的那一份，
+> 让「能跑起来的那份」当源，漂移方向就只剩「镜像落后」，
+> 不会出现「App 读到的不是最新版」这种更危险的情形。
+
+---
+
+#### D123 — `AI_DATA_PROCESSING.md` 的 App 内入口（E1 三份齐，E2 只点了两份）
+
+**分类：【IA 冲突】**
+
+E1 要求三份文档齐备（隐私政策 / 用户协议 / **AI 数据处理说明**），
+而产品侧 2026-10-07 裁决的同意文案只点名两份：
+「我已阅读并同意《用户协议》与《隐私政策》」。
+
+因此第三份**当前只进资产与镜像，App 内没有任何入口**。
+它现在是「上架材料里有、用户在 App 里看不到」的状态。
+
+**待确认**：三选一 ——
+
+```text
+A  在设置页「隐私与数据」下平铺三个入口（现在是单行 → 隐私政策）
+B  把 AI 数据处理说明并进隐私政策的一节（正文层面合并，不再独立成文）
+C  维持现状：只在 Play 的 Data Safety / 上架材料里给，App 内不给入口
+```
+
+> 📌 与 D120（运营主体）不冲突 —— 三条路都不依赖主体定名。
+> 📌 代码位置：`lib/features/legal/legal_document.dart` 的枚举刻意**只有两个值**，
+> 裁决为 A 时加第三个枚举值即可，页面类不用动。
+
+---
+
+#### D124 — 协议相关新增界面的视觉无 Figma 依据
+
+**分类：【视觉/交互差异】**
+
+Figma 里**既没有注册页的同意行，也没有协议页**（`src/App.tsx` 逐行可查：
+注册页 L661-797 无此控件，全稿无协议页）。因此以下三处是 **Flutter 侧补齐**的：
+
+```text
+① 同意行的位置 / 行距 / 缩进        onboarding_register_page.dart · _AgreeRow
+② 协议页正文的排版                  legal_document_body.dart
+   （H1→title / H2→subtitle / H3→bodyStrong / 段落→body / 列表→body+圆点，
+    以及块间距：标题前 lg、段落前后 md）
+③ 协议页容器的观感                  legal_document_page.dart
+```
+
+**已守的底线**：全部**复用**既有 `AppTypography` 通用角色与 `AppSpacing` 档位，
+**未新增任何 Token，也未内联任何暂定数值** —— 因此
+`CURRENT_STATUS.md` §3.6（暂定值登记表）**本轮无新增行**。
+
+**待确认**：这三处是否需要视觉侧补稿 / 复核。在此之前
+**验收时不得把它们盖章为「视觉已定稿」**。
+
+> 📌 与 D117（第三颗虚线按钮的形态无依据）同型 —— 都是「Figma 没画、Flutter 补齐」。
+> 参考 `DEVELOPMENT_WORKFLOW.md` §5.3：Figma Make 是静态原型，
+> Figma 没画的部分由 Flutter 实现是**正确动作**，但**必须留档、不得静默沉淀**。
+
+---
+
+## D125 — 2026-10-07 · 「设置 → 个人信息」页（**只读**）
+
+> 📌 本条由「补齐设置页『个人信息』空壳」的实施产出（`CHANGELOG.md` Session 025）。
+> **性质与 D117 / D124 同型** —— Figma 没画这一页，Flutter 侧按既有形态 +
+> **已有接口**拼出来，**必须留档，不得静默沉淀**。
+
+**分类：【视觉/交互差异】+【产品冲突】**
+
+### ① 页面本身**没有 Figma 规格**
+
+`src/App.tsx` 全稿**不存在**「个人信息」页（设置页只有那一行入口，点了没有去处）。
+本轮按「设置 → 账户」的既有形态补齐（对照同目录的 `delete_career_data_page.dart`）。
+**数据源全部是已存在的接口 —— 没有新增任何数据来源，后端端点一行未加**：
+
+```text
+姓名 / 手机号 / 会员状态   ←  GET /api/v1/profile   （账号身份）
+邮箱 / 职位 / 工作经验      ←  GET /api/v1/resume    （简历画像）
+```
+
+该行入口此前是空壳 `onTap: () {}`，**且从未被任何条目登记过**
+（§2.2 · K22 ② 记的是「隐私与数据」那一行的空壳，已于同日修复 —— 是两处不同的空壳）。
+
+**待确认**：这一页是否需要保留 / 是否需要设计侧补稿。
+在裁决前 **不得**据本页反推「视觉已定稿」。
+
+### ② 本轮**只读** —— 不做任何修改（2026-10-07 用户裁决）
+
+裁决原话：「**暂时先不支持信息修改，先跑通只读**」。
+
+初版方案是**跨仓库可编辑**（后端新增 `PUT /api/v1/profile` + `AuthStore.update_name`
++ 13 条后端测试），**已实现后整批撤回**，`work_agent` **一行未改**
+（已 grep 确认 `update_name` / `update_profile` / `PUT /api/v1/profile` / `Body(` 零残留）。
+
+页面内**没有任何输入控件**，也不存在「保存」按钮。
+`test/personal_info_test.dart` 有一条**范围护栏**用例断言
+`TextField` / `TextFormField` / `CareerlyInput` / `CareerlyButton` 均为空 ——
+将来谁加了输入框会**立刻变红**，而不是让这条裁决被静默越过。
+
+> 📌 若要恢复编辑能力，**不是加一个输入框就够**：后端要先有写端点，
+> 且「改姓名」会落到 `auth.db: users.name`（`identity.build_user_profile`
+> 里 `displayName` 的真值源），属跨仓库写路径。届时另立 D 编号。
+
+### ③ 三处 Flutter 侧自拟（Figma 无此态）
+
+| # | 位置 | 自拟内容 | 为什么这么定 |
+|---|---|---|---|
+| 1 | 简历三项**全空**时 | 收起整个分区，换成一句「上传简历后，邮箱、职位与工作经验会自动显示在这里」 | 这**不是异常态** —— 只注册、没上传过简历的用户本来就长这样（后端实测确有 `profile == {}` 的用户）。按 `resume_profile.dart` 既有约定「解析不出时为空，页面**不渲染**该行」推到底 |
+| 2 | 「职位」一行 | `workExperiences.join('、')` 显示**全部**，不取首项 | 后端 `roles` 是 LLM 抽取的字符串数组，**没有「最近 / 当前」的顺序语义**。取 `first` 是在赌一个不存在的约定 —— 赌错就把**旧**职位显示成当前职位，比「一次显示两个」错得更隐蔽。若产品侧要「只显示当前职位」，需要后端先给排序依据 |
+| 3 | 「会员状态」空值 | 显示「非会员」 | 后端对非会员**刻意下发空串**（`identity.py`：「说『你什么都没有』的徽章比没有徽章更糟」）—— 但那是**徽章**的处置；本页是一个带标签的**信息行**，空着会让人以为没加载出来。用「非会员」而**不是**「普通用户」—— 后者会暗示一套 PRD 未定义的等级体系（**D87**） |
+
+另有两处空值降级文案（「未设置」/「未绑定」）同属自拟，理由同 #3。
+
+**已守的底线**：账户三项**始终渲染**（空值降级为中性文案），且**不**把
+`UserProfile.isEmpty` 传给 `CareerlyAsyncStateView` —— 那个 `isEmpty` 在三字段全空时为 `true`，
+而**新注册用户恰好就是全空**，短路会让页面渲染成 Empty 占位、
+用户**看不到自己已经有的资料**。该处置有专门回归用例。
+
+---
+
+**引用**：`lib/features/profile/presentation/personal_info_page.dart`（类文档）·
+`lib/app/router/app_routes.dart`（`settingsPersonalInfo`）·
+`docs/05_progress/CHANGELOG.md` Session 025
 
 ---
 
@@ -2884,6 +3673,79 @@ Figma 是静态原型：**没有**月份导航，也**没有**「回到今天」
 <details>
 <summary>展开查看已裁决项（不再讨论，仅供追溯）</summary>
 
+#### D120 — 运营主体与联系邮箱（2026-10-07 产品侧）
+
+**裁决内容**（产品侧直接给定）：
+
+```text
+运营主体    LingDesign（个人独立开发项目）
+产品名称    Careerly
+联系邮箱    l1350900062@163.com
+```
+
+**落地**：三份协议的「运营主体 / 联系邮箱 / 隐私联系邮箱 / AI·隐私联系邮箱 /
+隐私联系人」五类占位符已填（**隐私联系人按同日裁决「与运营主体合并」写作 `LingDesign`**）
+—— 信源 `assets/legal/*.md`（脚本声明的唯一真源），
+经 `scripts/sync_legal_docs.ps1` 同步 `work_agent/docs/09_Release/`，
+另同步 `careerly/docs/09_Release/`。三处副本当前**逐字节一致**（已 `cmp` 校验）。
+
+**一致性旁证**：与既有 `applicationId` = `com.lingdesign.careerly`（D118）同源。
+
+> ⚠️ **本条只是「部分裁决」** —— **生效日期 / 最后更新日期**（3 份 × 2 处 = 6 处）
+> **仍未给**，仍是 `【待确定】`。
+> ✅ 「隐私联系人」已裁为**与运营主体合并**（写作 `LingDesign`）。
+> 因此 D120 **仍留在 §3.1**，不得整条移入本节。
+
+#### D-E2E3 — Stage E（E2 + E3）的六条做法裁决（2026-10-07 产品侧）
+
+**裁决内容**（产品侧当面逐条确认，全部为「选一个」型问题）：
+
+```text
+1  同意文案    「我已阅读并同意《用户协议》与《隐私政策》」
+2  链接去向    建 App 内 /legal/terms 与 /legal/privacy 两个二级页
+3  正文来源    由产品侧提供草案（仓库内不存在该草案）→ 故本轮只落地骨架
+4  渲染方式    自写最小渲染器，不引入新依赖
+5  同意行形态  两行式（勾选框一行 +「《用户协议》 与 《隐私政策》」一行）
+6  门禁范围    微信 / QQ 同样要勾选 —— 它们也会创建账号，只拦手机号注册
+               会让这条合规要求形同虚设
+```
+
+**背景**：`TODO.md` §1.0f 停在「先裁决 D120 再开 E1」，而 **E2 不依赖 D120**，
+且是 Google Play「收集数据前须取得同意」的硬项。产品侧据此改走
+「先做 E2 + E3」，把链路跑通、把可审核的产物先拿到手。
+
+**第 5 条为什么不按原计划做**：原侦察记录写的是「照 `onboarding_login_page.dart:437`
+写法（`CareerlyCheckbox` + `CareerlyTextLink`）」，但 `CareerlyCheckbox.label`
+是**纯 `String`**，书名号那两段无法变成可点区域。可选做法只剩两个：
+
+```text
+A  扩展 CareerlyCheckbox 支持富文本 label  → 要改一个已交付、未验收的
+                                            design-system 组件，改动会扩散到范围外
+B  两行式：第一行勾选框 +「我已阅读并同意」，
+   第二行「《用户协议》 与 《隐私政策》」逐段可点    ← 产品侧选定
+```
+
+**实现落点**：`onboarding_register_page.dart`（`_AgreeRow` / `_AgreeRowCopy` /
+`_canSubmit` / `AuthSocialRow` 门禁）· `legal_document.dart` · `legal_document_page.dart` ·
+`legal_document_body.dart` · `legal_markdown.dart` · `app_routes.dart` · `app_router.dart` ·
+`settings_page.dart` · `pubspec.yaml`（开 `assets:` 段）·
+`scripts/sync_legal_docs.ps1` · `assets/legal/*.md`
+
+**随之新产生 / 仍未决的**：
+
+```text
+✅ 已随本条一并裁决：同意行的**行为**（拦提交、拦 OAuth、链接可点）
+⬜ D122  正文「源 → 镜像」的同步方向（Flutter 侧拟的方案，待确认）
+⬜ D123  AI_DATA_PROCESSING.md 的 App 内入口（E1 三份齐，E2 只点了两份）
+⬜ D124  同意行 / 协议页的**视觉**（Figma 没画，Flutter 侧补齐，待视觉复核）
+⬜ D120  运营主体 / 生效日期 —— 正文里的占位符仍留着
+```
+
+**引用**：`docs/05_progress/CHANGELOG.md` Session 023 ·
+`TODO.md` §1.0f ⑦
+
+---
+
 #### D107 — `on-resume` 上传卡文案含图片（2026-10-02 产品侧）
 
 **裁决内容**：选择器放行图片（走 OCR）后，两处文案必须含图片，
@@ -3880,10 +4742,12 @@ AI 不是玻璃条内的第 4 格。
 
 ### 4.6 🟡 测试覆盖缺口
 
-> 现状（**2026-10-05 实测** · Session 022）：
-> `test/` **22 个文件 / 265 用例 → 263 通过 · 1 跳过 · 1 失败**
-> （`flutter analyze` 干净）。⚠️ **本文件此前写的「17 文件 / 180 用例 / 全绿」
-> 已过期** —— 那个数字停在 2026-09-30，不覆盖之后的交付。
+> 现状（**2026-10-07 实测** · Session 025）：
+> `test/` **30 个文件 / 329 用例 → 326 通过 · 1 跳过 · 2 失败**
+> （`flutter analyze` 干净）。⚠️ 此前三版数字均已过期 —— 「29 文件 / 312 用例」
+> 停在 Session 024，「22 文件 / 265 用例」停在 2026-10-05（Session 022），
+> 「17 文件 / 180 用例 / 全绿」停在 2026-09-30。
+> **数字一律以当次实测为准**（`DEVELOPMENT_WORKFLOW.md` §1.3）。
 > 下表只列**功能在、但没有能验它的测试**的地方。
 
 > 🔴 **唯一失败：`test/widget_test.dart:194`「可以切换到 AI」**
@@ -3893,6 +4757,49 @@ AI 不是玻璃条内的第 4 格。
 > 已确认的只是**它不属于 Session 022 的改动**：该用例只 tap「AI」Tab，
 > 从不构建 `AnalysisPage`（`StatefulShellRoute.indexedStack` 无 `preload`，
 > 分支懒加载），且**单跑同样失败**。见 `CHANGELOG.md` Session 022 §4。
+>
+> 🔁 **2026-10-07（Session 023）复现**：全量 `flutter test` 仍为
+> `+295 ~1 -1`，红灯仍是本条，失败形态与上面的记录**逐字一致**
+> （`findsNWidgets(3)` 实测 2，13px 白气泡 + 12px/w700 省略号）。
+> Session 023 的改动（`lib/features/legal/**` / 注册页同意行 / 设置页接线 /
+> 两条 `/legal/*` 路由）**不在该用例的依赖路径上**，该用例单跑同样红。**仍未修**。
+
+> ✅ **2026-10-07（Session 024）—— C8 已修复。**
+> 归因见 `CHANGELOG.md` Session 024 §1，**两条独立原因**（均为插桩实测，非推断）：
+>
+> ```text
+> ① 陈旧断言   :194 / :213 的 findsNWidgets(3) ——
+>              AIConversation.preview 取的是**最后一条**消息（ai_chat.dart:24-28），
+>              用例自己在 :187 pump 2s 让 Mock 回复落地后，预览行显示的是 AI 的回复，
+>              提问文本只剩「用户气泡」+「会话标题」两处。
+>              `:186` 那个 3 **仍然正确**（那时回复还没到）。→ 改 2 并写明理由。
+> ② 抽屉动画   抽屉是 AnimatedPositioned，**状态变化后的下一帧才开始动画**。
+>              单发 `pump(350ms)` 只够让动画起步，面板仍在屏幕外，
+>              后续 tap 落在空处 —— 而 flutter_test **只打警告、不报错**。
+>              于是「关闭 → 打开 → 选中历史会话」整段是空操作，
+>              「选中历史会话」从未发生。→ 新增 pumpDrawer() 助手。
+> ```
+>
+> **生产代码一行未改** —— 依据是 `ai_chat.dart` 里既有的 title / preview 契约，
+> 不是失败信息。当次实测：`flutter test test/widget_test.dart` 10/10 全绿、
+> 无 hit-test 警告；全量见下。
+>
+> 🔴 **但全量套件自 Session 024 起有 2 个**新**红灯，且不在 C8 范围内** ——
+> `test/legal_pages_test.dart` 的两条加粗用例（**单独跑同样红**）：
+>
+> ```text
+> Expected: '这是 重点 的一句'     Actual: '这是 **重点** 的一句'
+> ```
+>
+> 归属：该文件与 `lib/features/legal/legal_markdown.dart` 的最后修改时间为
+> **2026-10-07 03:39 / 03:41**（Session 023 交付之后）。Session 023 记的是
+> 17/17 全绿、且当时**没有** `/legal/ai-data` 这条路由 —— 现在两条都不成立，
+> 即**另一轮在飞的改动**（D123 的实现）把该文件扩到 32 条用例，其中 2 条红。
+> 成因已定位（**未修**）：`legal_markdown.dart:294` 的 `_textBlock` 把 `text:`
+> 传成**带 `**` 的原文**，`spans:` 却走已摘星号的 `_parseInline`，
+> 违反它自己在 `:120` 写下的不变式 `text == spans.map((s) => s.text).join()`。
+> **处置：本轮裁决「只留档，不动它」** —— 避免与在飞改动撞车
+> （并发写同一工作区的前科见 `CHANGELOG.md` Session 012）。
 
 | # | 位置 | 缺口 |
 |---|---|---|
@@ -3900,10 +4807,10 @@ AI 不是玻璃条内的第 4 格。
 | **C2** | `gap_page.dart` | 无专门测试 |
 | **C3** | `job_detail_page.dart` | 无专门测试 |
 | **C4** | `targets_page.dart` | 无专门测试（且是死路由，见 A1） |
-| **C5** | `settings_page.dart` | 仅测「能进入」（`phase8_profile_test.dart:79`）—— 5 个空回调**没有任何测试会发现它们没接线** |
+| **C5** | `settings_page.dart` | 仅测「能进入」（`phase8_profile_test.dart:79`）。✅ **2026-10-07 部分收口**：`个人信息` 由空壳 `onTap: () {}` 接线到 `/settings/personal-info`，并有专门测试（`test/personal_info_test.dart`，8 条）。⚠️ **剩 2 个空回调**（`帮助中心` `settings_page.dart:209` / `关于 Careerly` `:214`）**仍没有任何测试会发现它们没接线** |
 | **C6** | `membership_page.dart` | 仅测静态提示（`phase8b_profile_test.dart:217`）；额度卡四态 / 派生统计未测 |
 | **C7** | `core/services/resume_file_picker.dart:39` | `DefaultResumeFilePicker`（**走平台通道**）无测试 —— 测试一律用 `_FakeResumeFilePicker` 替换 |
-| **C8** | `test/widget_test.dart:194`「可以切换到 AI」 | 🔴 **当前唯一红灯**（见本节开头的说明）。`tap(suggestion)` 后只 `pump()` 一帧便断言 `findsNWidgets(3)`，实测**只找到 2 处**（13px 白 = 用户气泡；12px/w700 省略号）。**缺的是哪一处、以及该断言是否本就依赖 Mock 的异步时序，均未查明** —— 不要照抄任何「已定位」的说法 |
+| ~~**C8**~~ ✅ | ~~`test/widget_test.dart:194`「可以切换到 AI」~~ | ✅ **已修复（2026-10-07 · Session 024）**。原红灯是两个独立原因：**陈旧断言**（`:194`/`:213` 的 3 应为 2 —— `preview` 取最后一条消息，Mock 回复落地后预览行已变成 AI 的回复）**＋ 抽屉动画只推一帧**（`AnimatedPositioned` 下一帧才起步，单发 `pump(350ms)` 后面板仍在屏幕外，后续 tap 落空且 flutter_test 只警告）。已明确归因（当初记的「缺的是哪一处未查明」现已查明：缺的是**抽屉预览行**，它按定义会随最后一条消息变化）。经过见 `CHANGELOG.md` Session 024 |
 
 > ⚠️ C1 / C5 / C6 / C7 有一个共同点：**测试断言的是「页面在」，不是「功能在」**。
 > 这类缺口不会让 `flutter test` 变红，只会让验收看起来比实际更绿。
@@ -3937,4 +4844,3 @@ AI 不是玻璃条内的第 4 格。
 
 > ⚠️ **本节与 `CURRENT_STATUS.md` §3.6（暂定值登记表）不重叠**：
 > 那张表查「哪些**数值**是暂定的」，本节查「哪些**功能**还没做」。
-

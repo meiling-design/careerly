@@ -5,140 +5,152 @@
 @import 'tailwindcss';
 
 @font-face {
+  font-family: "Lora:Regular";
+  src: url("https://static.figma.com/font/Lora_wght__2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Playball:Regular";
+  src: url("https://static.figma.com/font/Playball-Regular_2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
   font-family: "Inter:Regular";
-  src: url("https://static.figma.com/font/Inter_1") format("woff2");
+  src: url("/fonts/Inter_1.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
 }
 @font-face {
   font-family: "Inter:Medium";
-  src: url("https://static.figma.com/font/Inter_1") format("woff2");
+  src: url("/fonts/Inter_1.woff2") format("woff2");
   font-weight: 500;
   font-style: normal;
 }
 @font-face {
   font-family: "Inter:Semi Bold";
-  src: url("https://static.figma.com/font/Inter_1") format("woff2");
+  src: url("/fonts/Inter_1.woff2") format("woff2");
   font-weight: 600;
   font-style: normal;
 }
 @font-face {
   font-family: "Inter:Bold";
-  src: url("https://static.figma.com/font/Inter_1") format("woff2");
+  src: url("/fonts/Inter_1.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
 }
 @font-face {
   font-family: "Inter:Extra Bold";
-  src: url("https://static.figma.com/font/Inter_1") format("woff2");
+  src: url("/fonts/Inter_1.woff2") format("woff2");
   font-weight: 800;
   font-style: normal;
 }
 @font-face {
   font-family: "Roboto:Regular";
-  src: url("https://static.figma.com/font/Roboto_wdth_wght__3") format("woff2");
+  src: url("/fonts/Roboto_wdth_wght__3.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
 }
 @font-face {
   font-family: "Roboto:Medium";
-  src: url("https://static.figma.com/font/Roboto_wdth_wght__3") format("woff2");
+  src: url("/fonts/Roboto_wdth_wght__3.woff2") format("woff2");
   font-weight: 500;
   font-style: normal;
 }
 @font-face {
   font-family: "Roboto:SemiBold";
-  src: url("https://static.figma.com/font/Roboto_wdth_wght__3") format("woff2");
+  src: url("/fonts/Roboto_wdth_wght__3.woff2") format("woff2");
   font-weight: 600;
   font-style: normal;
 }
 @font-face {
   font-family: "Plus Jakarta Sans:Regular";
-  src: url("https://static.figma.com/font/PlusJakartaSans_wght__2") format("woff2");
+  src: url("/fonts/PlusJakartaSans_wght__2.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
 }
 @font-face {
   font-family: "Plus Jakarta Sans:Medium";
-  src: url("https://static.figma.com/font/PlusJakartaSans_wght__2") format("woff2");
+  src: url("/fonts/PlusJakartaSans_wght__2.woff2") format("woff2");
   font-weight: 500;
   font-style: normal;
 }
 @font-face {
   font-family: "Plus Jakarta Sans:ExtraBold";
-  src: url("https://static.figma.com/font/PlusJakartaSans_wght__2") format("woff2");
+  src: url("/fonts/PlusJakartaSans_wght__2.woff2") format("woff2");
   font-weight: 800;
   font-style: normal;
 }
 @font-face {
   font-family: "Noto Sans SC:Regular";
-  src: url("https://static.figma.com/font/NotoSansSC-VF_2") format("woff2");
+  src: url("/fonts/NotoSansSC-VF_2.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
 }
 @font-face {
   font-family: "Noto Sans SC:DemiLight";
-  src: url("https://static.figma.com/font/NotoSansSC-VF_2") format("woff2");
+  src: url("/fonts/NotoSansSC-VF_2.woff2") format("woff2");
   font-weight: 350;
   font-style: normal;
 }
 @font-face {
   font-family: "Noto Sans SC:Bold";
-  src: url("https://static.figma.com/font/NotoSansSC-VF_2") format("woff2");
+  src: url("/fonts/NotoSansSC-VF_2.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
 }
 @font-face {
   font-family: "Noto Sans SC:Medium";
-  src: url("https://static.figma.com/font/NotoSansSC-VF_2") format("woff2");
+  src: url("/fonts/NotoSansSC-VF_2.woff2") format("woff2");
   font-weight: 500;
   font-style: normal;
 }
 @font-face {
   font-family: "Roboto:Bold";
-  src: url("https://static.figma.com/font/Roboto_wdth_wght__3") format("woff2");
+  src: url("/fonts/Roboto_wdth_wght__3.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
 }
 @font-face {
   font-family: "Noto Sans JP:Bold";
-  src: url("https://static.figma.com/font/NotoSansJP-VF_2") format("woff2");
+  src: url("/fonts/NotoSansJP-VF_2.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
 }
 @font-face {
   font-family: "Noto Sans JP:Medium";
-  src: url("https://static.figma.com/font/NotoSansJP-VF_2") format("woff2");
+  src: url("/fonts/NotoSansJP-VF_2.woff2") format("woff2");
   font-weight: 500;
   font-style: normal;
 }
 @font-face {
   font-family: "Noto Sans JP:Regular";
-  src: url("https://static.figma.com/font/NotoSansJP-VF_2") format("woff2");
+  src: url("/fonts/NotoSansJP-VF_2.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
 }
 @font-face {
   font-family: "Noto Sans Math:Regular";
-  src: url("https://static.figma.com/font/NotoSansMath-Regular_1") format("woff2");
+  src: url("/fonts/NotoSansMath-Regular_1.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
 }
 @font-face {
   font-family: "Noto Sans Symbols2:Regular";
-  src: url("https://static.figma.com/font/NotoSansSymbols2-Regular_5") format("woff2");
+  src: url("/fonts/NotoSansSymbols2-Regular_5.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
 }
 @font-face {
   font-family: "Noto Sans Symbols:Regular";
-  src: url("https://static.figma.com/font/NotoSansSymbols-VF_2") format("woff2");
+  src: url("/fonts/NotoSansSymbols-VF_2.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
 }
 @font-face {
   font-family: "Noto Sans:Regular";
-  src: url("https://static.figma.com/font/NotoSans-VF_3") format("woff2");
+  src: url("/fonts/NotoSans-VF_3.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
 }
@@ -150,7 +162,7 @@
 }
 @font-face {
   font-family: "Noto Sans SC:Black";
-  src: url("https://static.figma.com/font/NotoSansSC-VF_2") format("woff2");
+  src: url("/fonts/NotoSansSC-VF_2.woff2") format("woff2");
   font-weight: 900;
   font-style: normal;
 }
@@ -174,7 +186,7 @@
 }
 @font-face {
   font-family: "Roboto:ExtraBold";
-  src: url("https://static.figma.com/font/Roboto_wdth_wght__3") format("woff2");
+  src: url("/fonts/Roboto_wdth_wght__3.woff2") format("woff2");
   font-weight: 800;
   font-style: normal;
 }
@@ -300,6 +312,632 @@ button {
 .ai-step-pulse   { animation: _ai-step-pulse 1.5s ease-in-out infinite; }
 .ai-orb-complete { animation: _ai-orb-complete 0.7s cubic-bezier(0.34,1.56,0.64,1) forwards; }
 
+/* ── Career Copilot character motion ──────────────────────── */
+@keyframes _ip-companion-bounce {
+  0%, 100% { transform: scale(1); }
+  38% { transform: scale(1.04); }
+}
+@keyframes _ip-companion-star-hop {
+  0%, 100% { transform: translateY(0) rotate(45deg) scale(1); }
+  42% { transform: translateY(-8px) rotate(45deg) scale(1.12); }
+}
+@keyframes _ip-companion-message-in {
+  from { opacity: 0; transform: translateY(5px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ip-companion {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ip-companion:focus-visible {
+  outline: 2px solid rgba(79,126,245,0.72);
+  outline-offset: 3px;
+  border-radius: 18px;
+}
+.ip-companion__motion {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: center bottom;
+}
+.ip-companion__motion--active {
+  animation: _ip-companion-bounce 520ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
+}
+.ip-companion__stars {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.ip-companion__star {
+  position: absolute;
+  left: 13%;
+  top: 27%;
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: #fff1a8;
+  clip-path: polygon(50% 0, 61% 37%, 100% 50%, 61% 63%, 50% 100%, 39% 63%, 0 50%, 39% 37%);
+  filter: drop-shadow(0 0 4px rgba(255,235,148,0.55));
+  transform: rotate(45deg);
+}
+.ip-companion__star:nth-child(2) {
+  left: auto;
+  right: 14%;
+  top: 14%;
+  width: 5px;
+  height: 5px;
+  background: #e3d9ff;
+  animation-delay: 55ms;
+}
+.ip-companion__motion--active .ip-companion__star {
+  animation: _ip-companion-star-hop 520ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
+}
+.ip-companion__message {
+  position: absolute;
+  z-index: 20;
+  left: 68%;
+  top: 14%;
+  width: max-content;
+  max-width: 190px;
+  padding: 7px 11px;
+  border: 1px solid rgba(255,255,255,0.78);
+  border-radius: 14px 14px 14px 4px;
+  color: #373b4d;
+  background: rgba(255,255,255,0.9);
+  box-shadow: 0 8px 22px rgba(63,72,126,0.14);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-family: "Noto Sans SC:Medium", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 17px;
+  text-align: left;
+  pointer-events: none;
+  animation: _ip-companion-message-in 180ms ease-out both;
+}
+.home-ip-companion .ip-companion__message {
+  left: 72%;
+  top: 70%;
+  max-width: 180px;
+}
+@keyframes _home-celebration-hop {
+  0%, 100% { transform: translateY(0); }
+  38% { transform: translateY(-8px); }
+  66% { transform: translateY(1px); }
+}
+@keyframes _home-celebration-pop {
+  0% { opacity: 0; transform: scale(0.2) rotate(20deg); }
+  42% { opacity: 1; transform: scale(1.16) rotate(0); }
+  72%, 100% { opacity: 0.82; transform: scale(1) rotate(0); }
+}
+@keyframes _home-celebration-glint {
+  0% { opacity: 0; transform: translate(0, 4px) scale(0.3); }
+  44% { opacity: 0.95; transform: translate(var(--glint-x), var(--glint-y)) scale(1); }
+  100% { opacity: 0; transform: translate(var(--glint-x), calc(var(--glint-y) - 4px)) scale(0.7); }
+}
+@keyframes _home-match-ring-draw {
+  from { stroke-dashoffset: 175.93; }
+  to { stroke-dashoffset: 24.63; }
+}
+@keyframes _home-growth-line-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes _home-growth-point-pop {
+  0%, 25% { opacity: 0; transform: scale(0.35); }
+  65% { opacity: 1; transform: scale(1.35); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.home-match-ring-draw {
+  animation: _home-match-ring-draw 900ms 120ms cubic-bezier(0.22, 0.82, 0.28, 1) both;
+}
+.home-growth-line-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: _home-growth-line-draw 850ms 180ms ease-out both;
+}
+.home-growth-point-pop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: _home-growth-point-pop 700ms 620ms ease-out both;
+}
+.growth-achievement-ip {
+  position: relative;
+  width: 206px;
+  height: 188px;
+  pointer-events: none;
+  transform-origin: center bottom;
+}
+.growth-achievement-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.growth-achievement-ribbons {
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 50%;
+  width: 340px;
+  height: 240px;
+  overflow: visible;
+  transform: translate(-50%, -53%);
+}
+@keyframes _growth-ribbon-left {
+  0% { opacity: 0; stroke-dashoffset: 1; transform: translate(34px, 12px) scale(0.42); }
+  23% { opacity: 0.9; stroke-dashoffset: 0.42; transform: translate(10px, 3px) scale(0.86); }
+  48% { opacity: 1; stroke-dashoffset: 0; transform: translate(-4px, -5px) scale(1.04); }
+  64% { opacity: 1; stroke-dashoffset: 0; transform: translate(-1px, -2px) scale(1); }
+  82% { opacity: 0.92; stroke-dashoffset: 0; transform: translate(-7px, -5px) scale(1.02); }
+  100% { opacity: 0; stroke-dashoffset: 0; transform: translate(-24px, -9px) scale(1.08); }
+}
+@keyframes _growth-ribbon-right {
+  0% { opacity: 0; stroke-dashoffset: 1; transform: translate(-32px, 10px) scale(0.44); }
+  25% { opacity: 0.9; stroke-dashoffset: 0.4; transform: translate(-9px, 3px) scale(0.88); }
+  49% { opacity: 1; stroke-dashoffset: 0; transform: translate(5px, -6px) scale(1.04); }
+  66% { opacity: 1; stroke-dashoffset: 0; transform: translate(1px, -2px) scale(1); }
+  82% { opacity: 0.92; stroke-dashoffset: 0; transform: translate(8px, -4px) scale(1.02); }
+  100% { opacity: 0; stroke-dashoffset: 0; transform: translate(25px, -8px) scale(1.08); }
+}
+.growth-ribbon {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transform-box: fill-box;
+  will-change: transform, opacity, stroke-dashoffset;
+}
+.growth-ribbon--left-long {
+  transform-origin: right center;
+  animation: _growth-ribbon-left 3400ms cubic-bezier(0.22, 0.82, 0.28, 1) both;
+}
+.growth-ribbon--left-short {
+  transform-origin: right center;
+  animation: _growth-ribbon-left 3200ms 180ms cubic-bezier(0.22, 0.82, 0.28, 1) both;
+}
+.growth-ribbon--right-long {
+  transform-origin: left center;
+  animation: _growth-ribbon-right 3240ms 140ms cubic-bezier(0.22, 0.82, 0.28, 1) both;
+}
+.growth-ribbon--right-short {
+  transform-origin: left center;
+  animation: _growth-ribbon-right 3080ms 300ms cubic-bezier(0.22, 0.82, 0.28, 1) both;
+}
+.growth-achievement-ip__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none;
+}
+@keyframes _growth-achievement-sequence {
+  0% { opacity: 0; transform: translateY(0) scale(0.75, 0.7); }
+  14% { opacity: 1; transform: translateY(0) scale(1.08, 0.96); }
+  24% { opacity: 1; transform: translateY(0) scale(1); }
+  43% { opacity: 1; transform: translateY(-10px) scale(1.01, 0.99); }
+  58% { opacity: 1; transform: translateY(0) scale(1); }
+  70% { opacity: 1; transform: translateY(-2px) scale(1); }
+  100% { opacity: 0; transform: translateY(-30px) scale(0.85); }
+}
+.growth-achievement-overlay .growth-achievement-ip {
+  z-index: 2;
+  animation: _growth-achievement-sequence 3300ms cubic-bezier(0.22, 0.82, 0.28, 1) both;
+}
+@keyframes _growth-achievement-message {
+  0%, 55% { opacity: 0; transform: translateY(5px); }
+  63%, 80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-5px); }
+}
+.growth-achievement-overlay__message {
+  position: absolute;
+  top: calc(50% + 106px);
+  margin: 0;
+  color: #4b4772;
+  font-family: "Noto Sans SC:Bold", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 23px;
+  text-shadow: 0 1px 8px rgba(255,255,255,0.82);
+  animation: _growth-achievement-message 3300ms ease-out both;
+}
+@keyframes _growth-achievement-shine {
+  0%, 25% { opacity: 0; transform: translateX(-18px) rotate(-20deg); }
+  36% { opacity: 0.7; }
+  48%, 100% { opacity: 0; transform: translateX(28px) rotate(-20deg); }
+}
+.growth-achievement-ip__shine {
+  position: absolute;
+  z-index: 4;
+  left: 74px;
+  top: 70px;
+  width: 7px;
+  height: 38px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.82), transparent);
+  filter: blur(1px);
+  animation: _growth-achievement-shine 2400ms ease-out both;
+}
+.growth-achievement-ip__glints {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.growth-achievement-ip__glints span {
+  --glint-x: -4px;
+  --glint-y: -10px;
+  position: absolute;
+  left: 9px;
+  top: 43px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.95);
+  box-shadow: 0 0 6px rgba(255,255,255,0.72);
+  animation: _home-celebration-glint 1520ms 800ms ease-out both;
+}
+.growth-achievement-ip__glints span:nth-child(2) {
+  --glint-x: 5px;
+  --glint-y: -12px;
+  left: 76px;
+  top: 39px;
+  width: 3px;
+  height: 3px;
+  animation-delay: 960ms;
+}
+.growth-achievement-ip__glints span:nth-child(3) {
+  --glint-x: 2px;
+  --glint-y: -8px;
+  left: 63px;
+  top: 8px;
+  width: 3px;
+  height: 3px;
+  animation-delay: 1120ms;
+}
+@keyframes _growth-sparkle-pop {
+  0%, 22% { opacity: 0; transform: scale(0.3) rotate(0deg); }
+  44% { opacity: 0.9; transform: scale(1) rotate(12deg); }
+  72% { opacity: 0.65; transform: scale(0.82) rotate(18deg); }
+  100% { opacity: 0; transform: scale(0.55) rotate(22deg); }
+}
+.growth-achievement-sparkles {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 50%;
+  width: 318px;
+  height: 205px;
+  transform: translate(-50%, -58%);
+  pointer-events: none;
+}
+.growth-achievement-sparkles span {
+  position: absolute;
+  left: 36px;
+  top: 45px;
+  width: 9px;
+  height: 9px;
+  background: #d7e8fa;
+  clip-path: polygon(50% 0, 61% 38%, 100% 50%, 61% 62%, 50% 100%, 39% 62%, 0 50%, 39% 38%);
+  filter: drop-shadow(0 0 4px rgba(190,218,246,0.55));
+  animation: _growth-sparkle-pop 2100ms 360ms ease-out both;
+}
+.growth-achievement-sparkles span:nth-child(2) {
+  left: auto;
+  right: 34px;
+  top: 32px;
+  width: 7px;
+  height: 7px;
+  background: #e7d9f8;
+  animation-delay: 600ms;
+}
+.growth-achievement-sparkles span:nth-child(3) {
+  left: auto;
+  right: 58px;
+  top: 154px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ead9a8;
+  clip-path: none;
+  animation-delay: 840ms;
+}
+@keyframes _growth-confetti-fall {
+  0% { opacity: 0; transform: translateY(-15px) rotate(0deg); }
+  24% { opacity: 0.82; }
+  78% { opacity: 0.72; }
+  100% { opacity: 0; transform: translateY(76px) rotate(105deg); }
+}
+.growth-achievement-confetti {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 50%;
+  width: 300px;
+  height: 210px;
+  transform: translate(-50%, -62%);
+  pointer-events: none;
+}
+.growth-achievement-confetti span {
+  position: absolute;
+  left: 58px;
+  top: 3px;
+  width: 4px;
+  height: 11px;
+  border-radius: 2px;
+  background: #b8d8f0;
+  animation: _growth-confetti-fall 2100ms 880ms ease-in both;
+}
+.growth-achievement-confetti span:nth-child(2) {
+  left: 230px;
+  top: 18px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d8c8ee;
+  animation-delay: 1120ms;
+}
+.growth-achievement-confetti span:nth-child(3) {
+  left: 268px;
+  top: 56px;
+  width: 4px;
+  height: 10px;
+  background: #e7d7a8;
+  animation-delay: 1300ms;
+}
+@keyframes _growth-record-dot-pulse {
+  0%, 100% { transform: scale(1); }
+  48% { transform: scale(1.3); }
+}
+@keyframes _growth-record-card-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes _growth-record-title-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes _growth-record-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.growth-record-dot--new {
+  transform-origin: center;
+  animation: _growth-record-dot-pulse 1000ms 3500ms ease-out both;
+}
+.growth-record-card--new {
+  animation: _growth-record-card-enter 900ms 3600ms ease-out both;
+  will-change: transform, opacity;
+}
+.growth-record-title--new {
+  animation: _growth-record-title-enter 640ms 4000ms ease-out both;
+}
+.growth-record-description--new {
+  animation: _growth-record-fade 600ms 4200ms ease-out both;
+}
+.home-ip-celebration-art {
+  transform-origin: center bottom;
+  animation: _home-celebration-hop 900ms cubic-bezier(0.22, 0.82, 0.28, 1) both;
+}
+.home-ip-celebration-effects {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+.home-ip-celebration-star {
+  position: absolute;
+  left: 8px;
+  top: 34px;
+  width: 14px;
+  height: 14px;
+  background: #fff0a6;
+  clip-path: polygon(50% 0, 61% 37%, 100% 50%, 61% 63%, 50% 100%, 39% 63%, 0 50%, 39% 37%);
+  filter: drop-shadow(0 0 5px rgba(255,235,148,0.68));
+  animation: _home-celebration-pop 760ms 110ms ease-out both;
+}
+.home-ip-celebration-star:nth-child(2) {
+  left: auto;
+  right: 10px;
+  top: 18px;
+  width: 10px;
+  height: 10px;
+  background: #e9ddff;
+  animation-delay: 210ms;
+}
+.home-ip-celebration-glint {
+  --glint-x: -5px;
+  --glint-y: -10px;
+  position: absolute;
+  left: 30px;
+  top: 66px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 0 6px rgba(255,255,255,0.65);
+  animation: _home-celebration-glint 820ms 130ms ease-out both;
+}
+.home-ip-celebration-glint:nth-child(4) {
+  --glint-x: 5px;
+  --glint-y: -13px;
+  left: 132px;
+  top: 63px;
+  width: 4px;
+  height: 4px;
+  animation-delay: 220ms;
+}
+.home-ip-celebration-glint:nth-child(5) {
+  --glint-x: 2px;
+  --glint-y: -9px;
+  left: 111px;
+  top: 18px;
+  width: 3px;
+  height: 3px;
+  animation-delay: 310ms;
+}
+.careerly-login-ip .ip-companion__message {
+  left: -58%;
+  top: 54%;
+  max-width: 175px;
+}
+.careerly-copilot-character .ip-companion__message {
+  left: 76%;
+  top: -12%;
+  max-width: 168px;
+}
+@keyframes _copilot-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes _copilot-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.012); }
+}
+@keyframes _copilot-shadow {
+  0%, 100% { opacity: 0.2; transform: translateX(-50%) scaleX(0.9); }
+  50% { opacity: 0.13; transform: translateX(-50%) scaleX(0.78); }
+}
+@keyframes _copilot-particle-rise {
+  0% { opacity: 0; transform: translate3d(0, 5px, 0) scale(0.65) rotate(45deg); }
+  22% { opacity: 0.7; }
+  76% { opacity: 0.35; }
+  100% { opacity: 0; transform: translate3d(var(--drift-x, 2px), -24px, 0) scale(1) rotate(45deg); }
+}
+@keyframes _copilot-complete {
+  0%, 100% { transform: translateY(0); }
+  42% { transform: translateY(-7px); }
+  70% { transform: translateY(2px); }
+}
+
+.careerly-copilot-character {
+  position: absolute;
+  left: 25px;
+  top: -68px;
+  z-index: 2;
+  width: 100px;
+  height: 93px;
+  pointer-events: auto;
+  transform-origin: center bottom;
+  animation: _copilot-float 3.6s ease-in-out infinite;
+}
+.careerly-copilot-input__bar {
+  position: relative;
+  z-index: 3;
+}
+.careerly-copilot-character__art {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: 100px;
+  height: 93px;
+  border: 0;
+  pointer-events: none;
+  transform-origin: center bottom;
+  animation: _copilot-breathe 3.6s ease-in-out infinite;
+}
+.careerly-copilot-character__shadow {
+  position: absolute;
+  left: 51%;
+  bottom: 1px;
+  z-index: 1;
+  width: 53px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(53,65,129,0.24) 0%, rgba(91,124,250,0.1) 46%, rgba(91,124,250,0) 76%);
+  filter: blur(2px);
+  animation: _copilot-shadow 3.6s ease-in-out infinite;
+}
+.careerly-copilot-character__particles {
+  position: absolute;
+  inset: -7px -8px 12px;
+  z-index: 3;
+  pointer-events: none;
+}
+.careerly-copilot-character__particle {
+  --drift-x: 2px;
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  opacity: 0;
+  transform: rotate(45deg);
+}
+.careerly-copilot-character__particle:nth-child(1) {
+  left: 12px;
+  top: 39px;
+  background: rgba(255,225,147,0.9);
+  box-shadow: 0 0 5px rgba(255,225,147,0.28);
+}
+.careerly-copilot-character__particle:nth-child(2) {
+  left: 37px;
+  top: 12px;
+  width: 3px;
+  height: 3px;
+  background: rgba(181,221,255,0.88);
+  box-shadow: 0 0 5px rgba(158,218,255,0.24);
+  --drift-x: -3px;
+}
+.careerly-copilot-character__particle:nth-child(3) {
+  right: 12px;
+  top: 33px;
+  background: rgba(205,188,255,0.86);
+  box-shadow: 0 0 5px rgba(185,160,255,0.22);
+  --drift-x: 3px;
+}
+.careerly-copilot-character__particle:nth-child(4) {
+  left: 23px;
+  top: 63px;
+  width: 3px;
+  height: 3px;
+  background: rgba(181,221,255,0.82);
+  --drift-x: -2px;
+}
+.careerly-copilot-character__particle:nth-child(5) {
+  right: 29px;
+  top: 54px;
+  width: 3px;
+  height: 3px;
+  background: rgba(255,225,147,0.86);
+  --drift-x: 1px;
+}
+.careerly-copilot-character__particle:nth-child(6) {
+  right: 2px;
+  top: 17px;
+  width: 3px;
+  height: 3px;
+  background: rgba(205,188,255,0.82);
+  --drift-x: 4px;
+}
+.careerly-copilot-character--thinking .careerly-copilot-character__particle:nth-child(-n+3),
+.careerly-copilot-character--responding .careerly-copilot-character__particle {
+  animation: _copilot-particle-rise 1.3s ease-out infinite;
+}
+.careerly-copilot-character__particle:nth-child(2),
+.careerly-copilot-character__particle:nth-child(5) {
+  animation-delay: 280ms !important;
+}
+.careerly-copilot-character__particle:nth-child(3),
+.careerly-copilot-character__particle:nth-child(6) {
+  animation-delay: 620ms !important;
+}
+.careerly-copilot-character__particle:nth-child(4) {
+  animation-delay: 820ms !important;
+}
+.careerly-copilot-character--thinking .careerly-copilot-character__art {
+  filter: drop-shadow(0 2px 5px rgba(91,124,250,0.08));
+}
+.careerly-copilot-character--completed {
+  animation: _copilot-complete 720ms cubic-bezier(0.22,0.75,0.3,1) both;
+}
+
 /* ── Toast ─────────────────────────────────────────────────── */
 @keyframes _toast-in {
   from { opacity: 0; transform: translateY(8px); }
@@ -311,3 +949,229 @@ button {
 }
 .toast-in  { animation: _toast-in  160ms ease-out both; }
 .toast-out { animation: _toast-out 180ms ease-in  both; }
+
+/* ── Careerly brand intro ──────────────────────────────────── */
+@keyframes _splash-surface-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes _splash-orb-in {
+  from { opacity: 0; transform: scale(0.88); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes _splash-mark-draw {
+  from { stroke-dashoffset: 520; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes _splash-shine {
+  from { opacity: 0; stroke-dashoffset: 150; }
+  24% { opacity: 0.85; }
+  to { opacity: 0; stroke-dashoffset: -390; }
+}
+@keyframes _splash-breathe {
+  0%, 100% { box-shadow: 0 20px 48px rgba(79,126,245,0.35); }
+  50% { box-shadow: 0 22px 56px rgba(114,111,238,0.43); }
+}
+@keyframes _splash-copy-in {
+  from { opacity: 0; transform: translateY(9px); filter: blur(3px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+.careerly-splash {
+  animation: _splash-surface-in 420ms ease-out both;
+}
+.careerly-splash__draw {
+  stroke-dasharray: 520;
+  stroke-dashoffset: 520;
+}
+.careerly-splash__shine {
+  opacity: 0;
+  stroke-dasharray: 42 500;
+  stroke-dashoffset: 150;
+}
+.careerly-splash--full .careerly-splash__orb {
+  animation:
+    _splash-orb-in 520ms cubic-bezier(0.22,1,0.36,1) 120ms both,
+    _splash-breathe 2.8s ease-in-out 1.45s infinite;
+}
+.careerly-splash--full .careerly-splash__draw {
+  animation: _splash-mark-draw 880ms cubic-bezier(0.45,0,0.18,1) 430ms forwards;
+}
+.careerly-splash--full .careerly-splash__shine {
+  animation: _splash-shine 720ms ease-in-out 1.18s both;
+}
+.careerly-splash--full .careerly-splash__brand {
+  animation: _splash-copy-in 460ms cubic-bezier(0.22,1,0.36,1) 1.14s both;
+}
+.careerly-splash--full .careerly-splash__tagline {
+  animation: _splash-copy-in 460ms cubic-bezier(0.22,1,0.36,1) 1.38s both;
+}
+.careerly-splash--full .careerly-splash__description {
+  animation: _splash-copy-in 420ms cubic-bezier(0.22,1,0.36,1) 1.58s both;
+}
+.careerly-splash--full .careerly-splash__action {
+  animation: _splash-copy-in 420ms cubic-bezier(0.22,1,0.36,1) 1.78s both;
+}
+.careerly-splash--full .careerly-splash__login {
+  animation: _splash-copy-in 380ms cubic-bezier(0.22,1,0.36,1) 1.92s both;
+}
+
+.careerly-splash--repeat .careerly-splash__orb {
+  animation:
+    _splash-orb-in 360ms cubic-bezier(0.22,1,0.36,1) both,
+    _splash-breathe 2.8s ease-in-out 500ms infinite;
+}
+.careerly-splash--repeat .careerly-splash__draw {
+  stroke-dashoffset: 0;
+}
+.careerly-splash--repeat .careerly-splash__brand,
+.careerly-splash--repeat .careerly-splash__tagline,
+.careerly-splash--repeat .careerly-splash__description,
+.careerly-splash--repeat .careerly-splash__action,
+.careerly-splash--repeat .careerly-splash__login {
+  animation: _splash-copy-in 340ms ease-out both;
+}
+.careerly-splash--repeat .careerly-splash__tagline { animation-delay: 40ms; }
+.careerly-splash--repeat .careerly-splash__description { animation-delay: 70ms; }
+.careerly-splash--repeat .careerly-splash__action,
+.careerly-splash--repeat .careerly-splash__login { animation-delay: 100ms; }
+
+/* ── Login companion ───────────────────────────────────────── */
+@keyframes _login-ip-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(230px);
+    z-index: 1;
+  }
+  14% {
+    opacity: 1;
+    transform: translateY(230px);
+    z-index: 1;
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(108px);
+    z-index: 1;
+  }
+  64% {
+    transform: translateY(45px);
+    z-index: 1;
+  }
+  65% {
+    transform: translateY(45px);
+    z-index: 3;
+  }
+  78% {
+    transform: translateY(-10px);
+    z-index: 3;
+  }
+  90% {
+    transform: translateY(4px);
+    z-index: 3;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    z-index: 3;
+  }
+}
+@keyframes _login-ip-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.careerly-login-ip {
+  position: absolute;
+  top: 0;
+  right: 18px;
+  z-index: 3;
+  width: min(58vw, 224px);
+  pointer-events: auto;
+  will-change: transform, opacity;
+  animation: _login-ip-enter 880ms cubic-bezier(0.22, 0.78, 0.24, 1) both;
+}
+.careerly-login-ip__art {
+  display: block;
+  width: 100%;
+  height: auto;
+  animation: _login-ip-float 5.2s ease-in-out 980ms infinite;
+}
+.careerly-login-panel {
+  top: 185px;
+  z-index: 2;
+}
+
+@media (max-height: 700px) {
+  .careerly-login-ip {
+    top: 0;
+    right: 16px;
+    width: min(52vw, 184px);
+  }
+  .careerly-login-panel {
+    top: 158px;
+    padding-top: 54px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .careerly-splash,
+  .careerly-splash__orb,
+  .careerly-splash__brand,
+  .careerly-splash__tagline,
+  .careerly-splash__description,
+  .careerly-splash__action,
+  .careerly-splash__login {
+    animation: none !important;
+  }
+  .careerly-splash__draw {
+    stroke-dashoffset: 0;
+    animation: none !important;
+  }
+  .careerly-splash__shine {
+    display: none;
+  }
+  .careerly-login-ip,
+  .careerly-login-ip__art,
+  .ip-companion__motion--active,
+  .ip-companion__motion--active .ip-companion__star,
+  .ip-companion__message,
+  .home-ip-celebration-art,
+  .home-ip-celebration-star,
+  .home-ip-celebration-glint,
+  .growth-achievement-overlay .growth-achievement-ip,
+  .growth-achievement-overlay__message,
+  .growth-achievement-ip__shine,
+  .growth-ribbon,
+  .growth-achievement-sparkles span,
+  .growth-achievement-confetti span,
+  .growth-achievement-ip__glints span,
+  .home-match-ring-draw,
+  .home-growth-line-draw,
+  .home-growth-point-pop,
+  .growth-record-dot--new,
+  .careerly-copilot-character,
+  .careerly-copilot-character__art,
+  .careerly-copilot-character__shadow,
+  .careerly-copilot-character__particle {
+    animation: none !important;
+  }
+  .growth-record-card--new {
+    transform: none !important;
+    animation: _growth-record-fade 180ms ease-out both !important;
+  }
+  .growth-record-title--new,
+  .growth-record-description--new {
+    transform: none !important;
+    animation: _growth-record-fade 180ms ease-out both !important;
+  }
+  .growth-achievement-ip__shine,
+  .growth-achievement-ip__glints,
+  .growth-achievement-ribbons,
+  .growth-achievement-sparkles,
+  .growth-achievement-confetti {
+    display: none;
+  }
+  .careerly-copilot-character__particle {
+    display: none;
+  }
+}

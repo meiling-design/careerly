@@ -15,6 +15,7 @@ const imgProfileArrow = `${assetPathPrefix}/0aada.svg`;
 const imgLoginPasswordVisibility = `${assetPathPrefix}/1a8d7.svg`;
 const imgLoginWeChat = `${assetPathPrefix}/cea01.svg`;
 const imgLoginQq = `${assetPathPrefix}/e9944.svg`;
+const imgLoginIp = `${assetPathPrefix}/careerly-login-ip.svg`;
 const imgRegisterAvatar = `${assetPathPrefix}/b755b.svg`;
 const imgRegisterEdit = `${assetPathPrefix}/310eb.svg`;
 const profileNavIcons: Record<Exclude<Tab, "ai">, string> = {
@@ -104,7 +105,7 @@ const INIT_MSGS: Message[] = [
 const QUICK_QS = ['我的主要 Gap 是什么？', '哪个能力最值得提升？', '下一步应该做什么？'];
 
 // ─── Shared Components ────────────────────────────────────────────────────────
-function StatusBar({ light = false }: { light?: boolean }) {
+function StatusBar({ light = false, compact = false }: { light?: boolean; compact?: boolean }) {
   const [time, setTime] = useState(() => {
     const d = new Date();
     return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
@@ -120,13 +121,13 @@ function StatusBar({ light = false }: { light?: boolean }) {
     return () => clearTimeout(t);
   }, [time]);
 
-  const color = light ? 'rgba(255,255,255,0.9)' : '#111827';
+  const color = compact ? '#6b7280' : light ? 'rgba(255,255,255,0.9)' : '#111827';
   const dimColor = light ? 'rgba(255,255,255,0.55)' : 'rgba(17,24,39,0.45)';
 
   return (
-    <div className="flex items-center justify-between flex-shrink-0" style={{ height: 44, paddingLeft: 20, paddingRight: 16 }}>
+    <div className="flex items-center justify-between flex-shrink-0" style={{ height: compact ? 34 : 44, paddingLeft: compact ? 24 : 20, paddingRight: compact ? 20 : 16 }}>
       {/* Time */}
-      <span style={{ fontFamily: "'Inter:Semi Bold', sans-serif", fontWeight: 600, fontSize: 15, color, letterSpacing: 0.3, lineHeight: 1 }}>{time}</span>
+      <span style={{ fontFamily: "'Inter:Semi Bold', sans-serif", fontWeight: 600, fontSize: compact ? 13 : 15, color, letterSpacing: compact ? 0 : 0.3, lineHeight: compact ? '19.5px' : 1 }}>{time}</span>
       {/* Right icons */}
       <div className="flex items-center gap-[6px]">
         {/* Signal bars */}
@@ -151,6 +152,60 @@ function StatusBar({ light = false }: { light?: boolean }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function IPCompanion({
+  message,
+  label,
+  className = '',
+  style,
+  children,
+}: {
+  message: string;
+  label: string;
+  className?: string;
+  style?: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  const [isResponding, setIsResponding] = useState(false);
+  const [showMessage, setShowMessage] = useState(false);
+  const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animationFrame = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (messageTimer.current) clearTimeout(messageTimer.current);
+    if (animationTimer.current) clearTimeout(animationTimer.current);
+    if (animationFrame.current) cancelAnimationFrame(animationFrame.current);
+  }, []);
+
+  const respond = () => {
+    setShowMessage(true);
+    setIsResponding(false);
+    if (messageTimer.current) clearTimeout(messageTimer.current);
+    if (animationTimer.current) clearTimeout(animationTimer.current);
+    if (animationFrame.current) cancelAnimationFrame(animationFrame.current);
+    animationFrame.current = requestAnimationFrame(() => {
+      animationFrame.current = requestAnimationFrame(() => {
+        setIsResponding(true);
+        animationTimer.current = setTimeout(() => setIsResponding(false), 520);
+      });
+    });
+    messageTimer.current = setTimeout(() => setShowMessage(false), 2200);
+  };
+
+  return (
+    <button type="button" className={`ip-companion ${className}`} style={style} onClick={respond} aria-label={label}>
+      <span className={`ip-companion__motion${isResponding ? ' ip-companion__motion--active' : ''}`}>
+        {children}
+        <span className="ip-companion__stars" aria-hidden="true">
+          <span className="ip-companion__star"/>
+          <span className="ip-companion__star"/>
+        </span>
+      </span>
+      {showMessage && <span className="ip-companion__message" role="status">{message}</span>}
+    </button>
   );
 }
 function TrendBadge({ delta }: { delta: number }) {
@@ -391,33 +446,80 @@ function RadarChart({ skills }: { skills: typeof SKILLS_DATA }) {
 // ── Step 0: Original brand splash ────────────────────────────────────────────
 function OnSplash() {
   const { go } = useNav();
+  const [isRepeatIntro] = useState(() => {
+    try {
+      return window.sessionStorage.getItem('careerly-splash-seen') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('careerly-splash-seen', 'true');
+    } catch {
+      // The intro still works when storage is unavailable.
+    }
+  }, []);
+
   return (
     <div
-      className="relative h-full overflow-hidden px-6 text-center"
+      className={`careerly-splash relative h-full overflow-hidden px-6 text-center ${isRepeatIntro ? 'careerly-splash--repeat' : 'careerly-splash--full'}`}
       style={{ background: 'linear-gradient(111.07deg, #DCE9FB 11.49%, #E5DCFA 46.15%, #FBE9F1 88.52%)' }}
     >
       <div
-        className="absolute left-1/2 -translate-x-1/2"
+        className="careerly-splash__orb absolute left-1/2 flex items-center justify-center overflow-hidden"
         style={{
           top: 159,
           width: 141,
           height: 141,
-          paddingTop: 10,
-          paddingBottom: 10,
-          paddingLeft: 24,
+          marginLeft: -70.5,
           borderRadius: 99,
           background: 'linear-gradient(135deg, #4F7EF5 0%, #A77BE6 100%)',
           boxShadow: '0 20px 48px rgba(79,126,245,0.35)',
         }}
-      />
+      >
+        <svg className="careerly-splash__mark" width="126" height="60" viewBox="60 48 188 83" fill="none" role="img" aria-label="Careerly">
+          <defs>
+            <mask id="careerly-mark-reveal" maskUnits="userSpaceOnUse" x="60" y="48" width="188" height="83">
+              <path
+                className="careerly-splash__draw"
+                d="M73 90 C73 69 90 62 105 63 C124 64 137 79 151 91 C168 106 180 116 198 116 C218 116 233 105 233 89 C233 73 219 63 200 63 C181 63 169 74 155 86 C140 99 125 116 106 116 C88 116 73 106 73 90"
+                stroke="white"
+                strokeWidth="19"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </mask>
+            <clipPath id="careerly-mark-shape">
+              <path fillRule="evenodd" clipRule="evenodd" d="M91.5 58.971C78.842 63.153 68.555 75.219 67.303 87.357C66.174 98.292 72.383 110.187 82.663 116.784C93.634 123.824 109.39 124.823 121.294 119.234C126.873 116.614 141.816 105.724 143.442 103.093C144.069 102.079 138.329 96.088 136.674 96.029C136.22 96.013 133.295 97.961 130.174 100.358C119.945 108.215 116.732 109.426 106 109.465C98.126 109.494 95.815 109.13 92.5 107.342C84.772 103.171 81 97.452 81 89.903C81 84.422 83.045 80.046 87.388 76.232C92.725 71.546 97.212 70 105.473 70C117.801 70 120.588 71.571 141 90.018C169.111 115.423 176.367 120.125 190.663 122.198C210.513 125.077 228.848 116.732 236.483 101.345C238.838 96.598 239.389 94.178 239.414 88.464C239.439 82.777 238.917 80.351 236.692 75.804C233.39 69.053 227.732 63.705 220.12 60.135C214.948 57.71 212.542 56 200.53 56C200.53 56 194.03 55.5 188.396 57.5C182.762 59.5 180.948 61.224 180.948 61.224C176.852 63.272 169.989 67.951 165.699 71.623L157.897 78.299L161.145 81.649C162.931 83.492 164.812 85 165.324 85C165.836 85 169.235 82.805 172.878 80.122C183.799 72.078 187.269 70.688 197.646 70.2C209.015 69.666 215.083 71.431 220.227 76.769C229.484 86.374 226.444 99.885 213.542 106.482C208.156 109.236 206.8 109.495 198.069 109.446C190.669 109.405 187.48 108.932 184 107.358C178.519 104.878 168.702 97.019 151.5 81.339C134.951 66.254 131.486 63.57 124.341 60.299C119.437 58.053 116.842 57.579 108.005 57.309C99.593 57.053 96.305 57.384 91.5 58.971Z"/>
+            </clipPath>
+          </defs>
+          <path
+            mask="url(#careerly-mark-reveal)"
+            fill="white"
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M91.5 58.971C78.842 63.153 68.555 75.219 67.303 87.357C66.174 98.292 72.383 110.187 82.663 116.784C93.634 123.824 109.39 124.823 121.294 119.234C126.873 116.614 141.816 105.724 143.442 103.093C144.069 102.079 138.329 96.088 136.674 96.029C136.22 96.013 133.295 97.961 130.174 100.358C119.945 108.215 116.732 109.426 106 109.465C98.126 109.494 95.815 109.13 92.5 107.342C84.772 103.171 81 97.452 81 89.903C81 84.422 83.045 80.046 87.388 76.232C92.725 71.546 97.212 70 105.473 70C117.801 70 120.588 71.571 141 90.018C169.111 115.423 176.367 120.125 190.663 122.198C210.513 125.077 228.848 116.732 236.483 101.345C238.838 96.598 239.389 94.178 239.414 88.464C239.439 82.777 238.917 80.351 236.692 75.804C233.39 69.053 227.732 63.705 220.12 60.135C214.948 57.71 212.542 56 200.53 56C200.53 56 194.03 55.5 188.396 57.5C182.762 59.5 180.948 61.224 180.948 61.224C176.852 63.272 169.989 67.951 165.699 71.623L157.897 78.299L161.145 81.649C162.931 83.492 164.812 85 165.324 85C165.836 85 169.235 82.805 172.878 80.122C183.799 72.078 187.269 70.688 197.646 70.2C209.015 69.666 215.083 71.431 220.227 76.769C229.484 86.374 226.444 99.885 213.542 106.482C208.156 109.236 206.8 109.495 198.069 109.446C190.669 109.405 187.48 108.932 184 107.358C178.519 104.878 168.702 97.019 151.5 81.339C134.951 66.254 131.486 63.57 124.341 60.299C119.437 58.053 116.842 57.579 108.005 57.309C99.593 57.053 96.305 57.384 91.5 58.971Z"
+          />
+          <path
+            className="careerly-splash__shine"
+            clipPath="url(#careerly-mark-shape)"
+            d="M73 90 C73 69 90 62 105 63 C124 64 137 79 151 91 C168 106 180 116 198 116 C218 116 233 105 233 89 C233 73 219 63 200 63 C181 63 169 74 155 86 C140 99 125 116 106 116 C88 116 73 106 73 90"
+            stroke="white"
+            strokeWidth="7"
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
 
-      <div className="absolute inset-x-6" style={{ top: 332 }}>
+      <div className="careerly-splash__brand absolute inset-x-6" style={{ top: 332 }}>
         <p style={{ fontFamily: "'Roboto:Bold', sans-serif", fontWeight: 700, fontSize: 40, lineHeight: '60px', letterSpacing: '-1px', background: 'linear-gradient(157.38deg, #4F7EF5 0%, #A77BE6 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', fontVariationSettings: '"wdth" 100' }}>
           Careerly
         </p>
       </div>
 
-      <div className="absolute inset-x-6" style={{ top: 404 }}>
+      <div className="careerly-splash__tagline absolute inset-x-6" style={{ top: 404 }}>
         <p style={{ fontSize: 22, lineHeight: '33px', color: '#111827' }}>
           <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700 }}>看见能力</span>
           <span style={{ fontFamily: "'Roboto:SemiBold', sans-serif", fontWeight: 600, fontVariationSettings: '"wdth" 100' }}>{' · '}</span>
@@ -429,19 +531,19 @@ function OnSplash() {
         </p>
       </div>
 
-      <p className="absolute inset-x-6" style={{ top: 498, fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 15, lineHeight: '24.375px', color: '#6B7280' }}>
+      <p className="careerly-splash__description absolute inset-x-6" style={{ top: 498, fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 15, lineHeight: '24.375px', color: '#6B7280' }}>
           你的职业成长，从看见自己开始。
       </p>
 
       <button
         onClick={() => go('on-register')}
-        className="absolute left-6 right-6 mx-auto flex max-w-[342px] items-center justify-center active:opacity-90 transition-opacity"
+        className="careerly-splash__action absolute left-6 right-6 mx-auto flex max-w-[342px] items-center justify-center active:opacity-90 transition-opacity"
         style={{ bottom: 117, height: 48, borderRadius: 99, background: 'linear-gradient(172.01deg, #4F7EF5 0%, #A77BE6 100%)', boxShadow: '0 8px 12px rgba(79,126,245,0.30)' }}
       >
         <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, color: 'white', lineHeight: '22.5px' }}>点击注册</span>
       </button>
 
-      <p className="absolute inset-x-6" style={{ bottom: 52, fontFamily: "'Arimo:Regular', sans-serif", fontWeight: 400, fontSize: 14, lineHeight: 'normal', color: '#363333' }}>
+      <p className="careerly-splash__login absolute inset-x-6" style={{ bottom: 52, fontFamily: "'Arimo:Regular', sans-serif", fontWeight: 400, fontSize: 14, lineHeight: 'normal', color: '#363333' }}>
         已经有账户了?{' '}
         <button onClick={() => go('on-login')} style={{ fontFamily: "'Arimo:Regular', sans-serif", fontWeight: 400, fontSize: 14, color: '#664293' }}>
           点击登录
@@ -499,12 +601,17 @@ function OnLogin() {
         </svg>
       </button>
 
+      <IPCompanion className="careerly-login-ip" message="欢迎回来，我陪你继续成长。" label="Careerly 职业成长伙伴，点击互动">
+        <img
+          className="careerly-login-ip__art"
+          src={imgLoginIp}
+          alt="Careerly 职业成长伙伴"
+        />
+      </IPCompanion>
+
       <div
-        className="absolute inset-x-0 bottom-0 overflow-y-auto rounded-t-[40px] px-4 py-[31px]"
-        style={{
-          top: 185,
-          background: 'linear-gradient(149.75deg, #EEF2FF 8.49%, #F5F3FF 50%, #FFFFFF 91.51%)',
-        }}
+        className="careerly-login-panel absolute inset-x-0 bottom-0 overflow-y-auto rounded-t-[40px] px-4 pb-[31px] pt-[68px]"
+        style={{ background: 'linear-gradient(149.75deg, #EEF2FF 8.49%, #F5F3FF 50%, #FFFFFF 91.51%)' }}
       >
         <div className="mx-auto flex w-full max-w-[342px] flex-col items-center">
           <p style={{ fontFamily: "'Noto Sans SC:Black', sans-serif", fontWeight: 900, fontSize: 26, lineHeight: 1.4, color: '#090909', textAlign: 'center' }}>
@@ -1160,7 +1267,7 @@ function OnParsing() {
 // ONBOARDING: CONFIRM
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function OnConfirm() {
+function OnConfirm({ onProgressCreated }: { onProgressCreated: () => void }) {
   const { go } = useNav();
   const grad = 'linear-gradient(135deg, rgb(91,124,246) 0%, rgb(167,123,230) 100%)';
   const rows = [
@@ -1219,7 +1326,7 @@ function OnConfirm() {
         </div>
       </div>
       <div className="px-6 pb-10">
-        <button onClick={() => go('home')} className="w-full" style={{ height: 48, borderRadius: 99, backgroundImage: grad, boxShadow: '0px 8px 12px rgba(79,126,245,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button onClick={() => { onProgressCreated(); go('home'); }} className="w-full" style={{ height: 48, borderRadius: 99, backgroundImage: grad, boxShadow: '0px 8px 12px rgba(79,126,245,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, color: 'white' }}>进入 Careerly</span>
         </button>
       </div>
@@ -1231,167 +1338,156 @@ function OnConfirm() {
 // HOME
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function HomePage({ onAnalysisClick, onAIClick, onGrowthClick }: { onAnalysisClick: () => void; onAIClick: () => void; onGrowthClick: () => void }) {
+function HomePage({
+  onAnalysisClick,
+  onViewAllClick,
+  onAIClick,
+  onGrowthClick,
+  celebrationPending,
+  onCelebrationStarted,
+}: {
+  onAnalysisClick: () => void;
+  onViewAllClick: () => void;
+  onAIClick: () => void;
+  onGrowthClick: () => void;
+  celebrationPending: boolean;
+  onCelebrationStarted: () => void;
+}) {
+  const [isCelebrating, setIsCelebrating] = useState(false);
+  const celebrationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!celebrationPending) return;
+    setIsCelebrating(true);
+    onCelebrationStarted();
+    if (celebrationTimer.current) clearTimeout(celebrationTimer.current);
+    celebrationTimer.current = setTimeout(() => setIsCelebrating(false), 2200);
+  }, [celebrationPending, onCelebrationStarted]);
+
+  useEffect(() => () => {
+    if (celebrationTimer.current) clearTimeout(celebrationTimer.current);
+  }, []);
+
   // SVG paths inlined from CareerlyAppInterfaceDesignCopy-16
   const arcTrack = "M173 86.5C173 134.273 134.273 173 86.5 173C38.7274 173 0 134.273 0 86.5C0 38.7274 38.7274 0 86.5 0C134.273 0 173 38.7274 173 86.5ZM17.3 86.5C17.3 124.718 48.2819 155.7 86.5 155.7C124.718 155.7 155.7 124.718 155.7 86.5C155.7 48.2819 124.718 17.3 86.5 17.3C48.2819 17.3 17.3 48.2819 17.3 86.5Z";
   const arcFill = "M86.5 0C102.453 -6.97307e-07 118.094 4.41145 131.696 12.7466C145.298 21.0818 156.33 33.016 163.572 47.2298C170.814 61.4436 173.985 77.3834 172.733 93.2867C171.482 109.19 165.857 124.438 156.48 137.343C147.103 150.249 134.34 160.311 119.602 166.416C104.864 172.52 88.7245 174.431 72.9684 171.935C57.2123 169.44 42.4531 162.635 30.3227 152.275C18.1923 141.915 9.16321 128.402 4.23361 113.23L20.6869 107.884C24.6306 120.021 31.8539 130.832 41.5582 139.12C51.2625 147.408 63.0698 152.852 75.6747 154.848C88.2796 156.844 101.191 155.316 112.982 150.432C124.772 145.549 134.983 137.499 142.484 127.175C149.985 116.85 154.485 104.652 155.487 91.9294C156.488 79.2067 153.952 66.4549 148.158 55.0839C142.364 43.7128 133.538 34.1654 122.657 27.4973C111.775 20.8292 99.262 17.3 86.5 17.3L86.5 0Z";
   const arrowUR = "M11.3328 11.3328V4.6672H4.6672M11.3328 4.6672L4.6672 11.3328";
   const clockPath = "M6 2.99976V6L8.00016 7.00008M11.0004 6C11.0004 8.76164 8.76164 11.0004 6 11.0004C3.23836 11.0004 0.9996 8.76164 0.9996 6C0.9996 3.23836 3.23836 0.9996 6 0.9996C8.76164 0.9996 11.0004 3.23836 11.0004 6Z";
 
-  const stilCards = [
-    {
-      iconBg: 'linear-gradient(90deg, #a39efa 0%, #b8c0ff 100%)',
-      icon: <path d="M17.5 12.4997L14.9283 9.92808C14.6158 9.61563 14.1919 9.4401 13.75 9.4401C13.3081 9.4401 12.8842 9.61563 12.5717 9.92808L5 17.4997M4.16667 2.5H15.8333C16.7538 2.5 17.5 3.24619 17.5 4.16667V15.8333C17.5 16.7538 16.7538 17.5 15.8333 17.5H4.16667C3.24619 17.5 2.5 16.7538 2.5 15.8333V4.16667C2.5 3.24619 3.24619 2.5 4.16667 2.5ZM9.16667 7.5C9.16667 8.42047 8.42047 9.16667 7.5 9.16667C6.57953 9.16667 5.83333 8.42047 5.83333 7.5C5.83333 6.57953 6.57953 5.83333 7.5 5.83333C8.42047 5.83333 9.16667 6.57953 9.16667 7.5Z" stroke="white" strokeLinecap="round" strokeWidth="2" fill="none" />,
-      title: '问问AI',
-      desc: <><p style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 11, color: '#6e717c', lineHeight: '15px' }}>补充 AI Agent 项目案例</p><p style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 11, color: '#e07840', lineHeight: '15px' }}>影响 3 个目标岗位</p></>,
-      onClick: onAIClick,
-    },
-    {
-      iconBg: 'linear-gradient(90deg, #f7a8d8 0%, #ffccd5 100%)',
-      icon: <path d="M2.5 7.5H17.5M2.5 12.5H17.5M7.5 2.5V17.5M12.5 2.5V17.5M4.16667 2.5H15.8333C16.7538 2.5 17.5 3.24619 17.5 4.16667V15.8333C17.5 16.7538 16.7538 17.5 15.8333 17.5H4.16667C3.24619 17.5 2.5 16.7538 2.5 15.8333V4.16667C2.5 3.24619 3.24619 2.5 4.16667 2.5Z" stroke="white" strokeLinecap="round" strokeWidth="2" fill="none" />,
-      title: '当前状态',
-      desc: <><p style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 11, color: '#6e717c', lineHeight: '15px' }}>排名 #1</p><p style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 11, color: '#6e717c', lineHeight: '15px' }}>点击查看详细分析</p></>,
-      onClick: onAnalysisClick,
-    },
-    {
-      iconBg: 'linear-gradient(90deg, #8cb8fa 0%, #bee3f8 100%)',
-      icon: <path d="M13.3336 10.8336L17.6864 13.7352C17.7492 13.777 17.8221 13.8009 17.8974 13.8045C17.9727 13.8081 18.0475 13.7912 18.114 13.7557C18.1804 13.7201 18.236 13.6672 18.2747 13.6025C18.3135 13.5379 18.334 13.4639 18.334 13.3886V6.55855C18.334 6.48524 18.3147 6.41322 18.278 6.34976C18.2413 6.2863 18.1884 6.23366 18.1249 6.19714C18.0613 6.16062 17.9892 6.14152 17.9159 6.14177C17.8426 6.14202 17.7706 6.1616 17.7073 6.19855L13.3336 8.75022M3.3328 5H11.6668C12.5873 5 13.3336 5.74619 13.3336 6.66667V13.3333C13.3336 14.2538 12.5873 15 11.6668 15H3.3328C2.41225 15 1.666 14.2538 1.666 13.3333V6.66667C1.666 5.74619 2.41225 5 3.3328 5Z" stroke="white" strokeLinecap="round" strokeWidth="2" fill="none" />,
-      title: '最近成长',
-      desc: <><p style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 11, color: '#6e717c', lineHeight: '15px' }}>新增 AI Agent 项目</p><p style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 11, color: '#34c759', lineHeight: '15px' }}>AI 能力 68→76 ↑8</p></>,
-      onClick: onGrowthClick,
-    },
-    {
-      iconBg: 'linear-gradient(90deg, #c49ef7 0%, #e9d8fd 100%)',
-      icon: <path d="M17.8458 16.1779C17.5332 16.4904 17.1093 16.666 16.6672 16.666H3.3328C2.89074 16.666 2.46678 16.4904 2.15419 16.1779C1.84161 15.8653 1.666 15.4414 1.666 14.9994V4.16659C1.666 3.72458 1.84161 3.30068 2.15419 2.98813C2.46678 2.67559 2.89074 2.5 3.3328 2.5H6.60806C6.88401 2.50005 7.15562 2.56859 7.39854 2.69949C7.64146 2.83038 7.84807 3.01953 7.99984 3.24996L8.67489 4.24992C8.82821 4.48272 9.03747 4.67335 9.28353 4.80437C9.52958 4.9354 9.80458 5.00262 10.0833 4.99988H16.6672C17.1093 4.99988 17.5332 5.17547 17.8458 5.48801C18.1584 5.80056 18.334 6.22446 18.334 6.66647V14.9994C18.334 15.4414 18.1584 15.8653 17.8458 16.1779Z" stroke="white" strokeLinecap="round" strokeWidth="2" fill="none" />,
-      title: '今日一句',
-      desc: <p style={{ fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 11, color: '#7c3aed', lineHeight: '15px' }}>每一段经历，都在悄悄改变你与目标之间的距离。</p>,
-      onClick: undefined,
-    },
-  ];
+
 
   const rankEmoji = (r: number) => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : `${r}`;
 
   return (
-    <div className="px-5 pt-3 pb-6 space-y-4">
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p style={{ fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 12, color: '#6b7280', lineHeight: '18px' }}>主页</p>
-          <h1 style={{ fontSize: 22, lineHeight: '27.5px', color: S.textPrimary }}>
-            <span style={{ fontFamily: "'Roboto:Bold', sans-serif", fontWeight: 700, fontVariationSettings: '"wdth" 100' }}>Alex </span>
-            <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700 }}>的职业主页</span>
-          </h1>
+    <div className="pb-6">
+      {/* Welcome hero */}
+      <div style={{ position: 'relative', width: '100%', height: 227, overflow: 'hidden', borderRadius: '0 0 36px 36px', backgroundImage: 'linear-gradient(169.47deg, rgb(79,126,245) 14.45%, rgb(167,123,230) 85.55%)' }}>
+        <div style={{ position: 'absolute', left: -27, top: -6, width: 155, height: 155, borderRadius: 99, background: 'rgba(255,255,255,0.10)' }}/>
+        <div style={{ position: 'absolute', left: 40, top: 79, zIndex: 3 }}>
+          <p style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 13, lineHeight: '16.5px', color: 'rgba(255,255,255,0.60)', letterSpacing: 1.1 }}>中午好！</p>
+          <p style={{ marginTop: 6, fontFamily: "'Noto Sans SC:Black', sans-serif", fontWeight: 900, fontSize: 26, lineHeight: '27px', color: 'white', letterSpacing: 2 }}>Alex</p>
+          <p style={{ marginTop: 6, fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 13, lineHeight: '17px', color: 'rgba(255,255,255,0.58)', whiteSpace: 'nowrap' }}>看见能力，也看见前进的自己~</p>
         </div>
-        <div className="relative flex-shrink-0">
-          <div style={{ width: 44, height: 44, borderRadius: 16, backgroundImage: S.primary, boxShadow: '0 4px 7px rgba(79,126,245,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontFamily: "'Roboto:Bold', sans-serif", fontWeight: 700, fontSize: 17, color: 'white', fontVariationSettings: '"wdth" 100' }}>A</span>
-          </div>
-          <div style={{ position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderRadius: 99, background: '#34c759', border: '1.217px solid white' }}/>
+        <button type="button" onClick={onAnalysisClick} style={{ position: 'absolute', left: 32, top: 171, zIndex: 5, height: 38, borderRadius: 100, padding: '0 20px', display: 'flex', alignItems: 'center', gap: 8, background: '#373b4d' }}>
+          <img src="/assets/d2bbe.svg" alt="" width="25" height="25"/>
+          <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 14, lineHeight: '21px', color: 'white' }}>新建分析</span>
+        </button>
+        <IPCompanion
+          className="home-ip-companion home-ip-companion--design"
+          message="今天也一起向理想职业靠近。"
+          label="Careerly 首页伙伴，点击互动"
+          style={{ position: 'absolute', right: 4, top: 67, width: 190, height: 166, zIndex: 2 }}
+        >
+          <img
+            className={isCelebrating ? 'home-ip-celebration-art' : undefined}
+            src={isCelebrating ? '/assets/careerly-home-celebration-ip.svg' : '/assets/careerly-home-welcom-1.svg'}
+            alt=""
+            width="190"
+            height="166"
+            style={{ display: 'block', objectFit: 'contain' }}
+          />
+          {isCelebrating && (
+            <span className="home-ip-celebration-effects" aria-hidden="true">
+              <span className="home-ip-celebration-star"/>
+              <span className="home-ip-celebration-star"/>
+              <span className="home-ip-celebration-glint"/>
+              <span className="home-ip-celebration-glint"/>
+              <span className="home-ip-celebration-glint"/>
+            </span>
+          )}
+        </IPCompanion>
+        <div style={{ position: 'absolute', right: 17, top: 62, display: 'grid', gridTemplateColumns: '4px 4px', gap: 5 }} aria-hidden="true">
+          {[0, 1, 2, 3].map(dot => <span key={dot} style={{ width: 4, height: 4, borderRadius: 99, background: dot === 0 || dot === 3 ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.50)', boxShadow: '0 0 5px rgba(255,255,255,0.2)' }}/>) }
         </div>
       </div>
 
-      {/* Hero Card */}
-      <div style={{ height: 190, borderRadius: 36, backgroundImage: 'linear-gradient(151.5deg, rgb(79,126,245) 0%, rgb(167,123,230) 100%)', boxShadow: '0px 20px 48px 0px rgba(79,126,245,0.28)', position: 'relative', overflow: 'hidden' }}>
-        {/* Decorative circles */}
-        <div style={{ position: 'absolute', left: 230, top: 141, width: 144, height: 144, borderRadius: 99, background: 'rgba(255,255,255,0.07)', pointerEvents: 'none' }}/>
-        <div style={{ position: 'absolute', left: -24, top: -38, width: 206, height: 206, borderRadius: 99, background: 'rgba(255,255,255,0.10)', pointerEvents: 'none' }}/>
-
-        {/* Arc SVG (clipped by overflow:hidden) */}
-        <div style={{ position: 'absolute', left: 190, top: -17, width: 173, height: 173, pointerEvents: 'none' }}>
-          <svg width="173" height="173" viewBox="0 0 173 173" fill="none">
-            <path d={arcTrack} fill="#F1F3F9" fillOpacity="0.95"/>
-            <defs>
-              <linearGradient id="hpArcGrad" x1="0" y1="0" x2="173" y2="0" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#A39EFA"/>
-                <stop offset="0.519" stopColor="#A39EFA"/>
-                <stop offset="1" stopColor="#F7A8D8" stopOpacity="0.8"/>
-              </linearGradient>
-            </defs>
-            <path d={arcFill} fill="url(#hpArcGrad)"/>
-          </svg>
-        </div>
-
-        {/* Right numbers */}
-        <div style={{ position: 'absolute', left: 238, top: 34, width: 97 }}>
-          <div style={{ position: 'relative', height: 57 }}>
-            <span style={{ position: 'absolute', top: -0.16, left: -0.18, fontFamily: "'Roboto:Bold', sans-serif", fontWeight: 700, fontSize: 56, lineHeight: '56px', color: 'white', fontVariationSettings: '"wdth" 100', whiteSpace: 'nowrap' }}>86</span>
-            <span style={{ position: 'absolute', top: 24, left: 74.9, fontFamily: "'Roboto:Bold', sans-serif", fontWeight: 700, fontSize: 22, lineHeight: '33px', color: 'rgba(255,255,255,0.8)', fontVariationSettings: '"wdth" 100' }}>%</span>
+      {/* 2×2 Figma quadrant cards */}
+      <div style={{ width: 'calc(100% - 40px)', maxWidth: 360, margin: '14px auto 0', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+        <button type="button" onClick={onAnalysisClick} style={{ height: 198, position: 'relative', overflow: 'hidden', borderRadius: 28, border: '1px solid white', background: 'linear-gradient(90deg, rgba(247,168,216,0.55), rgba(255,204,213,0.55))', textAlign: 'left' }}>
+          <div className="flex items-center justify-between" style={{ position: 'absolute', left: 19, right: 19, top: 17, height: 18 }}>
+            <div className="flex items-center gap-[6px]">
+              <img src="/assets/2ff0d.svg" alt="" width="11" height="15"/>
+              <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 12, lineHeight: '16px', color: 'white' }}>当前状态</span>
+            </div>
+            <span style={{ padding: '2px 7px', borderRadius: 99, background: 'rgba(79,126,245,0.10)', fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700, fontSize: 8.5, lineHeight: '14px', color: '#4f70d8' }}>TOP 1</span>
           </div>
-          <p style={{ fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: '18px' }}>匹配度</p>
-          <p style={{ fontSize: 12, lineHeight: '19.5px', color: 'white', whiteSpace: 'nowrap' }}>
-            <span style={{ fontFamily: "'Roboto:SemiBold', sans-serif", fontVariationSettings: '"wdth" 100' }}>▲ </span>
-            <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700 }}>较上次</span>
-            <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700 }}>+8%</span>
-          </p>
-        </div>
-
-        {/* Left content */}
-        <div style={{ position: 'absolute', left: 23, top: 31, width: 160, display: 'flex', flexDirection: 'column', gap: 19 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 11, color: 'rgba(255,255,255,0.6)', letterSpacing: '1.1px', textTransform: 'uppercase', lineHeight: '16.5px' }}>最匹配岗位</p>
-            <p style={{ fontSize: 21, letterSpacing: '2px', lineHeight: '26.25px', color: 'white' }}>
-              <span style={{ fontFamily: "'Roboto:Bold', sans-serif", fontWeight: 700, fontVariationSettings: '"wdth" 100' }}>AI </span>
-              <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700 }}>产品经理</span>
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
-                <path d={clockPath} stroke="white" strokeLinecap="round" strokeOpacity="0.6" strokeWidth="2"/>
-              </svg>
-              <span style={{ fontFamily: "'Roboto:Regular', sans-serif", fontWeight: 400, fontSize: 12, color: 'rgba(255,255,255,0.6)', fontVariationSettings: '"wdth" 100' }}> 2026/9/12</span>
+          <div style={{ position: 'absolute', left: '50%', top: 43, width: 118.56, height: 118.56, transform: 'translateX(-50%)' }}>
+            <img src="/assets/4fa4d.svg" alt="" width="118.56" height="118.56" style={{ position: 'absolute', inset: 0 }}/>
+            <img src="/assets/8bc0c.svg" alt="" width="118.56" height="118.56" style={{ position: 'absolute', inset: 0 }}/>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+              <span style={{ fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700, fontSize: 32, lineHeight: '43.2px', color: '#252a3b' }}>86%</span>
+              <span style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 12, lineHeight: '18px', color: '#737887' }}>匹配度</span>
             </div>
           </div>
-          <button onClick={onAnalysisClick} style={{ height: 30, borderRadius: 20, background: '#373b4d', paddingLeft: 16, paddingRight: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start' }}>
-            <span style={{ fontFamily: "'Roboto:SemiBold', sans-serif", fontWeight: 600, fontSize: 14, color: 'white', fontVariationSettings: '"wdth" 100', whiteSpace: 'nowrap' }}>查看分析</span>
-          </button>
+          <div className="flex items-center gap-1" style={{ position: 'absolute', left: 17, bottom: 9 }}>
+            <img src="/assets/61ffe.svg" alt="" width="16" height="16"/>
+            <span style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 10, lineHeight: '16px', color: '#4f70d8' }}>查看详情</span>
+          </div>
+        </button>
+
+        <button type="button" onClick={onGrowthClick} style={{ height: 198, borderRadius: 28, padding: 18, display: 'flex', flexDirection: 'column', gap: 11, alignItems: 'flex-start', background: 'rgba(255,255,255,0.68)', textAlign: 'left' }}>
+          <div className="flex w-full justify-center" style={{ paddingTop: 10 }}>
+            <div className="flex items-center justify-center" style={{ width: 58, height: 58, borderRadius: 14, background: 'linear-gradient(90deg, #8cb8fa, #bee3f8)' }}><img src="/assets/e6a93.svg" alt="" width="25" height="25"/></div>
+          </div>
+          <div style={{ width: '100%' }}>
+            <p style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, lineHeight: 'normal', color: '#181a20', letterSpacing: 0.75 }}>最近成长</p>
+            <p style={{ marginTop: 4, fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 11, lineHeight: '15px', color: '#6e717c' }}>新增 AI Agent 项目</p>
+            <p style={{ marginTop: 2, fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 11, lineHeight: '15px', color: '#34c759' }}>AI 能力 68→76 ↑8</p>
+          </div>
+          <div className="flex items-center gap-1" style={{ marginTop: 'auto' }}><img src="/assets/aa383.svg" alt="" width="16" height="16"/><span style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 10, lineHeight: '16px', color: '#000', letterSpacing: 0.5 }}>查看成长记录</span></div>
+        </button>
+
+        <button type="button" onClick={onAIClick} style={{ height: 198, borderRadius: 28, padding: 18, display: 'flex', flexDirection: 'column', gap: 11, alignItems: 'flex-start', background: 'rgba(255,255,255,0.68)', textAlign: 'left' }}>
+          <div className="flex w-full justify-center" style={{ paddingTop: 10 }}>
+            <div className="flex items-center justify-center" style={{ width: 59, height: 58, borderRadius: 14, background: 'linear-gradient(90deg, #a39efa, #b8c0ff)' }}><img src="/assets/171eb.svg" alt="" width="27" height="25"/></div>
+          </div>
+          <div style={{ width: '100%' }}>
+            <p style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, lineHeight: 'normal', color: '#181a20', letterSpacing: 0.75 }}>下一步建议</p>
+            <p style={{ marginTop: 4, fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 11, lineHeight: '15px', color: '#6e717c' }}>补充 AI Agent 项目案例</p>
+            <p style={{ marginTop: 2, fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 11, lineHeight: '15px', color: '#e07840' }}>影响 3 个目标岗位</p>
+          </div>
+          <div className="flex items-center gap-1" style={{ marginTop: 'auto' }}><img src="/assets/aa383.svg" alt="" width="16" height="16"/><span style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 10, lineHeight: '16px', color: '#000', letterSpacing: 0.5 }}>与AI聊聊</span></div>
+        </button>
+
+        <div style={{ height: 198, position: 'relative', overflow: 'hidden', borderRadius: 28, border: '5px solid #c49ef7', background: 'rgba(255,255,255,0.68)' }}>
+          <div style={{ position: 'absolute', left: 17, right: 12, top: 12 }}>
+            <p style={{ fontFamily: "'Playball:Regular', sans-serif", fontWeight: 400, fontSize: 64, lineHeight: '72px', color: '#6d55a0', letterSpacing: -2 }}>09</p>
+            <div className="flex items-center gap-[5px]" style={{ paddingTop: 4, paddingBottom: 8, fontFamily: "'Noto Sans SC:Regular', sans-serif", fontSize: 8, lineHeight: '12px', color: '#9978bf' }}><span style={{ letterSpacing: 2 }}>2026</span><span style={{ opacity: 0.5 }}>｜</span><span style={{ letterSpacing: 2 }}>11</span><span style={{ opacity: 0.5 }}>｜</span><span style={{ letterSpacing: 2 }}>周一</span></div>
+            <p style={{ fontFamily: "'Lora:Regular', serif", fontSize: 24, lineHeight: '18px', color: 'rgba(124,58,237,0.22)' }}>"</p>
+            <p style={{ paddingTop: 4, fontFamily: "'Noto Sans SC:Regular', sans-serif", fontWeight: 400, fontSize: 10, lineHeight: '16px', color: '#6d4db0' }}>每一段经历，<br/>都在悄悄改变你与<br/>目标之间的距离。</p>
+          </div>
+          <div style={{ position: 'absolute', left: 12, bottom: 17, width: 56, height: 1, borderRadius: 99, background: 'linear-gradient(90deg, #a77be6, rgba(167,123,230,0.10))' }}/>
         </div>
       </div>
 
-      {/* 2×2 Stil Cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {[stilCards.slice(0, 2), stilCards.slice(2, 4)].map((row, ri) => (
-          <div key={ri} style={{ display: 'flex', gap: 5, height: 180 }}>
-            {row.map((card, ci) => (
-              <button
-                key={ci}
-                onClick={card.onClick}
-                style={{ flex: 1, minWidth: 0, background: 'rgba(255,255,255,0.68)', borderRadius: 28, padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', textAlign: 'left', cursor: card.onClick ? 'pointer' : 'default' }}
-              >
-                <div style={{ position: 'absolute', inset: 0, borderRadius: 28, border: '1.5px solid rgba(255,255,255,0.25)', boxShadow: '0px 8px 20px 0px rgba(155,177,201,0.25)', pointerEvents: 'none' }}/>
-                {/* Icon badge */}
-                <div style={{ width: 48, height: 48, borderRadius: 14, backgroundImage: card.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center' }}>
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">{card.icon}</svg>
-                </div>
-                {/* Content */}
-                <div style={{ width: '100%' }}>
-                  <p style={{ fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700, fontSize: 15, color: '#181a20', letterSpacing: '0.75px', lineHeight: 'normal', marginBottom: 4 }}>{card.title}</p>
-                  <div>{card.desc}</div>
-                </div>
-                {/* Arrow */}
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d={arrowUR} stroke="#181A20" strokeLinecap="round" strokeWidth="2"/>
-                </svg>
-              </button>
-            ))}
-          </div>
-        ))}
-      </div>
-
-      {/* Filter Tabs */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button onClick={onAnalysisClick} style={{ height: 38, borderRadius: 100, background: '#373b4d', padding: '0 20px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-          <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 14, color: 'white', whiteSpace: 'nowrap' }}>新建分析</span>
-        </button>
-        <button style={{ height: 38, borderRadius: 100, background: 'white', border: '1px solid #e4e7ec', padding: '0 20px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-          <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 14, color: '#111827', whiteSpace: 'nowrap' }}>最新匹配变化</span>
-        </button>
-        <button onClick={onAnalysisClick} style={{ height: 38, borderRadius: 100, background: 'white', border: '1px solid #e4e7ec', padding: '0 16px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-          <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 14, color: '#111827', whiteSpace: 'nowrap' }}>查看全部</span>
-        </button>
+      {/* Match controls */}
+      <div style={{ width: 'calc(100% - 72px)', maxWidth: 330, margin: '14px auto 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <button type="button" onClick={() => document.getElementById('home-match-changes')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} style={{ height: 38, borderRadius: 100, background: '#111827', border: '0.8px solid #373b4d', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><img src="/assets/fcb3a.svg" alt="" width="17.5" height="18"/><span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 14, color: 'white', whiteSpace: 'nowrap' }}>最新匹配变化</span></button>
+        <button type="button" onClick={onViewAllClick} style={{ height: 38, borderRadius: 100, background: 'white', border: '0.8px solid #e4e7ec', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><img src="/assets/131c4.svg" alt="" width="18" height="18"/><span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 14, color: '#111827', whiteSpace: 'nowrap' }}>查看全部</span></button>
       </div>
 
       {/* 岗位匹配变化 Card */}
-      <div style={{ borderRadius: 24, background: 'rgba(255,255,255,0.68)', border: '1.217px solid rgba(255,255,255,0.55)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', boxShadow: '0px 8px 32px 0px rgba(79,126,245,0.08)' }}>
+      <div id="home-match-changes" style={{ margin: '16px 20px 0', borderRadius: 24, background: 'rgba(255,255,255,0.68)', border: '1.217px solid rgba(255,255,255,0.55)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', boxShadow: '0px 8px 32px 0px rgba(79,126,245,0.08)' }}>
         <div style={{ padding: 20 }}>
           <p style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 16, color: '#111827', lineHeight: '24px', marginBottom: 0 }}>岗位匹配变化</p>
           <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -2378,7 +2474,6 @@ function AnalysisProcessing({ onDone, onStop }: { onDone: () => void; onStop: ()
 function AnalysisResult() {
   const { go, back } = useNav();
   const [showUpdateSheet, setShowUpdateSheet] = useState(false);
-  const [activeTab, setActiveTab] = useState<'match' | 'gap' | 'update'>('match');
   const gaps = [
     { name: 'AI Agent 产品落地', yours: 68, target: 82 },
     { name: '商业化经验', yours: 64, target: 78 },
@@ -2388,38 +2483,47 @@ function AnalysisResult() {
   const gradText17 = { backgroundImage: 'linear-gradient(155deg, rgb(79,126,245) 0%, rgb(167,123,230) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' };
   return (
     <div className="flex flex-col h-full" style={{ position: 'relative' }}>
-      <TopBar title="分析结果" onBack={back}/>
-      <div className="flex-1 overflow-y-auto px-5 pb-6 space-y-4">
+      <div className="flex items-center justify-between py-[3px]" style={{ width: '100%', maxWidth: 390, margin: '0 auto', paddingLeft: 20, paddingRight: 20 }}>
+        <button
+          type="button"
+          onClick={back}
+          aria-label="返回"
+          className="flex items-center justify-center active:scale-90 transition-transform"
+          style={{ width: 44, height: 44, borderRadius: 999, background: 'rgba(255,255,255,0.38)', boxShadow: '1.25px 0 0 -0.75px #d0d0d0, -1.25px 0 0 -0.75px #d0d0d0, 0 0 0 0.5px #e8e8e8, 0 8px 15px rgba(0,0,0,0.02)' }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="#0088FF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+        <p style={{ width: 217, fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, lineHeight: '22.5px', color: '#111827' }}>分析结果</p>
+      </div>
+      <div className="flex-1 overflow-y-auto px-5 pb-24" style={{ width: '100%', maxWidth: 390, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 5, overscrollBehavior: 'contain' }}>
         <p style={{ fontFamily: "'Inter:Regular', sans-serif", fontWeight: 400, fontSize: 12, color: '#6b7280', lineHeight: '18px' }}>基于 Resume V3 · 2026.08.29 · 4 个目标岗位</p>
 
         {/* Summary Hero Card */}
-        <div style={{ height: 175, borderRadius: 24, backgroundImage: 'linear-gradient(153deg, rgb(79,126,245) 0%, rgb(167,123,230) 100%)', boxShadow: '0px 16px 40px 0px rgba(79,126,245,0.28)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ width: 'calc(100% - 5px)', maxWidth: 345, height: 193, flexShrink: 0, borderRadius: 24, backgroundImage: 'linear-gradient(150.78deg, rgb(79,126,245) 0%, rgb(167,123,230) 100%)', boxShadow: '0px 16px 40px 0px rgba(79,126,245,0.28)', position: 'relative', overflow: 'hidden' }}>
           {/* Decorative circle */}
           <div style={{ position: 'absolute', left: 238, top: -32, width: 144, height: 144, borderRadius: 99, background: 'rgba(255,255,255,0.08)', pointerEvents: 'none' }}/>
-          {/* Bottom subtitle */}
-          <p style={{ position: 'absolute', left: 23, bottom: 12, fontFamily: "'Inter:Regular', sans-serif", fontWeight: 400, fontSize: 11, color: 'rgba(255,255,255,0.55)', lineHeight: '16.5px' }}>你的产品规划、AI 项目经验与岗位高度匹配。</p>
+          {/* Intro */}
+          <p style={{ position: 'absolute', left: 23, top: 14, width: 229, fontFamily: "'Inter:Regular', sans-serif", fontWeight: 400, fontSize: 11, color: 'rgba(255,255,255,0.55)', lineHeight: '16.5px' }}>你的产品规划、AI 项目经验与岗位高度匹配。</p>
           {/* Mid row: badge + download button */}
           <div style={{ position: 'absolute', left: 19, top: 45, right: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ background: 'rgba(255,255,255,0.20)', borderRadius: 99, padding: '6px 12px' }}>
-              <span style={{ fontFamily: "'Inter:Semi Bold', sans-serif", fontWeight: 600, fontSize: 12, lineHeight: '18px' }}>
+            <div style={{ height: 37, background: 'rgba(255,255,255,0.20)', borderRadius: 99, padding: '0 12px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ fontFamily: "'Inter:Semi Bold', sans-serif", fontWeight: 600, fontSize: 14, lineHeight: '18px' }}>
                 <span style={{ color: 'white' }}>较上次 </span>
                 <span style={{ color: '#b7f1ba' }}>↑ +8%</span>
               </span>
             </div>
-            <button style={{ height: 30, borderRadius: 20, background: '#373b4d', padding: '0 16px', display: 'flex', alignItems: 'center' }}>
-              <span style={{ fontFamily: "'Roboto:SemiBold', sans-serif", fontWeight: 600, fontSize: 14, color: 'white', fontVariationSettings: '"wdth" 100', whiteSpace: 'nowrap' }}>点击下载</span>
+            <button type="button" onClick={() => go('a-job', { jobIndex: 0 })} style={{ height: 38, borderRadius: 20, background: '#373b4d', padding: '0 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <img src="/assets/619d0.svg" alt="" width="16.6" height="17.68"/>
+              <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 14, color: 'white', whiteSpace: 'nowrap' }}>查看详情</span>
             </button>
           </div>
           {/* Frosted panel */}
-          <div style={{ position: 'absolute', left: 0, right: 0, top: 81, height: 94, background: 'rgba(255,255,255,0.05)', border: '1.217px solid rgba(255,255,255,0.29)', borderRadius: 24, margin: '0 -2px' }}>
+          <div style={{ position: 'absolute', left: -2, right: -2, top: 93, height: 100, background: 'rgba(255,255,255,0.05)', border: '1.217px solid rgba(255,255,255,0.29)', borderRadius: 24 }}>
             <p style={{ position: 'absolute', left: 16, top: 12, fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 11, color: 'white', lineHeight: '16.5px' }}>本次分析为你生成</p>
-            <div style={{ position: 'absolute', left: 16, top: 37, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', width: 316 }}>
+            <div style={{ position: 'absolute', left: 16, right: 16, top: 37, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
               {checkItems.map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <svg width="13" height="13" viewBox="0 0 12.9835 12.9835" fill="none">
-                    <circle cx="6.49" cy="6.49" r="6.49" fill="white" fillOpacity="0.15"/>
-                    <path d="M2.705 7.033L4.869 9.197L10.279 3.787" stroke="white" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.298"/>
-                  </svg>
+                  <img src="/assets/3544e.svg" alt="" width="12.9835" height="12.9835"/>
                   <span style={{ fontFamily: i === 2 ? "'Inter:Medium', sans-serif" : "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 12, color: 'white', lineHeight: '18px' }}>
                     {item === '能力 Gap' ? <><span style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif" }}>能力</span><span style={{ fontFamily: "'Roboto:Medium', sans-serif", fontVariationSettings: '"wdth" 100' }}> Gap</span></> : item}
                   </span>
@@ -2430,24 +2534,15 @@ function AnalysisResult() {
         </div>
 
         {/* Tab row */}
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', height: 58, paddingTop: 13, paddingBottom: 13 }}>
-          {([['match', '岗位匹配度'], ['gap', '成长空间'], ['update', '更新分析']] as const).map(([key, label]) => (
-            <button key={key} onClick={() => { if (key === 'update') setShowUpdateSheet(true); else setActiveTab(key); }}
-              style={{
-                height: 32, borderRadius: 20, padding: '0 16px', flexShrink: 0,
-                background: activeTab === key ? '#373b4d' : 'white',
-                border: activeTab === key ? 'none' : '1px solid #eaeafa',
-              }}>
-              <span style={{
-                fontFamily: activeTab === key ? "'Roboto:SemiBold', sans-serif" : "'Roboto:Medium', sans-serif",
-                fontWeight: activeTab === key ? 600 : 500,
-                fontSize: 14,
-                color: activeTab === key ? 'white' : 'rgba(30,31,34,0.6)',
-                fontVariationSettings: '"wdth" 100',
-                whiteSpace: 'nowrap',
-              }}>{label}</span>
-            </button>
-          ))}
+        <div style={{ width: 'calc(100% - 5px)', maxWidth: 345, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 155px))', gap: 16, alignItems: 'center', height: 58, flexShrink: 0, padding: '10px 8px' }}>
+          <button type="button" style={{ height: 38, borderRadius: 20, background: '#373b4d', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <img src="/assets/6190f.svg" alt="" width="18" height="18"/>
+            <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 14, color: 'white', whiteSpace: 'nowrap' }}>岗位匹配度</span>
+          </button>
+          <button type="button" onClick={() => setShowUpdateSheet(true)} style={{ height: 38, borderRadius: 20, background: 'white', border: '1px solid #eaeafa', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <img src="/assets/62207.svg" alt="" width="23" height="19"/>
+            <span style={{ fontFamily: "'Noto Sans SC:Medium', sans-serif", fontWeight: 500, fontSize: 14, color: 'rgba(30,31,34,0.6)', whiteSpace: 'nowrap' }}>更新分析</span>
+          </button>
         </div>
 
         {/* Job match list */}
@@ -2476,7 +2571,10 @@ function AnalysisResult() {
                           <span style={{ fontFamily: "'Inter:Semi Bold', sans-serif", fontWeight: 600, fontSize: 10, color: 'white', lineHeight: '15px' }}>最佳匹配</span>
                         </div>
                       </div>
-                      <p style={{ fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700, fontSize: 16, color: 'white', lineHeight: '24px' }}>{job.title}</p>
+                      <p style={{ fontSize: 16, color: 'white', lineHeight: '24px', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700 }}>AI </span>
+                        <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700 }}>产品经理</span>
+                      </p>
                     </div>
                     {/* Match % */}
                     <div style={{ flexShrink: 0, textAlign: 'right' }}>
@@ -2493,7 +2591,7 @@ function AnalysisResult() {
                       <span style={{ fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700, fontSize: 13, color: '#4f7ef5' }}>#{job.rank}</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700, fontSize: 15, color: '#111827', lineHeight: '22.5px' }}>{job.title}</p>
+                      <p style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, color: '#111827', lineHeight: '22.5px' }}>{job.title}</p>
                       <p style={{ fontFamily: "'Inter:Regular', sans-serif", fontWeight: 400, fontSize: 11, color: '#6b7280', lineHeight: '16.5px' }}>{job.prev}% → {job.match}%</p>
                     </div>
                     <div style={{ flexShrink: 0, textAlign: 'right' }}>
@@ -2518,7 +2616,8 @@ function AnalysisResult() {
         </div>
 
         {/* Growth Space */}
-        <div style={{ borderRadius: 24, background: 'rgba(255,255,255,0.68)', border: '1.188px solid rgba(255,255,255,0.55)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', boxShadow: '0px 8px 32px 0px rgba(79,126,245,0.08)', padding: 20 }}>
+        <div style={{ marginTop: 11, borderRadius: 24, background: 'rgba(255,255,255,0.68)', border: '1.188px solid rgba(255,255,255,0.55)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', boxShadow: '0px 8px 32px 0px rgba(79,126,245,0.08)', padding: 20 }}>
+          <p style={{ marginBottom: 16, fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 700, fontSize: 15, lineHeight: '22.5px', color: '#111827' }}>主要成长空间</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {gaps.map((g, i) => (
               <div key={i} style={{ paddingTop: i > 0 ? 16 : 0 }}>
@@ -2536,7 +2635,7 @@ function AnalysisResult() {
         </div>
 
         {/* Bottom actions */}
-        <div style={{ display: 'flex', gap: 12, paddingTop: 0 }}>
+        <div style={{ display: 'flex', gap: 12, paddingTop: 11 }}>
           <button
             onClick={() => go('a-job', { jobIndex: 0 })}
             style={{ flex: 1, height: 50, borderRadius: 99, background: 'rgba(79,126,245,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -2846,12 +2945,48 @@ function AIHeader({ onBack, onHistory }: { onBack?: () => void; onHistory?: () =
   );
 }
 
-/* ── AI input bar — matches Figma exactly ── */
-function AIInputBar({ input, setInput, onSend, variant = 'chat' }: { input: string; setInput: (v: string) => void; onSend: (t: string) => void; variant?: 'welcome' | 'chat' }) {
+type CopilotMotionState = 'idle' | 'thinking' | 'responding' | 'completed';
+
+function CareerlyCopilotCharacter({ state }: { state: CopilotMotionState }) {
+  const objectRef = useRef<HTMLObjectElement>(null);
+
+  const syncMotionState = () => {
+    objectRef.current?.contentDocument?.documentElement.setAttribute('data-state', state);
+  };
+
+  useEffect(syncMotionState, [state]);
+
   return (
-    <div className="flex-shrink-0" style={{ padding: '0 33px 112px' }}>
+    <IPCompanion
+      className={`careerly-copilot-character careerly-copilot-character--${state}`}
+      message="我一直在这里，随时陪你聊聊。"
+      label="Career Copilot AI 职业顾问，点击互动"
+    >
+      <span className="careerly-copilot-character__shadow"/>
+      <div className="careerly-copilot-character__particles">
+        {Array.from({ length: 6 }, (_, index) => (
+          <span key={index} className="careerly-copilot-character__particle"/>
+        ))}
+      </div>
+      <object
+        ref={objectRef}
+        className="careerly-copilot-character__art"
+        data="/assets/careerly-copilot-ip.svg"
+        type="image/svg+xml"
+        tabIndex={-1}
+        onLoad={syncMotionState}
+      />
+    </IPCompanion>
+  );
+}
+
+/* ── AI input bar — matches Figma exactly ── */
+function AIInputBar({ input, setInput, onSend, motionState, variant = 'chat' }: { input: string; setInput: (v: string) => void; onSend: (t: string) => void; motionState: CopilotMotionState; variant?: 'welcome' | 'chat' }) {
+  return (
+    <div className="careerly-copilot-input relative flex-shrink-0" style={{ padding: '0 33px 112px' }}>
+      <CareerlyCopilotCharacter state={motionState}/>
       <div
-        className="flex items-center gap-2.5"
+        className="careerly-copilot-input__bar flex items-center gap-2.5"
         style={{
           height: 62,
           borderRadius: 99,
@@ -3029,19 +3164,45 @@ function AIPage({ messages, setMessages }: { messages: Message[]; setMessages: R
   const { go } = useNav();
   const [input, setInput] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [copilotState, setCopilotState] = useState<CopilotMotionState>('idle');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const motionSequenceRef = useRef(0);
+  const motionTimersRef = useRef<number[]>([]);
   const hasChat = messages.some(m => m.role === 'user');
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => () => {
+    motionTimersRef.current.forEach(window.clearTimeout);
+  }, []);
+
+  const resetChat = () => {
+    motionSequenceRef.current += 1;
+    motionTimersRef.current.forEach(window.clearTimeout);
+    motionTimersRef.current = [];
+    setCopilotState('idle');
+    setMessages([]);
+  };
 
   const handleSend = (text: string) => {
     if (!text.trim()) return;
+    const motionSequence = ++motionSequenceRef.current;
+    setCopilotState('thinking');
     setMessages(prev => [...prev, { role: 'user', text: text.trim() }]);
     if (text === input) setInput('');
-    setTimeout(() => {
+
+    motionTimersRef.current.push(window.setTimeout(() => {
+      if (motionSequenceRef.current === motionSequence) setCopilotState('responding');
+    }, 350));
+
+    motionTimersRef.current.push(window.setTimeout(() => {
       const reply = AI_REPLIES[text] ?? '收到！基于你当前的职业数据，我正在为你分析。让我针对这个问题深入解读一下...';
       setMessages(prev => [...prev, { role: 'ai', text: reply }]);
-    }, 700);
+      if (motionSequenceRef.current === motionSequence) setCopilotState('completed');
+    }, 850));
+
+    motionTimersRef.current.push(window.setTimeout(() => {
+      if (motionSequenceRef.current === motionSequence) setCopilotState('idle');
+    }, 1570));
   };
 
   /* ════════ Welcome / empty state ════════ */
@@ -3145,8 +3306,28 @@ function AIPage({ messages, setMessages }: { messages: Message[]; setMessages: R
                   background: 'linear-gradient(135deg, #5B7CFA 0%, #9B5DE5 60%, #C084FC 100%)',
                   boxShadow: '0px 0px 36.8px 0px rgba(99,102,241,0.59)',
                   flexShrink: 0,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
-              />
+              >
+                <img
+                  src={imgCareerlyLogo}
+                  alt="Careerly"
+                  style={{
+                    position: 'absolute',
+                    width: 150,
+                    height: 100,
+                    left: -31,
+                    top: -6,
+                    objectFit: 'contain',
+                    filter: 'brightness(0) invert(1)',
+                    opacity: 0.94,
+                  }}
+                />
+              </div>
 
               <p style={{ fontSize: 16, color: '#171827', lineHeight: '24px', textAlign: 'center' }}>
                 <span style={{ fontFamily: "'Noto Sans SC:Bold', sans-serif", fontWeight: 900 }}>你好，</span>
@@ -3264,7 +3445,7 @@ function AIPage({ messages, setMessages }: { messages: Message[]; setMessages: R
   /* ════════ Chat state ════════ */
   return (
     <div className="flex flex-col h-full relative">
-      <AIHeader onBack={() => setMessages([])} onHistory={() => setShowHistory(true)}/>
+      <AIHeader onBack={resetChat} onHistory={() => setShowHistory(true)}/>
 
       {/* Context chip */}
       <div className="flex-shrink-0 px-5 mb-2">
@@ -3322,7 +3503,7 @@ function AIPage({ messages, setMessages }: { messages: Message[]; setMessages: R
         <div ref={bottomRef}/>
       </div>
 
-      <AIInputBar input={input} setInput={setInput} onSend={handleSend}/>
+      <AIInputBar input={input} setInput={setInput} onSend={handleSend} motionState={copilotState}/>
       <AIHistoryDrawer open={showHistory} onClose={() => setShowHistory(false)} onSelect={() => setShowHistory(false)}/>
     </div>
   );
@@ -4286,8 +4467,37 @@ const GROWTH_TIMELINE = [
   },
 ];
 
-function GrowthRecordPage() {
+function GrowthRecordPage({
+  newRecordPending,
+  onNewRecordAnimationStarted,
+  motionVariant,
+}: {
+  newRecordPending: boolean;
+  onNewRecordAnimationStarted: () => void;
+  motionVariant: 'celebrate' | 'skill_up' | 'achievement';
+}) {
   const { back } = useNav();
+  const achievementRef = useRef<HTMLObjectElement>(null);
+  const [isCelebratingNewRecord, setIsCelebratingNewRecord] = useState(false);
+  const celebrationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const syncAchievementState = () => {
+    achievementRef.current?.contentDocument?.documentElement.setAttribute('data-motion', isCelebratingNewRecord ? motionVariant : 'idle');
+  };
+
+  useEffect(syncAchievementState, [isCelebratingNewRecord, motionVariant]);
+
+  useEffect(() => {
+    if (!newRecordPending) return;
+    setIsCelebratingNewRecord(true);
+    onNewRecordAnimationStarted();
+    if (celebrationTimer.current) clearTimeout(celebrationTimer.current);
+    celebrationTimer.current = setTimeout(() => setIsCelebratingNewRecord(false), 5100);
+  }, [newRecordPending, onNewRecordAnimationStarted]);
+
+  useEffect(() => () => {
+    if (celebrationTimer.current) clearTimeout(celebrationTimer.current);
+  }, []);
 
   // Design-accurate colors from import
   const dotColor: Record<GrowthEventType, string> = {
@@ -4333,6 +4543,60 @@ function GrowthRecordPage() {
         </div>
       </div>
 
+      {isCelebratingNewRecord && (
+        <div className={`growth-achievement-overlay growth-achievement-overlay--${motionVariant}`} aria-live="polite">
+          <svg className="growth-achievement-ribbons" viewBox="0 0 340 240" fill="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="ribbon-blue" x1="8" y1="66" x2="112" y2="142" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#B9DDF8"/>
+                <stop offset="0.54" stopColor="#8FAFE5"/>
+                <stop offset="1" stopColor="#C7C8F8"/>
+              </linearGradient>
+              <linearGradient id="ribbon-purple" x1="18" y1="204" x2="105" y2="164" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#E4D8F8"/>
+                <stop offset="0.52" stopColor="#B9A9E8"/>
+                <stop offset="1" stopColor="#CBD3F8"/>
+              </linearGradient>
+              <linearGradient id="ribbon-gold" x1="228" y1="132" x2="329" y2="62" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#D7D8F6"/>
+                <stop offset="0.5" stopColor="#EAD9A8"/>
+                <stop offset="1" stopColor="#BDD9F3"/>
+              </linearGradient>
+              <linearGradient id="ribbon-pink" x1="235" y1="168" x2="326" y2="194" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#C7B8EF"/>
+                <stop offset="0.55" stopColor="#E8CFE2"/>
+                <stop offset="1" stopColor="#B8D5EE"/>
+              </linearGradient>
+            </defs>
+            <path className="growth-ribbon growth-ribbon--left-long" pathLength="1" d="M112 142C82 125 72 88 48 70C35 60 21 59 8 66" stroke="url(#ribbon-blue)" strokeWidth="8" strokeLinecap="round"/>
+            <path className="growth-ribbon growth-ribbon--left-short" pathLength="1" d="M105 164C78 169 66 191 47 202C37 208 27 208 18 204" stroke="url(#ribbon-purple)" strokeWidth="6" strokeLinecap="round"/>
+            <path className="growth-ribbon growth-ribbon--right-long" pathLength="1" d="M228 132C257 112 267 79 291 65C304 57 317 57 329 62" stroke="url(#ribbon-gold)" strokeWidth="8" strokeLinecap="round"/>
+            <path className="growth-ribbon growth-ribbon--right-short" pathLength="1" d="M235 168C263 172 277 195 297 201C308 204 318 200 326 194" stroke="url(#ribbon-pink)" strokeWidth="6" strokeLinecap="round"/>
+          </svg>
+          <div className="growth-achievement-ip">
+          <object
+            ref={achievementRef}
+            className="growth-achievement-ip__art"
+            data="/assets/careerly-growth-achievement-ip.svg"
+            type="image/svg+xml"
+            tabIndex={-1}
+            onLoad={syncAchievementState}
+          />
+            <span className="growth-achievement-ip__shine" aria-hidden="true"/>
+            <span className="growth-achievement-ip__glints" aria-hidden="true">
+              <span/><span/><span/>
+            </span>
+          </div>
+          <span className="growth-achievement-sparkles" aria-hidden="true">
+            <span/><span/><span/>
+          </span>
+          <span className="growth-achievement-confetti" aria-hidden="true">
+            <span/><span/><span/>
+          </span>
+          <p className="growth-achievement-overlay__message">太棒了！又向前一步 ✨</p>
+        </div>
+      )}
+
       {/* Divider */}
       <div className="mx-5 h-px" style={{ background: '#e8e4f0' }}/>
 
@@ -4373,8 +4637,10 @@ function GrowthRecordPage() {
 
       {/* Timeline list */}
       <div className="flex-1 overflow-y-auto pb-10 px-5 pt-3">
-        {GROWTH_TIMELINE.map((item, i) => (
-          <div key={i} className="flex items-start" style={{ height: i < GROWTH_TIMELINE.length - 1 ? 162 : 154 }}>
+        {GROWTH_TIMELINE.map((item, i) => {
+          const isNewRecord = i === 0 && isCelebratingNewRecord;
+          return (
+          <div key={i} className={`flex items-start${isNewRecord ? ' growth-record-row--new' : ''}`} style={{ height: i < GROWTH_TIMELINE.length - 1 ? 162 : 154 }}>
             {/* Date label — right-aligned, 56px wide */}
             <div className="flex flex-col items-end flex-shrink-0" style={{ width: 56, paddingTop: 16 }}>
               <span style={{ fontFamily: "'Inter:Semi Bold', sans-serif", fontWeight: 600, fontSize: 11, color: '#a0a7b8', letterSpacing: '-0.2px', lineHeight: '16px' }}>
@@ -4385,7 +4651,7 @@ function GrowthRecordPage() {
             {/* Timeline column — 44px, dot + connector line */}
             <div className="flex flex-col items-center flex-shrink-0" style={{ width: 44, paddingLeft: 14, paddingRight: 14 }}>
               <div style={{ paddingTop: 18 }}>
-                <div style={{ width: 10, height: 10, borderRadius: 5, background: dotColor[item.type], boxShadow: `0 0 0 0 ${dotColor[item.type]}30` }}/>
+                <div className={isNewRecord ? 'growth-record-dot--new' : undefined} style={{ width: 10, height: 10, borderRadius: 5, background: dotColor[item.type], boxShadow: `0 0 0 0 ${dotColor[item.type]}30` }}/>
               </div>
               {i < GROWTH_TIMELINE.length - 1 && (
                 <div style={{ flex: 1, width: 1.5, marginTop: 5, backgroundImage: `linear-gradient(180deg, ${lineColor[item.type]} 25%, rgba(255,255,255,0) 100%)` }}/>
@@ -4395,6 +4661,7 @@ function GrowthRecordPage() {
             {/* Event card */}
             <div className="flex-1 min-w-px" style={{ paddingTop: 8, paddingBottom: 20 }}>
               <div
+                className={isNewRecord ? 'growth-record-card--new' : undefined}
                 style={{
                   backgroundColor: item.event === '更新简历 V2' ? '#F3EFFE' : cardBg[item.type],
                   borderRadius: '4px 20px 20px 20px',
@@ -4416,7 +4683,7 @@ function GrowthRecordPage() {
                   </div>
                   {/* Title */}
                   <div style={{ position: 'absolute', left: 52, top: 3, height: 21 }}>
-                    <p style={{ fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700, fontSize: 15, color: '#1f2937', lineHeight: '21px', whiteSpace: 'nowrap' }}>{item.event}</p>
+                    <p className={isNewRecord ? 'growth-record-title--new' : undefined} style={{ fontFamily: "'Inter:Bold', sans-serif", fontWeight: 700, fontSize: 15, color: '#1f2937', lineHeight: '21px', whiteSpace: 'nowrap' }}>{item.event}</p>
                   </div>
                   {/* Date below title */}
                   <p style={{ position: 'absolute', left: 52, top: 25, fontFamily: "'Inter:Semi Bold', sans-serif", fontWeight: 600, fontSize: 11, color: '#a0a7b8', letterSpacing: '-0.2px', lineHeight: '16px', whiteSpace: 'nowrap' }}>
@@ -4424,11 +4691,11 @@ function GrowthRecordPage() {
                   </p>
                 </div>
                 {/* Description */}
-                <p style={{ fontFamily: "'Inter:Regular', sans-serif", fontWeight: 400, fontSize: 13, color: '#6b7280', lineHeight: '20px', width: '100%' }}>{item.desc}</p>
+                <p className={isNewRecord ? 'growth-record-description--new' : undefined} style={{ fontFamily: "'Inter:Regular', sans-serif", fontWeight: 400, fontSize: 13, color: '#6b7280', lineHeight: '20px', width: '100%' }}>{item.desc}</p>
               </div>
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );
@@ -5487,6 +5754,10 @@ export default function App() {
   const [dialog, setDialog] = useState<Dialog>('none');
   const [pageKey, setPageKey] = useState(0);
   const [transDir, setTransDir] = useState<TransitionDir>('none');
+  const [homeCelebrationPending, setHomeCelebrationPending] = useState(false);
+  const [growthRecordEventId, setGrowthRecordEventId] = useState(() => Number(sessionStorage.getItem('careerly:growth-event-id') || 0));
+  const [seenGrowthRecordEventId, setSeenGrowthRecordEventId] = useState(() => Number(sessionStorage.getItem('careerly:seen-growth-event-id') || 0));
+  const [growthRecordEventType, setGrowthRecordEventType] = useState<GrowthEventType>(() => (sessionStorage.getItem('careerly:growth-event-type') as GrowthEventType) || 'analysis');
 
   const current = stack[stack.length - 1];
   const screen = current.screen;
@@ -5526,6 +5797,12 @@ export default function App() {
     setMessages(INIT_MSGS);
     setTrialCount(0);
     setDialog('none');
+    setHomeCelebrationPending(false);
+    setGrowthRecordEventId(0);
+    setSeenGrowthRecordEventId(0);
+    sessionStorage.removeItem('careerly:growth-event-id');
+    sessionStorage.removeItem('careerly:seen-growth-event-id');
+    sessionStorage.removeItem('careerly:growth-event-type');
     setTab('home');
     setStack([{ screen: 'on-splash', params: {} }]);
   };
@@ -5536,6 +5813,27 @@ export default function App() {
     go('a-processing');
   };
 
+  const queueGrowthRecordAnimation = (eventType: GrowthEventType = 'analysis') => {
+    setGrowthRecordEventType(eventType);
+    sessionStorage.setItem('careerly:growth-event-type', eventType);
+    setGrowthRecordEventId(currentId => {
+      const nextId = currentId + 1;
+      sessionStorage.setItem('careerly:growth-event-id', String(nextId));
+      return nextId;
+    });
+  };
+
+  const consumeGrowthRecordAnimation = () => {
+    setSeenGrowthRecordEventId(growthRecordEventId);
+    sessionStorage.setItem('careerly:seen-growth-event-id', String(growthRecordEventId));
+  };
+
+  useEffect(() => {
+    if (screen === 'a-result' && trialCount > 0 && growthRecordEventId === 0) {
+      queueGrowthRecordAnimation();
+    }
+  }, [screen, trialCount, growthRecordEventId]);
+
   const showBottomNav = MAIN_TABS.includes(screen) || screen === 'a-result';
   const hideStatusBar = screen === 'on-splash';
   const lightStatusBar = ['growth-record', 'analysis-history', 'a-processing', 'on-register', 'on-career', 'on-welcome', 'on-resume', 'on-parsing', 'on-confirm'].includes(screen);
@@ -5543,15 +5841,26 @@ export default function App() {
   return (
     <NavCtx.Provider value={{ screen, params, go, back, logout }}>
       <div className="w-full min-h-screen flex items-center justify-center" style={{ background: 'rgb(210,222,240)' }}>
-        <div className="relative w-full max-w-[390px] flex flex-col overflow-hidden" style={{ height: '100dvh', maxHeight: '844px', background: S.bg }}>
-          {!hideStatusBar && <StatusBar light={lightStatusBar}/>}
+        <div
+          className="relative w-full flex flex-col overflow-hidden"
+          style={{
+            height: '100dvh',
+            background: S.bg,
+          }}
+        >
+          {!hideStatusBar && screen === 'home' && (
+            <div style={{ position: 'absolute', inset: '0 0 auto', zIndex: 60, pointerEvents: 'none' }}>
+              <StatusBar light={false}/>
+            </div>
+          )}
+          {!hideStatusBar && screen !== 'home' && <StatusBar light={lightStatusBar} compact={screen === 'a-result'}/>}
 
           {/* Content */}
           <div className={`flex-1 ${screen === 'a-processing' ? 'overflow-visible' : 'overflow-hidden'} ${screen === 'ai' ? 'flex flex-col' : ''}`} style={{ position: 'relative' }}>
             {screen !== 'ai' ? (
               <div
                 key={pageKey}
-                className={`h-full ${screen === 'a-processing' ? '' : 'overflow-y-auto'} ${showBottomNav ? 'pb-24' : ''} page-${transDir === 'none' ? 'tab' : transDir}`}
+                className={`h-full ${screen === 'a-processing' ? '' : screen === 'a-result' ? 'overflow-hidden' : 'overflow-y-auto'} ${showBottomNav && screen !== 'a-result' ? 'pb-24' : ''} page-${transDir === 'none' ? 'tab' : transDir}`}
               >
                 {/* Onboarding */}
                 {screen === 'on-splash' && <OnSplash/>}
@@ -5561,9 +5870,18 @@ export default function App() {
                 {screen === 'on-welcome' && <OnWelcome/>}
                 {screen === 'on-resume' && <OnResume/>}
                 {screen === 'on-parsing' && <OnParsing/>}
-                {screen === 'on-confirm' && <OnConfirm/>}
+                {screen === 'on-confirm' && <OnConfirm onProgressCreated={() => setHomeCelebrationPending(true)}/>}
                 {/* Home */}
-                {screen === 'home' && <HomePage onAnalysisClick={() => go('analysis')} onAIClick={() => setTabNav('ai')} onGrowthClick={() => go('cap-change')}/>}
+                {screen === 'home' && (
+                  <HomePage
+                    onAnalysisClick={() => go('analysis')}
+                    onViewAllClick={() => { setTab('analysis'); go('a-result'); }}
+                    onAIClick={() => setTabNav('ai')}
+                    onGrowthClick={() => go('cap-change')}
+                    celebrationPending={homeCelebrationPending}
+                    onCelebrationStarted={() => setHomeCelebrationPending(false)}
+                  />
+                )}
                 {/* Analysis */}
                 {screen === 'analysis' && <AnalysisHome trialCount={trialCount} onShowDialog={setDialog}/>}
                 {screen === 'a-start' && <AnalysisStartPage/>}
@@ -5572,7 +5890,7 @@ export default function App() {
                 {screen === 'a-confirm' && <AnalysisResumeStep onShowDialog={setDialog} trialCount={trialCount}/>}
                 {screen === 'a-resume' && <AnalysisResumePage/>}
                 {screen === 'a-targets' && <AnalysisTargetsPage/>}
-                {screen === 'a-processing' && <AnalysisProcessing onDone={() => { setTab('analysis'); go('a-result'); }} onStop={() => go('analysis')}/>}
+                {screen === 'a-processing' && <AnalysisProcessing onDone={() => { setHomeCelebrationPending(true); queueGrowthRecordAnimation(); setTab('analysis'); go('a-result'); }} onStop={() => go('analysis')}/>}
                 {screen === 'a-result' && <AnalysisResult/>}
                 {screen === 'a-job' && <AnalysisJobDetailPage/>}
                 {screen === 'a-gap' && <AnalysisGapPage/>}
@@ -5587,7 +5905,13 @@ export default function App() {
                 {screen === 'awards' && <AwardsPage/>}
                 {screen === 'capability' && <CapabilityPage/>}
                 {screen === 'cap-change' && <CapabilityChangePage/>}
-                {screen === 'growth-record' && <GrowthRecordPage/>}
+                {screen === 'growth-record' && (
+                  <GrowthRecordPage
+                    newRecordPending={growthRecordEventId > seenGrowthRecordEventId}
+                    onNewRecordAnimationStarted={consumeGrowthRecordAnimation}
+                    motionVariant={growthRecordEventType === 'capability' ? 'skill_up' : growthRecordEventType === 'analysis' ? 'achievement' : 'celebrate'}
+                  />
+                )}
                 {screen === 'resume-history' && <ResumeHistoryPage/>}
                 {screen === 'resume-detail' && <ResumeDetailPage/>}
                 {screen === 'analysis-history' && <AnalysisHistoryPage/>}

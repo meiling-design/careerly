@@ -5,8 +5,19 @@
 > 本文件只写**现状**。
 > 接下来做什么 → `TODO.md` ｜ 为什么这么决定 → `CHANGELOG.md` ｜ 怎么做 → `DEVELOPMENT_WORKFLOW.md`
 >
-> 最后更新：**2026-10-02**（Session 020）
-> 当前状态：**⏸ 暂停 · 「接通 work_agent 已有能力」四项全部走完 · 等待合并验收**
+> 最后更新：**2026-10-07**（Session 024）
+> 当前状态：**⏸ 暂停 · Release V1.0 基线 Stage E 的 E2 / E3 已交付 · 等待合并验收**
+>
+> 📌 **Session 024 只动测试与账**：`TODO.md` §4.6 · C8（`widget_test.dart`
+> 「可以切换到 AI」）已修复并归因（**生产代码一行未改**，见 `CHANGELOG.md` Session 024）。
+> 同时发现**2 个新的红灯**在 `test/legal_pages_test.dart`，属另一轮在飞的改动（D123），
+> **本轮裁决「只留档，不动它」**。→ 因此当前全量是 **309 通过 · 1 跳过 · 2 失败**，
+> **不是全绿**；那 2 条的归属与依据见 **§3.3**、`CHANGELOG.md` Session 024 §5。
+>
+> ⚠️ **本节只跟到 Session 023 的 E2 / E3**。
+> **Session 022（Release V1.0 基线 A–D：发布身份 / 安全基线 / 数据备份 / 删除账号）
+> 的现状未反映在本文件** —— 它那轮的文档收尾**从未做**（见 `TODO.md` §1.0f ③）。
+> 读本文件时**不要**据「这里没写」推断 A–D 没做：A–D 已落地，只是本文件还没跟上。
 >
 > ```text
 > ▶ 当前工作流：把 work_agent 里**已经存在**的能力接出来（接线，不是造能力）
@@ -134,6 +145,27 @@ AI     Phase 7 Chat UI + Mock Response
 > 它被**推迟**而不是**取消** —— 平台相关行为（SafeArea / 返回键 / 中文字体回退）
 > 至今**全部未验证**。真机到位后仍需按 `TODO.md` §1.3 的 T1–T14 走一遍。
 
+> 📌 **2026-10-07 更新 —— Release V1.0 基线 Stage E 的 E2 / E3 已交付（**未验收**）**：
+>
+> ```text
+> ✅ E2  注册页同意门禁（Figma 里没有这个控件，产品侧 2026-10-07 裁决做法）
+>        勾选框拦主按钮 + 拦微信/QQ；两份协议在 App 内**真的能打开读**（否则
+>        「要求同意一份读不到的文件」在合规上不成立）
+> ✅ E3  设置页「隐私与数据」接线（此前是空壳 onTap: () {}，即 K22 ②）
+>        正文落在新建的两个二级页 /legal/terms 与 /legal/privacy
+> 🟡 E1  三份 .md 只有**骨架**（结构 + 显式占位符 + 已核实事实），正式正文待产品侧提供
+> ❌ E4  Play 要求的托管 URL 未做（阻塞在 D121 域名）
+> ```
+>
+> 新增能力：`assets/legal/` 唯一来源 + `work_agent/docs/09_Release/` 镜像
+> （`scripts/sync_legal_docs.ps1`，带 `-Check`）· 自写最小 Markdown 渲染器
+> （**未引入依赖**）· 一个页面类承载两份协议（§8.4「变体用参数」）。
+>
+> ⚠️ 详细交付 / 实测 / 待裁决见 `TODO.md` §1.0f ⑦ 与 `CHANGELOG.md` Session 023。
+> ⚠️ **本轮新增了三处 Flutter 侧补齐的视觉**（同意行 / 协议页排版 / 协议页容器）
+> —— **没有 Figma 依据**，已登记 **D124**，**验收时不得盖章为「视觉已定稿」**。
+> ⚠️ **§3.6 暂定值登记表本轮无新增行** —— 全部复用既有 Token，未内联任何暂定数值。
+
 ---
 
 ## 2. Phase 状态
@@ -196,6 +228,11 @@ flutter analyze   →  No issues found!                  (8.0s／复核 119.1s)
 flutter test      →  All tests passed!（215 / 215 + 1 skipped）  (2026-10-02 Session 019 当次)
 ```
 
+> ⚠️ **本节是 2026-10-02 的当次快照，已过期** —— 之后又交付了 Session 022 /
+> 023 / 024 三轮。**当前（2026-10-07）不是全绿**：`+309 ~1 -2`，
+> 2 条红灯在 `test/legal_pages_test.dart`。以 §3.3 为准。
+> （保留本节原文以追溯「绿灯到底有过几次、各是什么数字」。）
+
 > ⚠️ **上一版此处记的是 `158/158`（2026-09-22）** —— 已过期三批交付。
 > 本轮数字**独立复算**过：`grep -c "testWidgets(\|test(" test/*.dart test/*/*.dart`
 > = **216**，减 1 条默认 skip 的 `real_backend_integration_test` → **215 passed**。
@@ -248,13 +285,46 @@ build/app/outputs/flutter-apk/app-debug.apk
 build/app/outputs/flutter-apk/app-debug.apk.sha1
 ```
 
-### 3.3 代码规模（**2026-10-04 复核**）
+### 3.3 代码规模（**2026-10-07 · Session 025 复核**）
 
 ```text
-lib/          142 个 Dart 文件 / 34728 行
-test/          25 个测试文件 / 7175 行（**237** 用例，含 1 条默认 skip）
+lib/          165 个 Dart 文件 / 44053 行
+test/          32 个测试文件 / 10110 行（**329** 用例，含 1 条默认 skip）
+assets/legal/    3 个 .md（协议骨架，见 §1 的 E1 说明）
 assets/fonts/    1 个 README（⚠️ 字体文件仍缺失，见 K1）
 ```
+
+> ✅ 与 Session 025 的实测**可对账**：329 用例 = 全量 `flutter test` 的
+> `+326 ~1 -2`（326 通过 + 1 skip + 2 失败）。
+>
+> ⚠️ **当前不是全绿**，2 条红灯都在 `test/legal_pages_test.dart`
+> （两条加粗用例，单独跑同样红）—— 是**另一轮在飞的改动**（D123 的实现）
+> 引入的，**不属** Session 024 / 025 的范围，已裁「只留档，不动它」。
+> 经过与成因见 `CHANGELOG.md` Session 024 §5、`TODO.md` §4.6。
+>
+> ⚠️ **工作区不是本轮独占 —— 数字里有并行改动，不得整份记在本轮名下。**
+> Session 025 只新增 **1 个 `lib/` 文件**（`personal_info_page.dart`）
+> + **1 个 `test/` 文件**（`personal_info_test.dart`）+ **10 条用例**，
+> 但上表比 Session 024 多出 **2 个 `lib/` 文件 / 3 个 `test/` 文件 / 17 条用例**。
+> 差额来自**并行的另一笔在飞改动** —— 这几个文件的最后修改时间是
+> **16:29–16:47**，**不在 Session 025 的改动清单里**：
+>
+> ```text
+> lib/features/ai/presentation/ai_page.dart
+> lib/data/api/api_client.dart
+> test/widget_test.dart
+> test/data/api_auth_repository_test.dart
+> ```
+>
+> 📌 **2026-10-07 这一天有过四轮产物**：Session 022（Release V1.0 基线 A–D：
+> 发布身份 / 安全基线 / 数据备份 / 删除账号）· Session 023（Stage E 的 E2 / E3）·
+> Session 024（修 C8）· Session 025（设置 → 个人信息，只读）。
+> 上一次复核（2026-10-04）之后**四轮都没更新过本表**。
+>
+> 📌 上一版记的是 `312 用例`（Session 024，`+309 ~1 -2`），
+> 再上一版是 `297 用例`（Session 023，`+295 ~1 -1`）。
+> **297 → 312 那 +15 全部来自 legal 那一轮在飞改动**，
+> 不是 Session 024 新增的（Session 024 只改断言，未增删用例）。
 
 **复算命令**（数字必须可被独立复算 —— 见 §3.2 的教训）：
 
@@ -274,8 +344,8 @@ cases = sum(len(re.findall(r'\b(?:testWidgets|test)\(', f.read_text(encoding='ut
 print(f'lib/   {lf} files / {ll} lines')
 print(f'test/  {tf} files / {tl} lines / {cases} cases')
 "
-# lib/   142 files / 34728 lines
-# test/  25 files / 7175 lines / 237 cases
+# lib/   165 files / 44053 lines
+# test/  32 files / 10110 lines / 329 cases
 ```
 
 > ⚠️ `lib/` 的数字含**未跟踪文件**（`git status` 里成片的 `??`），
@@ -284,7 +354,11 @@ print(f'test/  {tf} files / {tl} lines / {cases} cases')
 > 📌 用例数演进：`10` → `24`（**实为 25，误记**）→ `42` → `58` → `72` → `97`
 > → `128`（Phase 6/7/8 批 1）→ `158`（2026-09-22，Phase 8 批 2）
 > → `180`（2026-09-30 全量审查）→ `216`（2026-10-02，Session 019）
-> → **`237`（2026-10-04，接通 work_agent 后的复核）**。
+> → `237`（2026-10-04，接通 work_agent 后的复核）
+> → `297`（2026-10-07，Session 023 实测 `+295 ~1 -1`）
+> → **`312`（2026-10-07，Session 024 复核 `+309 ~1 -2`）**
+> → **`329`（2026-10-07，Session 025 复核 `+326 ~1 -2`，见 §3.3 正文 ——
+>    ⚠️ 其中 +17 **含并行改动**，Session 025 实际只贡献 10 条）**。
 > 25 → 24 那次误记见 `CHANGELOG.md` Session 006 · 第七节。
 >
 > ⚠️ **两次大跃进的原因不同**：
@@ -336,10 +410,12 @@ print(f'test/  {tf} files / {tl} lines / {cases} cases')
 - ❌ **App 入口接线** —— 仍是 `/home` 而非开屏；依赖会话持久化，**裁决前不得改动**（D54）
 - ❌ 独立登录页 —— Figma 中「登录」不拥有页面，两个按钮都跳注册（D55）
 - ❌ Phase 2 批 3 组件（`ScoreIndicator` / `AIMessageBubble`）
-- ⚠️ **Flutter 侧「真实后端」只在 `CAREERLY_USE_API=true` 时生效**
-      —— `ApiClient` 及 9 个 `Api*Repository` 已建成（§3.4），
-      但 `ApiClient.useApi` **默认 `false`**，不传 dart-define 时全部走 Mock。
-      **默认装配仍是 Mock First**，这不是缺陷而是设计（`providers.dart` 注释）。
+- ✅ **Flutter 侧「真实后端」已成为 `flutter run` 的默认**
+      —— `ApiClient` 及 9 个 `Api*Repository` 已建成（§3.4）。
+      2026-10-05 起默认值由**入口**决定：`main()` 取真实后端
+      （零参数即生效），测试与 `CareerlyApp` 的自身默认仍是 Mock。
+      后端地址默认 `http://127.0.0.1:8000`，依赖 `adb reverse tcp:8000 tcp:8000`。
+      （此前是 `ApiClient.useApi` 默认 `false` + `10.0.2.2` 模拟器地址。）
 - ❌ 会员、支付（MOCK 静态页 + 额度门禁，**不做真实支付** —— Baseline 锁定）
 - ⚠️ 本地存储 / 鉴权 —— **部分建立**：`TokenStore`（Keystore / Keychain 安全持久化，D-B）
       与 `AuthRepository` 已落地；但「已登录则跳过 Onboarding」仍是未决项（**D54**）
@@ -380,6 +456,19 @@ print(f'test/  {tf} files / {tl} lines / {cases} cases')
 > `flutter analyze` 抓不到硬编码数值，因此靠**代码评审**与**本表**保证。
 
 #### ⚠️ 暂定值清单
+
+> 📌 **2026-10-07（Session 023）本表无新增行** —— Stage E 新增的三个界面
+> （注册页同意行 / 协议正文排版 / 协议页容器）**全部复用**既有 `AppTypography`
+> 通用角色与 `AppSpacing` 档位，**未新增 Token、未内联任何暂定数值**。
+> 那三处「没有设计源」是**另一个问题**（视觉从哪来），不是「暂定值是几」，
+> 故登记在 `TODO.md` §3.1 · **D124**，不占本表。
+
+> 📌 **2026-10-07（Session 025）本表同样无新增行** —— 新页
+> `personal_info_page.dart`（设置 → 个人信息）的「值右对齐 + 折两行」
+> 「标签 / 值两栏」等观感**全部复用** `AppTypography` 通用角色与
+> `AppSpacing` 档位，**未新增 Token、未内联任何暂定数值**。
+> 该页**没有 Figma 规格**，属**另一个问题**（视觉从哪来），
+> 故登记在 `TODO.md` §3.1 · **D125**，不占本表。
 
 | Token | 当前值 | 为什么是暂定的 | D |
 |---|---|---|---|
