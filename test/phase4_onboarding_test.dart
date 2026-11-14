@@ -4,10 +4,13 @@ import 'package:careerly/core/errors/app_error.dart';
 import 'package:careerly/data/mock/mock.dart';
 import 'package:careerly/data/repositories/repositories.dart';
 import 'package:careerly/design_system/components/careerly_button.dart';
+import 'package:careerly/design_system/components/careerly_checkbox.dart';
 import 'package:careerly/design_system/components/careerly_navigation_bar.dart';
 import 'package:careerly/design_system/components/careerly_social_button.dart';
 import 'package:careerly/design_system/components/careerly_toast.dart';
 import 'package:careerly/features/home/presentation/home_page.dart';
+import 'package:careerly/features/legal/legal_document.dart';
+import 'package:careerly/features/legal/presentation/legal_document_page.dart';
 import 'package:careerly/features/onboarding/presentation/onboarding_login_page.dart';
 import 'package:careerly/features/onboarding/presentation/onboarding_register_page.dart';
 import 'package:careerly/features/onboarding/presentation/onboarding_splash_page.dart';
@@ -31,6 +34,19 @@ import 'package:flutter_test/flutter_test.dart';
 /// `?mode=login` / `OnboardingAccountMode` 机制一并作废 ——
 /// 那两组测试测的就是这套机制，故**整体删除**，由 `Phase 4 · 登录页`
 /// 组取代。**不是**把它们改成通过，而是被测对象已经不存在了。
+///
+/// ## 2026-10-07 新增：注册页的同意门禁（发布基线 §1.0f · E2）
+///
+/// 注册页多了一行同意勾选（Figma 里**没有**这个控件），因此
+/// **三处既有断言被同步改写**：
+///
+/// ```text
+/// · 「逐个填齐三字段后才解锁」—— 三字段齐 ≠ 解锁，解锁断言顺延到勾选之后
+/// · 两条提交测试               —— 点「创建账号」之前先勾同意
+/// ```
+///
+/// 改的是**前提**，不是结论：门禁本身另有三条专门的测试（勾选 / 取消勾选 /
+/// 微信·QQ 同样受拦）与一条入口测试（两份协议页可达且能返回）。
 void main() {
   /// Mock 数据层的默认延迟是 600ms，测试里需要推进假时钟把它走完。
   ///
@@ -77,7 +93,7 @@ void main() {
   /// 先 `ensureVisible` 把它滚进视野，这与真机上用户滚动是一回事。
   Future<void> tapVisible(WidgetTester tester, Finder finder) async {
     await tester.ensureVisible(finder);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 350));
     await tester.tap(finder);
   }
 
@@ -90,6 +106,26 @@ void main() {
       ),
     );
     return button.onPressed != null;
+  }
+
+  /// 勾选同意行（发布基线门禁，见注册页类文档「同意门禁」）。
+  ///
+  /// 走 [tapVisible]：同意行在页面下半部分，默认 800×600 画布上可能
+  /// 命中不到 —— 与主按钮同一个问题。
+  Future<void> agreeToTerms(WidgetTester tester) async {
+    await tapVisible(tester, find.byType(CareerlyCheckbox));
+  }
+
+  /// 推进「转场 + 协议页读资产」这两条链。
+  ///
+  /// ⚠️ 这里**不能**用 `pumpAndSettle`：协议页 Loading 态的转圈是
+  /// **无限动画**，`pumpAndSettle` 会一直等到超时。推进固定帧数即可 ——
+  /// 资产是本地文件，测试里第一个 `pump` 之后就已经读到了。
+  Future<void> settleLegal(WidgetTester tester) async {
+    await tester.pump();
+    for (int i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
   }
 
   group('Phase 4 · 开屏页', () {
@@ -108,9 +144,7 @@ void main() {
       );
     });
 
-    testWidgets('展示品牌名、一个渐变主按钮与一个文字链入口', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('展示品牌名、一个渐变主按钮与一个文字链入口', (WidgetTester tester) async {
       await pumpAt(tester, AppRoutes.onboardingSplash);
 
       expect(find.text('Careerly'), findsOneWidget);
@@ -163,9 +197,7 @@ void main() {
   });
 
   group('Phase 4 · 注册页', () {
-    testWidgets('渲染进度头、标题与名字 / 手机号 / 密码三个字段', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('渲染进度头、标题与名字 / 手机号 / 密码三个字段', (WidgetTester tester) async {
       await pumpAt(tester, AppRoutes.onboardingRegister);
 
       expect(find.byType(OnboardingProgressHeader), findsOneWidget);
@@ -207,11 +239,7 @@ void main() {
 
       await tester.enterText(fields.at(0), '张三');
       await tester.pump();
-      expect(
-        isEnabled(tester, '创建账号'),
-        isFalse,
-        reason: '手机号与密码仍是空的',
-      );
+      expect(isEnabled(tester, '创建账号'), isFalse, reason: '手机号与密码仍是空的');
 
       await tester.enterText(fields.at(1), '13800000000');
       await tester.pump();
@@ -233,7 +261,85 @@ void main() {
 
       await tester.enterText(fields.at(2), '123456');
       await tester.pump();
+      // ⚠️ 三字段齐了但**还没勾同意** —— 发布基线门禁要求此处仍为 Disabled，
+      // 故解锁断言顺延到勾选之后（见下一条测试）。
+      expect(
+        isEnabled(tester, '创建账号'),
+        isFalse,
+        reason: '三字段填齐只是必要条件之一，同意勾选同样是必要条件',
+      );
+
+      await agreeToTerms(tester);
+      await tester.pump();
       expect(isEnabled(tester, '创建账号'), isTrue);
+    });
+
+    testWidgets('同意行：勾选与取消勾选都要如实反映到主按钮上', (WidgetTester tester) async {
+      await pumpAt(tester, AppRoutes.onboardingRegister);
+
+      final Finder fields = find.byType(TextField);
+      await tester.enterText(fields.at(0), '张三');
+      await tester.enterText(fields.at(1), '13800000000');
+      await tester.enterText(fields.at(2), 'secret123');
+      await tester.pump();
+
+      // 文案是产品侧 2026-10-07 的裁决，两行式（勾选框一行、两个链接一行）。
+      expect(find.text('我已阅读并同意'), findsOneWidget);
+      expect(find.text('《用户协议》'), findsOneWidget);
+      expect(find.text('《隐私政策》'), findsOneWidget);
+
+      await agreeToTerms(tester);
+      await tester.pump();
+      expect(isEnabled(tester, '创建账号'), isTrue);
+
+      // 取消勾选必须**立刻**收回可用态 —— 否则门禁只是个装饰。
+      await tester.tap(find.byType(CareerlyCheckbox));
+      await tester.pump();
+      expect(
+        isEnabled(tester, '创建账号'),
+        isFalse,
+        reason: '取消勾选后主按钮应回到 Disabled',
+      );
+    });
+
+    testWidgets('未勾选同意时微信 / QQ 也不可点（第三方注册同样会建号）', (WidgetTester tester) async {
+      await pumpAt(tester, AppRoutes.onboardingRegister);
+
+      expect(
+        isSocialEnabled(tester, '微信'),
+        isFalse,
+        reason: '第三方注册也会创建账号，必须同受同意门禁约束',
+      );
+      expect(isSocialEnabled(tester, 'QQ'), isFalse);
+
+      await agreeToTerms(tester);
+      await tester.pump();
+
+      expect(isSocialEnabled(tester, '微信'), isTrue);
+      expect(isSocialEnabled(tester, 'QQ'), isTrue);
+    });
+
+    testWidgets('点《用户协议》/《隐私政策》分别落到两份协议页，返回回到注册页', (WidgetTester tester) async {
+      await pumpAt(tester, AppRoutes.onboardingRegister);
+
+      await tapVisible(tester, find.text('《用户协议》'));
+      await settleLegal(tester);
+
+      expect(find.byType(LegalDocumentPage), findsOneWidget);
+      expect(find.text(LegalDocument.termsOfService.title), findsWidgets);
+
+      // 二级页返回 = 回注册页（Back 语义由路由层级表达，CLAUDE.md §5.6）。
+      await tester.tap(find.byTooltip('返回'));
+      await settleLegal(tester);
+      expect(find.byType(OnboardingRegisterPage), findsOneWidget);
+
+      await tapVisible(tester, find.text('《隐私政策》'));
+      await settleLegal(tester);
+
+      expect(find.byType(LegalDocumentPage), findsOneWidget);
+      expect(find.text(LegalDocument.privacyPolicy.title), findsWidgets);
+      // 是同一份页面类 + 不同参数，不是两个页面实现（CLAUDE.md §8.4）。
+      expect(find.text(LegalDocument.termsOfService.title), findsNothing);
     });
 
     testWidgets('提交成功后离开注册页，继续 Onboarding', (WidgetTester tester) async {
@@ -244,6 +350,9 @@ void main() {
       await tester.enterText(fields.at(1), '13800000000');
       await tester.enterText(fields.at(2), 'secret123');
       await tester.pump();
+      // 发布基线门禁：未勾同意时主按钮是 Disabled，点它不会提交。
+      await agreeToTerms(tester);
+      await tester.pump();
 
       await tapVisible(tester, find.text('创建账号'));
       await settleMock(tester);
@@ -251,9 +360,7 @@ void main() {
       expect(find.byType(OnboardingRegisterPage), findsNothing);
     });
 
-    testWidgets('提交失败时停留原页并给出错误提示（网络类失败可重试）', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('提交失败时停留原页并给出错误提示（网络类失败可重试）', (WidgetTester tester) async {
       MockSettings.config = const MockConfig(
         latency: Duration(milliseconds: 10),
         failNext: true,
@@ -266,6 +373,9 @@ void main() {
       await tester.enterText(fields.at(0), '张三');
       await tester.enterText(fields.at(1), '13800000000');
       await tester.enterText(fields.at(2), 'secret123');
+      await tester.pump();
+      // 发布基线门禁：未勾同意时主按钮是 Disabled，点它不会提交。
+      await agreeToTerms(tester);
       await tester.pump();
 
       await tapVisible(tester, find.text('创建账号'));
@@ -291,6 +401,10 @@ void main() {
       expect(find.byType(OnboardingLoginPage), findsOneWidget);
       expect(find.text('欢迎回来！'), findsOneWidget);
       expect(find.text('继续成长从看见自己开始'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('onboarding-login-ip')),
+        findsOneWidget,
+      );
 
       // 登录页**没有**进度头（进度属于注册侧的建立基线流程）。
       expect(find.byType(OnboardingProgressHeader), findsNothing);
@@ -302,9 +416,7 @@ void main() {
       );
     });
 
-    testWidgets('只有手机号与密码两个字段，且带记住我 / 忘记密码?', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('只有手机号与密码两个字段，且带记住我 / 忘记密码?', (WidgetTester tester) async {
       await pumpAt(tester, AppRoutes.onboardingLogin);
 
       expect(find.byType(TextField), findsNWidgets(2));
@@ -348,9 +460,7 @@ void main() {
       expect(isEnabled(tester, '点击登录'), isTrue);
     });
 
-    testWidgets('提交成功后**直接进入首页** —— 老用户已有职业基线', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('提交成功后**直接进入首页** —— 老用户已有职业基线', (WidgetTester tester) async {
       await pumpAt(tester, AppRoutes.onboardingLogin);
 
       await tester.enterText(find.byType(TextField).at(0), '13800000000');
@@ -376,9 +486,7 @@ void main() {
       );
     });
 
-    testWidgets('提交失败时停留原页并给出错误提示，按钮回到可用态', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('提交失败时停留原页并给出错误提示，按钮回到可用态', (WidgetTester tester) async {
       MockSettings.config = const MockConfig(
         latency: Duration(milliseconds: 10),
         failNext: true,
@@ -437,9 +545,7 @@ void main() {
       expect(find.widgetWithText(CareerlySocialButton, 'QQ'), findsOneWidget);
     });
 
-    testWidgets('Mock 模式下点微信**如实失败**，不假装登录成功', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('Mock 模式下点微信**如实失败**，不假装登录成功', (WidgetTester tester) async {
       MockSettings.config = const MockConfig(
         latency: Duration(milliseconds: 10),
       );
@@ -479,6 +585,9 @@ void main() {
       await tester.enterText(fields.at(0), '张三');
       await tester.enterText(fields.at(1), '13800000000');
       await tester.enterText(fields.at(2), 'secret123');
+      await tester.pump();
+      // 发布基线门禁：注册页的第三方按钮未勾同意时是 Disabled，点不动。
+      await agreeToTerms(tester);
       await tester.pump();
 
       await tapVisible(tester, find.text('QQ'));
@@ -630,10 +739,7 @@ class _RecordingAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> login({
-    required String phone,
-    required String password,
-  }) async {
+  Future<void> login({required String phone, required String password}) async {
     lastLoginPhone = phone;
     lastLoginPassword = password;
   }
@@ -647,6 +753,18 @@ class _RecordingAuthRepository implements AuthRepository {
   Future<void> logout() async {
     lastLogoutCalled = true;
   }
+
+  @override
+  Future<void> deleteAccount() async {}
+
+  @override
+  Future<CareerDataDeletionResult> deleteCareerData() async =>
+      const CareerDataDeletionResult(
+        deletedRows: 0,
+        deletedFiles: 0,
+        orphanArtifacts: 0,
+        warnings: <String>[],
+      );
 }
 
 /// 恒定失败的假 Repository（三条链路都失败）。
@@ -661,10 +779,7 @@ class _FailingAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> login({
-    required String phone,
-    required String password,
-  }) async {
+  Future<void> login({required String phone, required String password}) async {
     throw const NetworkError(detail: 'test');
   }
 
@@ -675,6 +790,16 @@ class _FailingAuthRepository implements AuthRepository {
 
   @override
   Future<void> logout() async {
+    throw const NetworkError(detail: 'test');
+  }
+
+  @override
+  Future<void> deleteAccount() async {
+    throw const NetworkError(detail: 'test');
+  }
+
+  @override
+  Future<CareerDataDeletionResult> deleteCareerData() async {
     throw const NetworkError(detail: 'test');
   }
 }

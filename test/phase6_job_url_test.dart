@@ -497,6 +497,10 @@ class _StubResumeRepository implements ResumeRepository {
   Future<List<ResumeVersion>> fetchVersions() async => const <ResumeVersion>[];
 
   @override
+  Future<List<int>> fetchVersionOriginalPdf(String versionId) async =>
+      const <int>[];
+
+  @override
   Future<void> setCurrentVersion(String versionId) async {}
 
   @override

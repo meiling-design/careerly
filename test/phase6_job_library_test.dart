@@ -194,7 +194,9 @@ void main() {
       expect(find.text('还没有历史岗位'), findsNothing);
     });
 
-    testWidgets('无 createdAt 的行：不编造日期（CLAUDE.md §7）', (WidgetTester tester) async {
+    testWidgets('无 createdAt 的行：不编造日期（CLAUDE.md §7）', (
+      WidgetTester tester,
+    ) async {
       final StubAnalysisRepository repository = StubAnalysisRepository(
         jobs: <Job>[
           const Job(id: 'job-no-date', title: historyTitle, rawJd: historyJd),
@@ -402,6 +404,10 @@ class _StubResumeRepository implements ResumeRepository {
 
   @override
   Future<List<ResumeVersion>> fetchVersions() async => const <ResumeVersion>[];
+
+  @override
+  Future<List<int>> fetchVersionOriginalPdf(String versionId) async =>
+      const <int>[];
 
   @override
   Future<void> setCurrentVersion(String versionId) async {}

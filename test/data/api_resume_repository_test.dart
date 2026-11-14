@@ -100,6 +100,10 @@ void main() {
       expect(profile.workExperiences, <String>['后端工程师', '高级后端工程师']);
       expect(profile.projectExperiences, <String>['电商中台订单服务', '实时风控引擎']);
       expect(profile.skills, <String>['Python', 'Kafka'], reason: '空白项被丢弃');
+      // ⚠️ 2026-10-07 补的映射。后端一直在返回 `experience_years`，
+      // 此前 Dart 侧把它丢掉了 —— 「设置 → 个人信息」的「工作经验」一行
+      // 因此恒为空。`6.0` → `6`（收成整年，只用于展示）。
+      expect(profile.experienceYears, 6);
       // 后端没有来源 → 保持空，不编造（D110）。
       expect(profile.awards, isEmpty);
       expect(profile.capabilities, isEmpty);
@@ -111,6 +115,35 @@ void main() {
 
       expect(profile.isEmpty, isTrue);
       expect(profile.hasBaseline, isFalse);
+      expect(profile.experienceYears, isNull);
+    });
+
+    test('画像里缺 experience_years → null，不编造 0 年', () async {
+      // ⚠️ 这一条区分「没解析出」与「解析出 0 年」—— 后端对后者会明确给
+      // `0.0`。若缺键时回落成 `0`，页面会把「不知道」显示成「0 年」。
+      final _FakeBackend backend = _FakeBackend(
+        payload: <String, dynamic>{
+          'text': '张三 后端工程师',
+          'profile': <String, dynamic>{'name': '张三'},
+        },
+      );
+
+      final ResumeProfile profile = await repoWith(backend).fetchProfile();
+
+      expect(profile.experienceYears, isNull);
+    });
+
+    test('experience_years 为 0.0 时保留 0（与缺键区分）', () async {
+      final _FakeBackend backend = _FakeBackend(
+        payload: <String, dynamic>{
+          'text': '应届生',
+          'profile': <String, dynamic>{'name': '应届生', 'experience_years': 0.0},
+        },
+      );
+
+      final ResumeProfile profile = await repoWith(backend).fetchProfile();
+
+      expect(profile.experienceYears, 0);
     });
 
     test('有画像但文本为空 → 仍视为无基线', () async {
@@ -130,6 +163,21 @@ void main() {
     });
   });
 
+  test('读取某版本原始 PDF 时返回二进制原稿', () async {
+    final Uint8List original = Uint8List.fromList(<int>[
+      0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37,
+    ]);
+    final _FakeBackend backend = _FakeBackend(pdfPayload: original);
+
+    final List<int> fetched = await repoWith(
+      backend,
+    ).fetchVersionOriginalPdf('version-123');
+
+    expect(backend.lastPath, '/api/v1/resume/versions/version-123/original');
+    expect(backend.lastMethod, 'GET');
+    expect(fetched, original);
+  });
+
   group('ResumeFileData.allowedExtensions', () {
     test('与后端 _ALLOWED_RESUME_SUFFIXES 一致：收图片与 txt，不收旧式 doc', () {
       expect(
@@ -147,9 +195,11 @@ void main() {
 
 /// 假后端：记录请求形态（multipart 字段 / 文件 / 头），返回可编排的 envelope。
 class _FakeBackend extends http.BaseClient {
-  _FakeBackend({Map<String, dynamic>? payload}) : _data = payload;
+  _FakeBackend({Map<String, dynamic>? payload, this.pdfPayload})
+    : _data = payload;
 
   final Map<String, dynamic>? _data;
+  final Uint8List? pdfPayload;
 
   String? lastPath;
   String? lastMethod;
@@ -178,6 +228,14 @@ class _FakeBackend extends http.BaseClient {
       await request.finalize().toBytes();
     }
     contentType = request.headers['content-type'];
+
+    if (lastPath?.endsWith('/original') == true && pdfPayload != null) {
+      return http.StreamedResponse(
+        Stream<List<int>>.value(pdfPayload!),
+        200,
+        headers: const <String, String>{'content-type': 'application/pdf'},
+      );
+    }
 
     final Map<String, dynamic> body = <String, dynamic>{
       'success': true,

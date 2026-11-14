@@ -198,4 +198,18 @@ class _RecordingAuthRepository implements AuthRepository {
     logoutCalls++;
     if (failing) throw const NetworkError(detail: 'test');
   }
+
+  /// 本文件测的是**退出登录**，注销只是接口上的一个方法 ——
+  /// 不实现任何行为（注销自身的行为在 `delete_account_test.dart`）。
+  @override
+  Future<void> deleteAccount() async {}
+
+  @override
+  Future<CareerDataDeletionResult> deleteCareerData() async =>
+      const CareerDataDeletionResult(
+        deletedRows: 0,
+        deletedFiles: 0,
+        orphanArtifacts: 0,
+        warnings: <String>[],
+      );
 }

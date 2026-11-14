@@ -160,6 +160,10 @@ class StubResumeRepository implements ResumeRepository {
   Future<List<ResumeVersion>> fetchVersions() async => const <ResumeVersion>[];
 
   @override
+  Future<List<int>> fetchVersionOriginalPdf(String versionId) async =>
+      const <int>[];
+
+  @override
   Future<void> setCurrentVersion(String versionId) async {}
 
   // ResumeRepository 新增「删除版本」（PRD §14）—— 桩同步实现。

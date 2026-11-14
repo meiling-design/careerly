@@ -47,6 +47,18 @@ void main() {
     await settleMock(tester);
   }
 
+  /// 把 AI 页「聊天记录」抽屉的滑入 / 滑出动画推完。
+  ///
+  /// 抽屉是 `AnimatedPositioned`，**从状态变化后的下一帧才开始动画** ——
+  /// 单发一次 `pump(350ms)` 只够让动画起步，面板仍停在屏幕外，
+  /// 紧接着的 `tap` 于是落在空处（flutter_test 只打警告，不会让用例变红，
+  /// 这正是这个用例此前长期「红灯但归因不明」的原因之一）。
+  /// 所以要先 `pump()` 起一帧，再 `pump(350ms)` 把 300ms 走完。
+  Future<void> pumpDrawer(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+  }
+
   group('App Shell', () {
     testWidgets('启动后展示 Careerly Shell 与四个一级导航', (WidgetTester tester) async {
       await tester.pumpWidget(const CareerlyApp());
@@ -167,51 +179,68 @@ void main() {
       expect(find.text('Career Copilot'), findsOneWidget);
       expect(find.text('你可以问我'), findsOneWidget);
       expect(find.text('输入你想问的问题...'), findsOneWidget);
-      expect(find.text('你好，ALEX'), findsOneWidget);
+      expect(find.text('你好，今天想聊些什么？'), findsOneWidget);
+      expect(find.text('ALEX'), findsNothing);
+      expect(find.textContaining('82%'), findsNothing);
+      expect(find.textContaining('86%'), findsNothing);
       expect(
         find.byTooltip('聊天记录'),
         findsOneWidget,
         reason: 'Figma AI 欢迎页右侧提供聊天记录入口',
       );
 
-      const String suggestion = '为什么这个岗位匹配度只有 82%？';
+      const String suggestion = '帮我解释最近一次岗位分析结果';
       await tester.ensureVisible(find.text(suggestion));
       await tester.tap(find.text(suggestion));
       await tester.pump();
       expect(
-        find.text('已关联分析：AI 产品经理 · 86% 匹配'),
+        find.text('有分析时参考最近一次分析；否则提供通用建议'),
         findsOneWidget,
-        reason: '点击 Figma 建议问题后进入带分析上下文的聊天界面',
+        reason: '会话提示应准确说明最近分析与通用顾问的上下文规则',
       );
       expect(find.text(suggestion), findsNWidgets(3));
       await tester.pump(const Duration(seconds: 2));
       await tester.pump();
 
+      // 点「聊天记录」= 展开抽屉。
       await tester.tap(find.byTooltip('聊天记录'));
-      await tester.pump(const Duration(milliseconds: 350));
+      await pumpDrawer(tester);
       expect(find.text('新建对话'), findsOneWidget);
       expect(find.text('聊天记录'), findsOneWidget);
-      expect(find.text(suggestion), findsNWidgets(3));
 
+      // 聊天记录里这张会话卡片，标题取**首条**消息、预览行取**最后一条**消息
+      // （`AIConversation.titleFrom` / `AIConversation.preview`）。
+      // 上面 pump 2s 已经让 Mock 回复落地，预览行显示的是 **AI 的回复**
+      // 而不是这句提问 —— 所以提问文本只剩「用户气泡」+「会话标题」两处。
+      // 这个 3 是 AI 尚未回复时的旧口径（Chat 接真实回复前写下），已过时。
+      expect(find.text(suggestion), findsNWidgets(2));
+
+      // ⚠️ 抽屉展开后，「关闭」按钮与顶栏「聊天记录」按钮**落在同一坐标**
+      // （面板右缘与屏幕右缘对齐）—— 所以此处必须显式点「关闭聊天记录」，
+      // 再点「聊天记录」等于又把它关回去。
       await tester.tap(find.byTooltip('关闭聊天记录'));
-      await tester.pump(const Duration(milliseconds: 350));
+      await pumpDrawer(tester);
       await tester.tap(find.byTooltip('聊天记录'));
-      await tester.pump(const Duration(milliseconds: 350));
+      await pumpDrawer(tester);
       await tester.tap(find.text('新建对话'));
-      await tester.pump(const Duration(milliseconds: 350));
+      await pumpDrawer(tester);
       expect(find.text('你可以问我'), findsOneWidget);
 
       await tester.tap(find.byTooltip('聊天记录'));
-      await tester.pump(const Duration(milliseconds: 350));
+      await pumpDrawer(tester);
       final Finder historyPreview = find.text(suggestion).last;
       await tester.tap(
         find
             .ancestor(of: historyPreview, matching: find.byType(InkWell))
             .first,
       );
-      await tester.pump(const Duration(milliseconds: 350));
-      expect(find.text(suggestion), findsNWidgets(3));
-      expect(find.text('已关联分析：AI 产品经理 · 86% 匹配'), findsOneWidget);
+      await pumpDrawer(tester);
+      // 选中历史会话 → 回到该会话：提问文本仍是「用户气泡」+「会话标题」两处。
+      expect(find.text(suggestion), findsNWidgets(2));
+      expect(
+        find.text('有分析时参考最近一次分析；否则提供通用建议'),
+        findsOneWidget,
+      );
     });
   });
 

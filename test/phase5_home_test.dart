@@ -1,4 +1,5 @@
 import 'package:careerly/app/app.dart';
+import 'package:careerly/app/router/app_routes.dart';
 import 'package:careerly/data/models/home_summary.dart';
 import 'package:careerly/data/repositories/home_repository.dart';
 import 'package:careerly/design_system/components/components.dart';
@@ -6,12 +7,12 @@ import 'package:careerly/design_system/theme/careerly_theme.dart';
 import 'package:careerly/features/home/presentation/home_content.dart';
 import 'package:careerly/features/home/presentation/home_page.dart';
 import 'package:careerly/features/home/presentation/widgets/home_analysis_section.dart';
-import 'package:careerly/features/home/presentation/widgets/home_header.dart';
 import 'package:careerly/features/home/presentation/widgets/home_hero_card.dart';
 import 'package:careerly/features/home/presentation/widgets/home_stil_cards.dart';
 import 'package:careerly/features/home/state/home_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
@@ -64,9 +65,32 @@ void main() {
               HomeProvider(context.read<HomeRepository>()),
         ),
       ],
-      child: MaterialApp(
+      child: MaterialApp(theme: CareerlyTheme.light(), home: const HomePage()),
+    );
+  }
+
+  Widget routerHost(HomeSummary summary) {
+    final GoRouter router = GoRouter(
+      initialLocation: AppRoutes.home,
+      routes: <RouteBase>[
+        GoRoute(path: AppRoutes.home, builder: (_, _) => const HomePage()),
+        GoRoute(
+          path: AppRoutes.profileCapability,
+          builder: (_, _) => const Scaffold(body: Text('职业能力路由')),
+        ),
+      ],
+    );
+    return MultiProvider(
+      providers: <SingleChildWidget>[
+        Provider<HomeRepository>(create: (_) => _StubHomeRepository(summary)),
+        ChangeNotifierProvider<HomeProvider>(
+          create: (BuildContext context) =>
+              HomeProvider(context.read<HomeRepository>()),
+        ),
+      ],
+      child: MaterialApp.router(
+        routerConfig: router,
         theme: CareerlyTheme.light(),
-        home: const HomePage(),
       ),
     );
   }
@@ -109,6 +133,8 @@ void main() {
   /// State 03：有基线 + 两个岗位。
   const HomeSummary analyzed = HomeSummary(
     hasBaseline: true,
+    headline: '当前与目标岗位的匹配度 61 分',
+    subheadline: '最需要补上的是「测试能力」',
     suggestions: <String>['建议甲', '建议乙'],
     recentGrowth: <String>['成长甲', '成长乙'],
     matchChanges: <MatchChange>[
@@ -128,54 +154,45 @@ void main() {
       expect(homeText('从一份简历开始，看见你的职业能力'), findsOneWidget);
       expect(homeText('上传简历'), findsOneWidget);
 
-      // 「你的职业主页」同时是 Header 主标题与 Hero 小标签，「还没有职业分析」
-      // 同时是 Hero 主标题与「当前状态」卡标题 —— D64 ② 里本就是这个重复，
-      // 不是渲染了两遍。刻意钉住数量，避免被后来者「顺手统一」掉。
-      expect(homeText('主页'), findsOneWidget);
-      expect(homeText('你的职业主页'), findsNWidgets(2));
+      expect(homeText('你的职业主页'), findsOneWidget);
       expect(homeText('还没有职业分析'), findsNWidgets(2));
     });
 
     testWidgets('四张卡片与「第一次分析」引导语逐字', (WidgetTester tester) async {
       await pumpRealApp(tester, '/home');
 
-      // 卡片 1 · 问问 AI（D64 ② 写的是「问问 AI」，带空格；
-      // 而 Figma 的 State 03 写的是「问问AI」，不带空格 ——
-      // 两者各自逐字，**不要**统一）
-      expect(homeText('问问 AI'), findsOneWidget);
+      // 第三张卡为建议入口，内容仍按未分析状态提供引导。
+      expect(homeText('下一步建议'), findsOneWidget);
       expect(homeText('不知道下一步该提升什么？'), findsOneWidget);
       expect(homeText('和 AI 聊聊你的职业方向'), findsOneWidget);
 
-      // 卡片 2 · 当前状态
+      // 第一张卡 · 当前状态
       expect(homeText('上传简历并分析一个目标岗位'), findsOneWidget);
       expect(homeText('看见你的能力匹配度'), findsOneWidget);
 
-      // 卡片 3 · 最近成长
+      // 第二张卡 · 最近成长
       expect(homeText('还没有成长记录'), findsOneWidget);
       expect(homeText('每一次简历更新、技能增加'), findsOneWidget);
       expect(homeText('都会成为你的职业资产'), findsOneWidget);
 
-      // 卡片 4 · 今日一句（三态通用的陪伴卡）
-      expect(homeText('今天也可以向前一步'), findsOneWidget);
-      expect(homeText('先看见自己，再决定下一步。'), findsOneWidget);
+      // 第四张卡 · 今日内容。
+      expect(homeText('今天也可以向前一步\n先看见自己，再决定下一步。'), findsOneWidget);
+      expect(homeText('查看详情'), findsOneWidget);
+      expect(homeText('查看成长记录'), findsOneWidget);
+      expect(homeText('与AI聊聊'), findsOneWidget);
 
       // 岗位匹配变化区块 → 第一次分析引导
       expect(homeText('开始你的第一次分析'), findsOneWidget);
-      expect(
-        homeText('找到一个你感兴趣的岗位，把 JD 粘贴进 Careerly。'),
-        findsOneWidget,
-      );
+      expect(homeText('找到一个你感兴趣的岗位，把 JD 粘贴进 Careerly。'), findsOneWidget);
       expect(homeText('分析第一个岗位 →'), findsOneWidget);
 
-      // 三颗筛选胶囊（Figma 逐字）
-      expect(homeText('新建分析'), findsOneWidget);
+      // Figma 的两颗匹配变化操作。
       expect(homeText('最新匹配变化'), findsOneWidget);
       expect(homeText('查看全部'), findsOneWidget);
+      expect(homeText('新建分析'), findsNothing);
     });
 
-    testWidgets('不得出现 Figma 的硬编码假数据（D64 ⑥ / §7）', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('不得出现 Figma 的硬编码假数据（D64 ⑥ / §7）', (WidgetTester tester) async {
       await pumpRealApp(tester, '/home');
 
       // 假名 / 假读数 / 假岗位 / 假排名 / 假成长 / 假日期。
@@ -199,6 +216,45 @@ void main() {
         );
       }
     });
+
+    testWidgets('最新变化按钮滚动定位；查看全部进入分析路由', (WidgetTester tester) async {
+      await pumpRealApp(tester, '/home');
+
+      final GoRouter router = GoRouter.of(
+        tester.element(find.byType(HomePage)),
+      );
+      final Finder changesButton = homeText('最新匹配变化');
+      await tester.ensureVisible(changesButton);
+      await tester.tap(changesButton);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(homeText('开始你的第一次分析')).dy,
+        greaterThanOrEqualTo(0),
+      );
+
+      final Finder viewAllButton = homeText('查看全部');
+      await tester.ensureVisible(viewAllButton);
+      await tester.tap(viewAllButton);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(seconds: 1));
+      expect(router.routeInformationProvider.value.uri.path, '/analysis');
+    });
+
+    testWidgets('成长入口进入我的成长记录子路由', (WidgetTester tester) async {
+      await pumpRealApp(tester, '/home');
+      final GoRouter router = GoRouter.of(
+        tester.element(find.byType(HomePage)),
+      );
+      final Finder growthAction = homeText('查看成长记录');
+      await tester.ensureVisible(growthAction);
+      await tester.tap(growthAction);
+      await tester.pumpAndSettle(const Duration(milliseconds: 350));
+
+      expect(
+        router.routeInformationProvider.value.uri.path,
+        '/profile/growth-record',
+      );
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -206,9 +262,7 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('Phase 5 · 首页 State 02（已有简历）', () {
-    testWidgets('Hero 改为「还没有岗位分析」，主按钮改为「添加目标岗位」', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('Hero 改为「还没有岗位分析」，主按钮改为「添加目标岗位」', (WidgetTester tester) async {
       await pumpStub(tester, baselineOnly);
 
       expect(homeText('还没有岗位分析'), findsOneWidget);
@@ -220,22 +274,48 @@ void main() {
       expect(homeText('上传简历'), findsNothing);
     });
 
-    testWidgets('「当前状态」卡改为「职业基线已建立」（D63 措辞）', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('「当前状态」卡改为「职业基线已建立」（D63 措辞）', (WidgetTester tester) async {
       await pumpStub(tester, baselineOnly);
 
       expect(homeText('职业基线已建立'), findsOneWidget);
       expect(homeText('还没有职业分析'), findsNothing);
     });
 
-    testWidgets('区块仍停在「第一次分析」引导，尚未进入岗位列表', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('区块仍停在「第一次分析」引导，尚未进入岗位列表', (WidgetTester tester) async {
       await pumpStub(tester, baselineOnly);
 
       expect(homeText('开始你的第一次分析'), findsOneWidget);
       expect(homeText('岗位匹配变化'), findsNothing);
+    });
+
+    testWidgets('职业基线入口进入职业能力页面', (WidgetTester tester) async {
+      await tester.pumpWidget(routerHost(baselineOnly));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+
+      expect(find.text('职业基线已建立'), findsOneWidget);
+      final Finder action = find.text('查看职业能力');
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+
+      expect(find.text('职业能力路由'), findsOneWidget);
+    });
+
+    testWidgets('首次分析无匹配变化记录时仍显示已分析首页', (WidgetTester tester) async {
+      await pumpStub(
+        tester,
+        const HomeSummary(
+          hasBaseline: true,
+          headline: '当前与目标岗位的匹配度 61 分',
+          subheadline: '已识别 4 项能力维度',
+        ),
+      );
+
+      expect(homeText('当前职业状态'), findsOneWidget);
+      expect(homeText('已完成目标岗位分析'), findsOneWidget);
+      expect(homeText('开始你的第一次分析'), findsNothing);
     });
   });
 
@@ -247,22 +327,18 @@ void main() {
     testWidgets('Hero 取最匹配的那条岗位，读数来自数据', (WidgetTester tester) async {
       await pumpStub(tester, analyzed);
 
-      expect(homeText('最匹配岗位'), findsOneWidget);
+      expect(homeText('当前职业状态'), findsOneWidget);
+      expect(homeText('当前与目标岗位的匹配度 61 分'), findsOneWidget);
+      expect(homeText('最需要补上的是「测试能力」'), findsOneWidget);
       expect(homeText('查看分析'), findsOneWidget);
-      // 最匹配的那条**同时**出现在 Hero 与下方列表里 —— 这是设计如此，
-      // 不是重复渲染（Hero 是「当前最匹配」，列表是全部岗位）。
-      expect(homeText('测试岗位 A'), findsNWidgets(2));
+      expect(homeText('测试岗位 A'), findsOneWidget);
 
-      // Hero 的读数是**纯数字**，`%` 是独立的一小号字。
-      expect(homeText('61'), findsOneWidget);
-      expect(homeText('%'), findsOneWidget);
+      // 匹配度读数从真实摘要渲染到「当前状态」卡。
+      expect(homeText('61%'), findsNWidgets(2));
       expect(homeText('匹配度'), findsOneWidget);
-      expect(homeText('▲ 较上次+4%'), findsOneWidget);
     });
 
-    testWidgets('岗位匹配变化列表：排名 / 匹配度 / 变化 Chip', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('岗位匹配变化列表：排名 / 匹配度 / 变化 Chip', (WidgetTester tester) async {
       await pumpStub(tester, analyzed);
 
       expect(homeText('岗位匹配变化'), findsOneWidget);
@@ -271,9 +347,9 @@ void main() {
       expect(homeText('🥇'), findsOneWidget);
       expect(homeText('🥈'), findsOneWidget);
 
-      expect(homeText('测试岗位 A'), findsNWidgets(2));
+      expect(homeText('测试岗位 A'), findsOneWidget);
       expect(homeText('测试岗位 B'), findsOneWidget);
-      expect(homeText('61%'), findsOneWidget);
+      expect(homeText('61%'), findsNWidgets(2));
       expect(homeText('42%'), findsOneWidget);
 
       // 上升 → `↑ +N%`；持平（`delta == 0`）→ 破折号，与 Figma 一致。
@@ -284,16 +360,16 @@ void main() {
     testWidgets('卡片改由真实摘要填充，取不到就留空', (WidgetTester tester) async {
       await pumpStub(tester, analyzed);
 
-      // 卡片 1 的两行 = `suggestions` 前两条；标题是 Figma 原文（无空格）。
-      expect(homeText('问问AI'), findsOneWidget);
+      // 下一步建议使用真实摘要中的前两条建议。
+      expect(homeText('下一步建议'), findsOneWidget);
       expect(homeText('建议甲'), findsOneWidget);
       expect(homeText('建议乙'), findsOneWidget);
 
-      // 卡片 2 的第一行在 Figma 里是假排名 → 换成真实的分析数量。
-      expect(homeText('已分析 2 个目标岗位'), findsOneWidget);
-      expect(homeText('点击查看详细分析'), findsOneWidget);
+      // 状态卡使用真实匹配变化数量和真实匹配分。
+      expect(homeText('最近有 2 个岗位匹配变化'), findsOneWidget);
+      expect(homeText('61%'), findsNWidgets(2));
 
-      // 卡片 3 的两行 = `recentGrowth`。
+      // 成长卡的两行 = `recentGrowth`。
       expect(homeText('最近成长'), findsOneWidget);
       expect(homeText('成长甲'), findsOneWidget);
       expect(homeText('成长乙'), findsOneWidget);
@@ -314,8 +390,7 @@ void main() {
 
       expect(homeText('—'), findsOneWidget);
       expect(homeText('↑ +0%'), findsNothing);
-      // Hero 那一行也随之为空，而不是 `▲ 较上次+0%`。
-      expect(homeText('▲ 较上次+0%'), findsNothing);
+      expect(homeText('61%'), findsNWidgets(2));
     });
 
     testWidgets('摘要为空时列表不留空壳行', (WidgetTester tester) async {
@@ -336,10 +411,10 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // 三态共用同一套视觉（D64 ①bis）
+  // 三态共用同一套首页结构
   // ---------------------------------------------------------------------------
 
-  group('Phase 5 · 三态共用同一套 Figma 视觉（D64 ①bis）', () {
+  group('Phase 5 · 三态共用首页结构', () {
     /// 结构不变量。
     ///
     /// 「只替换文字内容，不要修改 figma 视觉设计」在代码里的表达是
@@ -349,8 +424,11 @@ void main() {
       WidgetTester tester, {
       required String label,
     }) async {
-      expect(find.byType(HomeHeader), findsOneWidget, reason: '$label · 身份区');
-      expect(find.byType(HomeHeroCard), findsOneWidget, reason: '$label · Hero');
+      expect(
+        find.byType(HomeHeroCard),
+        findsOneWidget,
+        reason: '$label · Hero',
+      );
       expect(
         find.byType(HomeStilCards),
         findsOneWidget,
@@ -362,14 +440,16 @@ void main() {
         reason: '$label · 区块',
       );
 
-      // 四张卡 —— 不多不少（视觉层不因状态增删卡片）。
+      // 2×2 卡片区固定为两行。
       expect(
         find.descendant(
           of: find.byType(HomeStilCards),
-          matching: find.byType(Text),
+          matching: find.byWidgetPredicate(
+            (Widget widget) => widget is SizedBox && widget.height == 198,
+          ),
         ),
-        findsNWidgets(_stilCardTextCount),
-        reason: '$label · 卡片区文字总数（4 标题 + 7 描述行）',
+        findsNWidgets(2),
+        reason: '$label · 2×2 卡片行数',
       );
 
       // 其中三张可点、一张不可点（「今日一句」在 Figma 里没有 onClick）。
@@ -396,6 +476,20 @@ void main() {
     testWidgets('State 03', (WidgetTester tester) async {
       await pumpStub(tester, analyzed);
       await expectSameSkeleton(tester, label: 'State 03');
+    });
+
+    testWidgets('首页适配 320dp 窄屏且无布局溢出', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await pumpStub(tester, analyzed);
+
+      final Size heroSize = tester.getSize(find.byType(HomeHeroCard));
+      expect(heroSize.width, 320);
+      expect(heroSize.height, closeTo(227 * 320 / 390, 0.1));
+      expect(tester.takeException(), isNull);
     });
   });
 
@@ -446,21 +540,10 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // §9-4 · 筛选行窄屏不溢出
+  // §9-4 · 匹配操作行窄屏不溢出
   // ---------------------------------------------------------------------------
 
-  /// 修复前：`_FilterTabs` 三颗胶囊的固有宽合计 **332**
-  /// （`padding0 20` + 4 字 ×14 ×2 组，加 `padding0 16` + 4 字 ×14，
-  /// 加 `gap 8` ×2），而 320dp 屏扣掉页面左右内边距只剩 280。
-  ///
-  /// `Row` 里非 flex 子项拿到的是**无界**主轴约束，所以 `_Tab` 内的
-  /// `maxLines: 1, overflow: ellipsis` 永远不会触发，只会整行
-  /// `RenderFlex overflowed` —— 360dp 溢 12px、320dp 溢 52px。
-  ///
-  /// ⚠️ 这个缺陷此前躲过了全部用例，因为 `flutter_test` 默认画布是
-  /// **800×600**，宽得足以容纳三个标签。下面把「真机窄屏」这个条件
-  /// 显式补进回归面。
-  group('§9-4 · 筛选行窄屏不溢出', () {
+  group('§9-4 · 匹配操作行窄屏不溢出', () {
     Future<void> pumpSection(WidgetTester tester, double available) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -483,56 +566,40 @@ void main() {
       );
     }
 
-    /// 三颗胶囊必须**都在** —— 修法是等比缩小，不是隐藏或省略文字。
-    void expectThreeTabs() {
-      expect(find.text('新建分析'), findsOneWidget);
+    /// 两颗操作都必须存在；窄屏可等比缩小按钮内容，但不能隐藏操作。
+    void expectMatchControls() {
       expect(find.text('最新匹配变化'), findsOneWidget);
       expect(find.text('查看全部'), findsOneWidget);
     }
 
     testWidgets('320dp 屏（可用宽 280）', (WidgetTester tester) async {
       await pumpSection(tester, 280);
-      expectThreeTabs();
-      expect(
-        tester.takeException(),
-        isNull,
-        reason: '三颗胶囊装不下时应等比缩小，而不是溢出',
-      );
+      expectMatchControls();
+      expect(tester.takeException(), isNull, reason: '窄屏操作按钮应缩小且不溢出');
     });
 
     testWidgets('360dp 屏（可用宽 320）', (WidgetTester tester) async {
       await pumpSection(tester, 320);
-      expectThreeTabs();
+      expectMatchControls();
       expect(tester.takeException(), isNull, reason: '360dp 是主流 Android 宽度');
     });
 
-    /// 宽屏**必须逐像素不变** —— 防止把缩放修成「整组居中」。
-    ///
-    /// `FittedBox` 的默认对齐是居中，会把胶囊整组推到屏幕中间；
-    /// 这里钉住「未缩放时仍与 Figma 一样贴左」，
-    /// 偏移量即胶囊自身的 `padding: 0 20`。
-    testWidgets('宽屏不缩放、仍贴左对齐', (WidgetTester tester) async {
+    testWidgets('宽屏操作组居中且不溢出', (WidgetTester tester) async {
       await pumpSection(tester, 800);
-      expectThreeTabs();
+      expectMatchControls();
       expect(tester.takeException(), isNull);
 
-      final double sectionLeft =
-          tester.getTopLeft(find.byType(HomeAnalysisSection)).dx;
-      final double labelLeft = tester.getTopLeft(find.text('新建分析')).dx;
+      final Rect section = tester.getRect(find.byType(HomeAnalysisSection));
+      final Rect label = tester.getRect(find.text('最新匹配变化'));
       expect(
-        labelLeft - sectionLeft,
-        20,
-        reason: '未缩放时应保持 Figma 的左对齐（偏移 = 胶囊 padding 20）',
+        label.center.dx,
+        greaterThan(section.left),
+        reason: '宽屏操作组应处于版心范围内',
       );
+      expect(label.right, lessThan(section.right));
     });
   });
 }
-
-/// 「问问 AI」2 行 + 「当前状态」2 行 + 「最近成长」2 行 + 「今日一句」1 行
-/// = 7 行描述，加上 4 个卡片标题 = 11 个 `Text`。
-///
-/// ⚠️ 这个数字在**三态里必须相同** —— 它正是「不因状态增删内容块」的证明。
-const int _stilCardTextCount = 11;
 
 /// 返回固定摘要的桩实现。
 class _StubHomeRepository implements HomeRepository {

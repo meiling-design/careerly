@@ -191,6 +191,19 @@ void main() {
       expect(find.text('2026 春招版'), findsOneWidget);
     });
 
+    testWidgets('点击归档版本打开该版本的详情内容', (WidgetTester tester) async {
+      await pumpHost(tester, host(profile: seededProfile));
+
+      await tester.tap(find.text('2026 初版'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ResumeDetailPage), findsOneWidget);
+      expect(find.text('2026 初版'), findsOneWidget);
+      expect(find.text('PDF 预览'), findsOneWidget);
+      expect(find.text('原始内容'), findsOneWidget);
+      expect(find.text('工作经历'), findsOneWidget);
+    });
+
     testWidgets('只有当前版本时整段不渲染（Figma 的 length > 0 门禁）', (
       WidgetTester tester,
     ) async {
@@ -244,10 +257,11 @@ void main() {
 
       await tester.tap(find.text('原始内容'));
       await tester.pumpAndSettle();
-      // 原始内容读的是同一份结构化数据的不同视觉 —— 这次**含**「基本信息」，
-      // 因为原始内容没有渐变头部，必须自己把姓名 / 邮箱 / 电话列出来。
-      expect(find.text('基本信息'), findsOneWidget);
-      expect(find.text('张明远'), findsOneWidget);
+      // 原始内容必须是实际上传的文件；这个 fixture 没有 PDF 文件名，
+      // 因此不能用解析画像伪装成原稿。
+      expect(find.text('此版本没有上传 PDF 原稿'), findsOneWidget);
+      expect(find.text('基本信息'), findsNothing);
+      expect(find.text('张明远'), findsNothing);
 
       expect(find.text('导出 PDF'), findsOneWidget);
       expect(find.text('编辑简历'), findsOneWidget);
@@ -377,6 +391,10 @@ class _StubResumeRepository implements ResumeRepository {
 
   @override
   Future<List<ResumeVersion>> fetchVersions() async => profile.versions;
+
+  @override
+  Future<List<int>> fetchVersionOriginalPdf(String versionId) async =>
+      const <int>[];
 
   @override
   Future<void> setCurrentVersion(String versionId) async {}
