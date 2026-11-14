@@ -745,6 +745,12 @@ class _RecordingAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> resetPassword({
+    required String phone,
+    required String newPassword,
+  }) async {}
+
+  @override
   Future<void> signInWithOAuth({required String provider}) async {
     lastOAuthProvider = provider;
   }
@@ -780,6 +786,14 @@ class _FailingAuthRepository implements AuthRepository {
 
   @override
   Future<void> login({required String phone, required String password}) async {
+    throw const NetworkError(detail: 'test');
+  }
+
+  @override
+  Future<void> resetPassword({
+    required String phone,
+    required String newPassword,
+  }) async {
     throw const NetworkError(detail: 'test');
   }
 

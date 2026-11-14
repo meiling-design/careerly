@@ -255,11 +255,10 @@ List<LegalBlock> parseLegalMarkdown(String source) {
       flushParagraph();
       final String body = line.substring(ordered.end).trim();
       blocks.add(
-        LegalBlock(
+        _inlineBlock(
           kind: LegalBlockKind.orderedItem,
           text: body,
           marker: '${ordered.group(1)}.',
-          spans: _parseInline(body),
         ),
       );
       continue;
@@ -269,11 +268,10 @@ List<LegalBlock> parseLegalMarkdown(String source) {
       flushParagraph();
       final String body = line.substring(2).trim();
       blocks.add(
-        LegalBlock(
+        _inlineBlock(
           kind: LegalBlockKind.bullet,
           text: body,
           marker: _bulletGlyph,
-          spans: _parseInline(body),
         ),
       );
       continue;
@@ -292,11 +290,27 @@ List<LegalBlock> parseLegalMarkdown(String source) {
 }
 
 /// 造一个「文字 + 行内分段」的块。
-LegalBlock _textBlock(LegalBlockKind kind, String text) => LegalBlock(
-  kind: kind,
-  text: text,
-  spans: _parseInline(text),
-);
+///
+/// [LegalBlock.text] 取**行内标记摘掉之后**的纯文本投影，
+/// 与文档里声明的 `text == spans.map((s) => s.text).join()` 不变式一致 ——
+/// 否则标题 / 语义层会把 `**` 原样露出来。
+LegalBlock _textBlock(LegalBlockKind kind, String text) =>
+    _inlineBlock(kind: kind, text: text);
+
+/// 带可选列表标记的行内块（段落 / 列表项共用）。
+LegalBlock _inlineBlock({
+  required LegalBlockKind kind,
+  required String text,
+  String? marker,
+}) {
+  final List<LegalSpan> spans = _parseInline(text);
+  return LegalBlock(
+    kind: kind,
+    text: spans.map((LegalSpan span) => span.text).join(),
+    marker: marker,
+    spans: spans,
+  );
+}
 
 /// 把一行文字拆成「普通 / 加粗」交替的段。
 ///

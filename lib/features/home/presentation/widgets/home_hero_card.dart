@@ -493,25 +493,29 @@ class _HeroCopy extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: _HeroMetrics.titleGap),
-        SizedBox(
-          height: _HeroMetrics.titleLineHeight,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              content.title,
-              style: AppTypography.homeHeroTitle.copyWith(
-                fontSize: _HeroMetrics.titleFontSize,
-                height:
-                    _HeroMetrics.titleLineHeight / _HeroMetrics.titleFontSize,
-                fontWeight: FontWeight.w900,
-                letterSpacing: _HeroMetrics.titleLetterSpacing,
+        // 昵称是真实数据，可能为空（未登录 / 资料未加载）——
+        // 此时 Hero 只显示问候语与品牌短句，不占位、不编造名字。
+        if (content.title.isNotEmpty) ...<Widget>[
+          const SizedBox(height: _HeroMetrics.titleGap),
+          SizedBox(
+            height: _HeroMetrics.titleLineHeight,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                content.title,
+                style: AppTypography.homeHeroTitle.copyWith(
+                  fontSize: _HeroMetrics.titleFontSize,
+                  height:
+                      _HeroMetrics.titleLineHeight / _HeroMetrics.titleFontSize,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: _HeroMetrics.titleLetterSpacing,
+                ),
+                maxLines: 1,
               ),
-              maxLines: 1,
             ),
           ),
-        ),
+        ],
         if (content.meta.isNotEmpty) ...<Widget>[
           const SizedBox(height: _HeroMetrics.metaGap),
           Text(

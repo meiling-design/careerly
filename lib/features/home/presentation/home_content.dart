@@ -4,6 +4,19 @@ import '../../../data/models/home_summary.dart';
 import '../../../design_system/tokens/tokens.dart';
 import '../state/home_provider.dart';
 
+/// 按当前时段给出问候语（Figma Hero 的「中午好！」那一行）。
+///
+/// 只负责「几点说什么」，不自己读时钟 —— 由调用方传入 [now]，便于测试。
+String homeGreetingFor(DateTime now) {
+  final int hour = now.hour;
+  if (hour >= 5 && hour < 9) return '早上好！';
+  if (hour >= 9 && hour < 12) return '上午好！';
+  if (hour >= 12 && hour < 14) return '中午好！';
+  if (hour >= 14 && hour < 18) return '下午好！';
+  if (hour >= 18 && hour < 23) return '晚上好！';
+  return '夜深了';
+}
+
 /// 首页内容装配。真实岗位、建议和成长数据来自 [HomeSummary]；
 /// Figma 原型中的演示姓名、分数和日期不会作为业务数据使用。
 @immutable
@@ -26,12 +39,29 @@ class HomeContent {
   /// 按阶段装配内容。
   ///
   /// 内容阶段由真实摘要状态决定；今日内容可在任何阶段提供。
-  factory HomeContent.forStage(HomeStage stage, HomeSummary summary) {
+  ///
+  /// [greeting] / [userName] 只用于空态 Hero 的问好：
+  /// 问候语按当前时段（[homeGreetingFor]），姓名来自真实用户资料
+  /// （`UserProfile.displayName`）—— **不**回落到 Figma 的 `Alex`。
+  factory HomeContent.forStage(
+    HomeStage stage,
+    HomeSummary summary, {
+    String greeting = '',
+    String userName = '',
+  }) {
     switch (stage) {
       case HomeStage.firstUse:
-        return _firstUse(summary.dailyContent);
+        return _firstUse(
+          summary.dailyContent,
+          greeting: greeting,
+          userName: userName,
+        );
       case HomeStage.baselineOnly:
-        return _baselineOnly(summary.dailyContent);
+        return _baselineOnly(
+          summary.dailyContent,
+          greeting: greeting,
+          userName: userName,
+        );
       case HomeStage.analyzed:
         return _analyzed(summary);
     }
@@ -41,27 +71,33 @@ class HomeContent {
   // State 01 —— 首次使用（D64 ② 逐字）
   // ---------------------------------------------------------------------------
 
-  static HomeContent _firstUse(String? dailyContent) {
+  static HomeContent _firstUse(
+    String? dailyContent, {
+    required String greeting,
+    required String userName,
+  }) {
     return HomeContent(
       hero: HomeHeroContent(
-        label: '你的职业主页',
-        title: '还没有职业分析',
-        meta: '从一份简历开始，看见你的职业能力',
-        actionLabel: '上传简历',
-        action: HomeHeroAction.uploadResume,
+        // Figma 的问候式 Hero：小字问候 + 真实姓名 + 品牌短句，
+        // 主按钮直接进入「新建分析」。
+        label: greeting.isEmpty ? '你好！' : greeting,
+        title: userName.trim(),
+        meta: '看见能力，也看见前进的自己~',
+        actionLabel: '新建分析',
+        action: HomeHeroAction.newAnalysis,
       ),
       stilCards: <HomeStilCardData>[
         HomeStilCardData(
           kind: HomeStilCardKind.status,
-          title: '还没有职业分析',
-          lines: <String>['上传简历并分析一个目标岗位', '看见你的能力匹配度'],
-          actionLabel: '查看详情',
+          title: '当前状态',
+          lines: const <String>['还没有岗位分析'],
+          actionLabel: '去新建分析',
           target: HomeCardTarget.analysis,
         ),
         HomeStilCardData(
           kind: HomeStilCardKind.growth,
-          title: '还没有成长记录',
-          lines: <String>['每一次简历更新、技能增加', '都会成为你的职业资产'],
+          title: '成长记录',
+          lines: const <String>['简历更新、技能增加', '都会成为职业资产'],
           actionLabel: '查看成长记录',
           lineAccent: AppColors.success,
           target: HomeCardTarget.growth,
@@ -69,7 +105,7 @@ class HomeContent {
         HomeStilCardData(
           kind: HomeStilCardKind.suggestion,
           title: '下一步建议',
-          lines: <String>['不知道下一步该提升什么？', '和 AI 聊聊你的职业方向'],
+          lines: const <String>['不确定提升方向？', '和 AI 聊聊职业方向'],
           actionLabel: '与AI聊聊',
           lineAccent: AppColors.homeCardHighlight,
           target: HomeCardTarget.ai,
@@ -99,28 +135,31 @@ class HomeContent {
   /// 只把「还没有简历」这一件事改写为「已经有简历、只差一个岗位」，
   /// 且**只用 D64 已经出现过的词**（职业基线 / 目标岗位 / 能力匹配度 /
   /// 第一次分析）。起草结果逐条列在 **待裁决 · D76** 供产品侧增删。
-  static HomeContent _baselineOnly(String? dailyContent) {
+  static HomeContent _baselineOnly(
+    String? dailyContent, {
+    required String greeting,
+    required String userName,
+  }) {
     return HomeContent(
       hero: HomeHeroContent(
-        label: '你的职业主页',
-        title: '还没有岗位分析',
-        meta: '用一份目标岗位 JD，看见你与它的距离',
-        actionLabel: '添加目标岗位',
-        action: HomeHeroAction.addJob,
+        label: greeting.isEmpty ? '你好！' : greeting,
+        title: userName.trim(),
+        meta: '看见能力，也看见前进的自己~',
+        actionLabel: '新建分析',
+        action: HomeHeroAction.newAnalysis,
       ),
       stilCards: <HomeStilCardData>[
         HomeStilCardData(
           kind: HomeStilCardKind.status,
-          // 「职业基线已建立」是 D63 已裁决的措辞。
-          title: '职业基线已建立',
-          lines: <String>['添加一个目标岗位并开始分析', '看见你的能力匹配度'],
-          actionLabel: '查看职业能力',
-          target: HomeCardTarget.capability,
+          title: '当前状态',
+          lines: const <String>['还没有岗位分析'],
+          actionLabel: '去新建分析',
+          target: HomeCardTarget.analysis,
         ),
         HomeStilCardData(
           kind: HomeStilCardKind.growth,
-          title: '还没有成长记录',
-          lines: <String>['每一次简历更新、技能增加', '都会成为你的职业资产'],
+          title: '成长记录',
+          lines: const <String>['简历更新、技能增加', '都会成为职业资产'],
           actionLabel: '查看成长记录',
           lineAccent: AppColors.success,
           target: HomeCardTarget.growth,
@@ -128,7 +167,7 @@ class HomeContent {
         HomeStilCardData(
           kind: HomeStilCardKind.suggestion,
           title: '下一步建议',
-          lines: <String>['不知道下一步该提升什么？', '和 AI 聊聊你的职业方向'],
+          lines: const <String>['不确定提升方向？', '和 AI 聊聊职业方向'],
           actionLabel: '与AI聊聊',
           lineAccent: AppColors.homeCardHighlight,
           target: HomeCardTarget.ai,
@@ -180,7 +219,8 @@ class HomeContent {
         ),
         HomeStilCardData(
           kind: HomeStilCardKind.growth,
-          title: '最近成长',
+          // 卡片标题固定，不随有无数据变化。
+          title: '成长记录',
           lines: _take(summary.recentGrowth, 2),
           actionLabel: '查看成长记录',
           lineAccent: AppColors.success,
@@ -229,6 +269,9 @@ enum HomeHeroAction {
 
   /// State 02：有基线、无岗位 → 去添加目标岗位（JD 入口在「分析」）。
   addJob,
+
+  /// 空态主按钮：去「分析」开始一次新的岗位分析。
+  newAnalysis,
 
   /// State 03：去看这条岗位匹配的完整分析。
   viewAnalysis,

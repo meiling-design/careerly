@@ -188,6 +188,13 @@ class _RecordingAuthRepository implements AuthRepository {
     required String password,
   }) async {}
 
+  /// 本文件测的是**退出登录**，找回密码不参与 —— 不实现任何行为。
+  @override
+  Future<void> resetPassword({
+    required String phone,
+    required String newPassword,
+  }) async {}
+
   /// 本文件测的是**退出登录**，第三方登录只是接口上的一个方法 ——
   /// 不实现任何行为，也不假装成功。
   @override

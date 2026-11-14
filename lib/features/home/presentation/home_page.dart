@@ -6,6 +6,7 @@ import '../../../app/router/app_routes.dart';
 import '../../../data/models/home_summary.dart';
 import '../../../design_system/components/components.dart';
 import '../../profile/state/growth_celebration_provider.dart';
+import '../../profile/state/user_profile_provider.dart';
 import '../state/home_provider.dart';
 import 'home_content.dart';
 import 'widgets/home_analysis_section.dart';
@@ -53,7 +54,15 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     // 首帧后再触发加载：避免在 build 期间 notifyListeners。
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<HomeProvider>().load();
+      if (!mounted) return;
+      context.read<HomeProvider>().load();
+      // Hero 的问好要显示真实昵称；资料未加载时先拉一次
+      // （没有 Provider 的隔离测试环境里为 null，问好只显示问候语）。
+      final UserProfileProvider? profile = Provider.of<UserProfileProvider?>(
+        context,
+        listen: false,
+      );
+      if (profile != null && profile.data == null) profile.load();
     });
   }
 
@@ -82,6 +91,11 @@ class _HomePageState extends State<HomePage> {
     final HomeProvider provider = context.watch<HomeProvider>();
     final GrowthCelebrationProvider? celebrations =
         Provider.of<GrowthCelebrationProvider?>(context);
+    final UserProfileProvider? profile = Provider.of<UserProfileProvider?>(
+      context,
+    );
+    final String greeting = homeGreetingFor(DateTime.now());
+    final String userName = profile?.data?.displayName ?? '';
     final bool isHomeVisible =
         _router == null ||
         _router!.routeInformationProvider.value.uri.path == AppRoutes.home;
@@ -95,7 +109,12 @@ class _HomePageState extends State<HomePage> {
         onRetry: provider.load,
         loadingMessage: '正在载入你的职业主页',
         builder: (BuildContext context, HomeSummary summary) => _HomeContent(
-          content: HomeContent.forStage(provider.stage, summary),
+          content: HomeContent.forStage(
+            provider.stage,
+            summary,
+            greeting: greeting,
+            userName: userName,
+          ),
           celebration: isHomeVisible ? celebrations?.nextPending : null,
           onCelebrationFinished: celebrations?.consume ?? _ignoreCelebration,
           matchChangesKey: _matchChangesKey,
@@ -207,6 +226,8 @@ class _HomeContent extends StatelessWidget {
       ),
       // 目标岗位来自 JD，而 JD 入口只在「分析」。
       HomeHeroAction.addJob => () => context.go(AppRoutes.analysis),
+      // 空态的「新建分析」与添加岗位落到同一处：分析 Tab 的新建分析页。
+      HomeHeroAction.newAnalysis => () => context.go(AppRoutes.analysis),
       HomeHeroAction.viewAnalysis => () => context.go(AppRoutes.analysis),
     };
   }

@@ -234,6 +234,12 @@ class _RecordingAuthRepository implements AuthRepository {
   Future<void> login({required String phone, required String password}) async {}
 
   @override
+  Future<void> resetPassword({
+    required String phone,
+    required String newPassword,
+  }) async {}
+
+  @override
   Future<void> signInWithOAuth({required String provider}) async {}
 
   @override

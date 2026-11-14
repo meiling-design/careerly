@@ -14,6 +14,7 @@ import 'package:careerly/design_system/components/careerly_button.dart';
 import 'package:careerly/design_system/theme/careerly_theme.dart';
 import 'package:careerly/features/analysis/presentation/analysis_page.dart';
 import 'package:careerly/features/analysis/state/analysis_provider.dart';
+import 'package:careerly/features/profile/state/growth_celebration_provider.dart';
 import 'package:careerly/features/profile/state/resume_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -77,6 +78,10 @@ void main() {
         ChangeNotifierProvider<ResumeProvider>(
           create: (BuildContext context) =>
               ResumeProvider(context.read<ResumeRepository>()),
+        ),
+        // 分析成功后会向成长庆祝 Provider 记一笔（生产由 careerlyProviders 注入）。
+        ChangeNotifierProvider<GrowthCelebrationProvider>(
+          create: (BuildContext context) => GrowthCelebrationProvider(),
         ),
       ],
       child: MaterialApp(

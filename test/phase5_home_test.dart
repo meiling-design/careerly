@@ -78,6 +78,10 @@ void main() {
           path: AppRoutes.profileCapability,
           builder: (_, _) => const Scaffold(body: Text('职业能力路由')),
         ),
+        GoRoute(
+          path: AppRoutes.analysis,
+          builder: (_, _) => const Scaffold(body: Text('分析路由')),
+        ),
       ],
     );
     return MultiProvider(
@@ -148,36 +152,39 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('Phase 5 · 首页 State 01（首次使用）', () {
-    testWidgets('Hero 文案逐字来自 D64 ②', (WidgetTester tester) async {
+    testWidgets('Hero：时段问候 + 品牌短句 + 新建分析', (WidgetTester tester) async {
       await pumpRealApp(tester, '/home');
 
-      expect(homeText('从一份简历开始，看见你的职业能力'), findsOneWidget);
-      expect(homeText('上传简历'), findsOneWidget);
-
-      expect(homeText('你的职业主页'), findsOneWidget);
-      expect(homeText('还没有职业分析'), findsNWidgets(2));
+      expect(
+        homeText(homeGreetingFor(DateTime.now())),
+        findsOneWidget,
+        reason: '问候语随当前时段变化',
+      );
+      expect(homeText('看见能力，也看见前进的自己~'), findsOneWidget);
+      expect(homeText('新建分析'), findsOneWidget);
     });
 
-    testWidgets('四张卡片与「第一次分析」引导语逐字', (WidgetTester tester) async {
+    testWidgets('四张卡片与「第一次分析」引导语', (WidgetTester tester) async {
       await pumpRealApp(tester, '/home');
 
       // 第三张卡为建议入口，内容仍按未分析状态提供引导。
       expect(homeText('下一步建议'), findsOneWidget);
-      expect(homeText('不知道下一步该提升什么？'), findsOneWidget);
-      expect(homeText('和 AI 聊聊你的职业方向'), findsOneWidget);
+      expect(homeText('不确定提升方向？'), findsOneWidget);
+      expect(homeText('和 AI 聊聊职业方向'), findsOneWidget);
 
-      // 第一张卡 · 当前状态
-      expect(homeText('上传简历并分析一个目标岗位'), findsOneWidget);
-      expect(homeText('看见你的能力匹配度'), findsOneWidget);
+      // 第一张卡 · 当前状态（标题固定，无数据时圆环显示「暂无数据」）
+      expect(homeText('当前状态'), findsOneWidget);
+      expect(homeText('暂无数据'), findsOneWidget);
+      expect(homeText('匹配度'), findsOneWidget);
 
-      // 第二张卡 · 最近成长
-      expect(homeText('还没有成长记录'), findsOneWidget);
-      expect(homeText('每一次简历更新、技能增加'), findsOneWidget);
-      expect(homeText('都会成为你的职业资产'), findsOneWidget);
+      // 第二张卡 · 成长记录（标题固定）
+      expect(homeText('成长记录'), findsOneWidget);
+      expect(homeText('简历更新、技能增加'), findsOneWidget);
+      expect(homeText('都会成为职业资产'), findsOneWidget);
 
       // 第四张卡 · 今日内容。
       expect(homeText('今天也可以向前一步\n先看见自己，再决定下一步。'), findsOneWidget);
-      expect(homeText('查看详情'), findsOneWidget);
+      expect(homeText('去新建分析'), findsOneWidget);
       expect(homeText('查看成长记录'), findsOneWidget);
       expect(homeText('与AI聊聊'), findsOneWidget);
 
@@ -189,7 +196,6 @@ void main() {
       // Figma 的两颗匹配变化操作。
       expect(homeText('最新匹配变化'), findsOneWidget);
       expect(homeText('查看全部'), findsOneWidget);
-      expect(homeText('新建分析'), findsNothing);
     });
 
     testWidgets('不得出现 Figma 的硬编码假数据（D64 ⑥ / §7）', (WidgetTester tester) async {
@@ -262,23 +268,26 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('Phase 5 · 首页 State 02（已有简历）', () {
-    testWidgets('Hero 改为「还没有岗位分析」，主按钮改为「添加目标岗位」', (WidgetTester tester) async {
+    testWidgets('Hero：时段问候 + 品牌短句 + 新建分析', (WidgetTester tester) async {
       await pumpStub(tester, baselineOnly);
 
-      expect(homeText('还没有岗位分析'), findsOneWidget);
-      expect(homeText('用一份目标岗位 JD，看见你与它的距离'), findsOneWidget);
-      expect(homeText('添加目标岗位'), findsOneWidget);
+      expect(homeText(homeGreetingFor(DateTime.now())), findsOneWidget);
+      expect(homeText('看见能力，也看见前进的自己~'), findsOneWidget);
+      expect(homeText('新建分析'), findsOneWidget);
 
-      // 不再是 State 01 的引导语。
-      expect(homeText('还没有职业分析'), findsNothing);
+      // 不再显示旧空态标题与按钮。
+      expect(homeText('还没有岗位分析'), findsNothing);
+      expect(homeText('添加目标岗位'), findsNothing);
       expect(homeText('上传简历'), findsNothing);
     });
 
-    testWidgets('「当前状态」卡改为「职业基线已建立」（D63 措辞）', (WidgetTester tester) async {
+    testWidgets('「当前状态」卡标题固定，无数据时圆环显示暂无数据', (WidgetTester tester) async {
       await pumpStub(tester, baselineOnly);
 
-      expect(homeText('职业基线已建立'), findsOneWidget);
-      expect(homeText('还没有职业分析'), findsNothing);
+      expect(homeText('当前状态'), findsOneWidget);
+      expect(homeText('暂无数据'), findsOneWidget);
+      expect(homeText('匹配度'), findsOneWidget);
+      expect(homeText('职业基线已建立'), findsNothing);
     });
 
     testWidgets('区块仍停在「第一次分析」引导，尚未进入岗位列表', (WidgetTester tester) async {
@@ -288,19 +297,19 @@ void main() {
       expect(homeText('岗位匹配变化'), findsNothing);
     });
 
-    testWidgets('职业基线入口进入职业能力页面', (WidgetTester tester) async {
+    testWidgets('「当前状态」卡的无数据入口进入分析页', (WidgetTester tester) async {
       await tester.pumpWidget(routerHost(baselineOnly));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 1));
       await tester.pump();
 
-      expect(find.text('职业基线已建立'), findsOneWidget);
-      final Finder action = find.text('查看职业能力');
+      expect(find.text('当前状态'), findsOneWidget);
+      final Finder action = find.text('去新建分析');
       await tester.ensureVisible(action);
       await tester.tap(action);
       await tester.pumpAndSettle();
 
-      expect(find.text('职业能力路由'), findsOneWidget);
+      expect(find.text('分析路由'), findsOneWidget);
     });
 
     testWidgets('首次分析无匹配变化记录时仍显示已分析首页', (WidgetTester tester) async {
@@ -370,7 +379,7 @@ void main() {
       expect(homeText('61%'), findsNWidgets(2));
 
       // 成长卡的两行 = `recentGrowth`。
-      expect(homeText('最近成长'), findsOneWidget);
+      expect(homeText('成长记录'), findsOneWidget);
       expect(homeText('成长甲'), findsOneWidget);
       expect(homeText('成长乙'), findsOneWidget);
     });
@@ -510,7 +519,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('正在载入你的职业主页'), findsNothing);
-      expect(homeText('还没有岗位分析'), findsOneWidget);
+      expect(homeText('当前状态'), findsOneWidget);
     });
 
     testWidgets('Error：失败给出错误态与重试入口', (WidgetTester tester) async {

@@ -153,61 +153,64 @@ class _StatusCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (score != null)
-              Positioned(
-                top: _StilMetrics.ringTop,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: SizedBox(
-                    width: _StilMetrics.ringSize,
-                    height: _StilMetrics.ringSize,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: <Widget>[
-                        Positioned.fill(
-                          child: SvgPicture.asset(
-                            'assets/images/home/home-score-ring-track.svg',
-                            fit: BoxFit.contain,
-                          ),
+            // 圆环始终保留（含无数据时）：有分数画进度弧，
+            // 没分数只画底环，中间显示「暂无数据」而不是编造一个分数。
+            Positioned(
+              top: _StilMetrics.ringTop,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: SizedBox(
+                  width: _StilMetrics.ringSize,
+                  height: _StilMetrics.ringSize,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: <Widget>[
+                      Positioned.fill(
+                        child: SvgPicture.asset(
+                          'assets/images/home/home-score-ring-track.svg',
+                          fit: BoxFit.contain,
                         ),
+                      ),
+                      if (score != null)
                         Positioned.fill(
                           child: SvgPicture.asset(
                             'assets/images/home/home-score-ring-fill.svg',
                             fit: BoxFit.contain,
                           ),
                         ),
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Text(
-                              '$score%',
-                              style: AppTypography.homeHeroScore.copyWith(
-                                fontSize: _StilMetrics.scoreFontSize,
-                                height: 1.35,
-                                color: AppColors.homeCardTitle,
-                              ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            score == null ? '暂无数据' : '$score%',
+                            style: score == null
+                                ? AppTypography.homeCardDesc.copyWith(
+                                    fontSize:
+                                        _StilMetrics.scorePlaceholderFontSize,
+                                    height: 1.35,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.homeCardTitle,
+                                  )
+                                : AppTypography.homeHeroScore.copyWith(
+                                    fontSize: _StilMetrics.scoreFontSize,
+                                    height: 1.35,
+                                    color: AppColors.homeCardTitle,
+                                  ),
+                          ),
+                          Text(
+                            '匹配度',
+                            style: AppTypography.homeHeroScoreLabel.copyWith(
+                              color: AppColors.homeStatusScoreLabel,
                             ),
-                            Text(
-                              '匹配度',
-                              style: AppTypography.homeHeroScoreLabel.copyWith(
-                                color: AppColors.homeStatusScoreLabel,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              )
-            else
-              Positioned(
-                left: _StilMetrics.statusInset,
-                right: _StilMetrics.statusInset,
-                top: _StilMetrics.statusBodyTop,
-                child: _DescriptionLines(data: data),
               ),
+            ),
             Positioned(
               left: _StilMetrics.statusFooterInset,
               right: _StilMetrics.statusFooterInset,
@@ -486,7 +489,9 @@ abstract final class _StilMetrics {
   static const double ringTop = 43;
   static const double ringSize = 118.56;
   static const double scoreFontSize = 32;
-  static const double statusBodyTop = 55;
+
+  /// 无数据时圆环内的「暂无数据」字号（比百分比小，避免撑满圆环）。
+  static const double scorePlaceholderFontSize = 14;
   static const double statusFooterInset = 17;
   static const double statusFooterBottom = 9;
 
