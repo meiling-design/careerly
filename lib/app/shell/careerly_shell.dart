@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_constants.dart';
 import '../../design_system/components/components.dart';
 import '../../design_system/tokens/tokens.dart';
+import '../router/app_routes.dart';
 
 /// Careerly App Shell。
 ///
@@ -25,24 +26,50 @@ import '../../design_system/tokens/tokens.dart';
 /// 这对 Careerly 是必需的——
 /// 「分析」页用户可能正在粘贴 JD，切到「我的」再切回来不应该丢失内容。
 ///
-/// ## Android Back 行为（产品规则已确认 · CLAUDE.md §5.6）
+/// ## Android Back / 边缘右滑行为（2026-11-14 产品侧更新）
 ///
 /// ```text
 /// 分支内有二级页面  →  先 pop 二级页面（Back = 回到上一个操作上下文）
-/// 分支根页面        →  退出 App / 系统默认处理
+/// 一级页面 · 首页   →  直接退出 App
+/// 一级页面 · 其他   →  先回到「首页」；在首页再次 Back 才退出 App
 /// ```
 ///
-/// ❌ **不做**「非首个 Tab 按返回先回到首页」—— 产品已裁决：
-/// 一级页面之间不互相返回（Phase 1 备注的 Phase 3 调优项作废）。
+/// 这是对旧规则（「一级页面之间不互相返回」）的**产品侧更新**。
+/// 执行位置在本 Shell 的 [PopScope]：
+///
+/// - 非首页分支的**根页面**：`canPop: false`，系统 Back / 边缘右滑
+///   被拦截后执行 `goBranch(0)`；
+/// - 首页根页面：`canPop: true`，交给 Android 默认处理（退出）；
+/// - 分支内的二级 / 三级页面：`canPop: true`，由 go_router 先把
+///   分支 Navigator 的页面 pop 掉，轮不到 Shell 这一层。
 ///
 /// 统一的 Back Action 与离开确认守卫见
 /// `app/router/back_navigation.dart`；页面返回入口一律走 `careerlyBack()`，
 /// 不写 `context.pop()`（后者绕过 `PopScope`）。
 class CareerlyShell extends StatefulWidget {
-  const CareerlyShell({super.key, required this.navigationShell});
+  const CareerlyShell({
+    super.key,
+    required this.navigationShell,
+    required this.currentLocation,
+  });
 
   /// go_router 注入的分支导航控制器。
   final StatefulNavigationShell navigationShell;
+
+  /// 当前完整路径（来自 [GoRouterState.uri.path]）。
+  ///
+  /// 用于判断「当前是否停在某个一级页面的根上」——
+  /// 只有根页面才触发「非首页先回首页」的拦截；
+  /// 分支内的二级页仍按原规则 pop。
+  final String currentLocation;
+
+  /// 四个一级页面的根路径。
+  static const Set<String> branchRoots = <String>{
+    AppRoutes.home,
+    AppRoutes.analysis,
+    AppRoutes.ai,
+    AppRoutes.profile,
+  };
 
   /// 底部导航目的地。
   ///
@@ -117,39 +144,52 @@ class _CareerlyShellState extends State<CareerlyShell>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // 背景渐变由 CareerlyApp 根节点绘制，这里保持透明。
-      backgroundColor: Colors.transparent,
-      // 底部导航是**浮层**，不能用 `Scaffold.bottomNavigationBar`
-      // —— 那个位置会占据文档流高度，把导航渲染成一根通栏底栏，
-      // 与 Figma「居中玻璃胶囊 + 条外 AI 球」的结构不符。
-      body: Stack(
-        children: <Widget>[
-          // 内容区：为浮起的导航预留底部避让（Figma 内容区 `pb-24`）。
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.only(
-                bottom: AppConstants.navigationBarContentInset,
-              ),
-              child: _TabTransition(
-                controller: _tabController,
-                child: widget.navigationShell,
-              ),
-            ),
-          ),
+    // 只有「非首页的一级页面根」才拦截 Back 并切回首页。
+    // 分支内的二级页保持 canPop: true，由 go_router 先 pop 掉。
+    final bool goHomeOnBack =
+        CareerlyShell.branchRoots.contains(widget.currentLocation) &&
+        widget.currentLocation != AppRoutes.home;
 
-          // 导航浮层：贴底、通栏定位，内部整组居中。
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: CareerlyNavigationBar(
-              destinations: CareerlyShell.destinations,
-              currentIndex: widget.navigationShell.currentIndex,
-              onSelect: _onSelect,
+    return PopScope<Object?>(
+      canPop: !goHomeOnBack,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop || !goHomeOnBack) return;
+        widget.navigationShell.goBranch(0);
+      },
+      child: Scaffold(
+        // 背景渐变由 CareerlyApp 根节点绘制，这里保持透明。
+        backgroundColor: Colors.transparent,
+        // 底部导航是**浮层**，不能用 `Scaffold.bottomNavigationBar`
+        // —— 那个位置会占据文档流高度，把导航渲染成一根通栏底栏，
+        // 与 Figma「居中玻璃胶囊 + 条外 AI 球」的结构不符。
+        body: Stack(
+          children: <Widget>[
+            // 内容区：为浮起的导航预留底部避让（Figma 内容区 `pb-24`）。
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  bottom: AppConstants.navigationBarContentInset,
+                ),
+                child: _TabTransition(
+                  controller: _tabController,
+                  child: widget.navigationShell,
+                ),
+              ),
             ),
-          ),
-        ],
+
+            // 导航浮层：贴底、通栏定位，内部整组居中。
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: CareerlyNavigationBar(
+                destinations: CareerlyShell.destinations,
+                currentIndex: widget.navigationShell.currentIndex,
+                onSelect: _onSelect,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

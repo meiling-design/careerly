@@ -105,6 +105,7 @@ flutter:
     - assets/about/
     - assets/images/home/
     - assets/images/nebula/
+    - assets/images/brand/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

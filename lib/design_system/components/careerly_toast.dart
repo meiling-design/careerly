@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../tokens/tokens.dart';
@@ -94,37 +95,52 @@ class CareerlyToast extends StatelessWidget {
       AppColors.textInverse,
     );
 
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceDark,
-        borderRadius: AppRadius.borderMd,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        // 提示态 IP（2026-11-14 产品侧指定）：消息出现时「感叹」形象
+        // 从提示条上方探出，与崩溃态的「休息」、AI 页的「办公」同一套 IP。
+        SvgPicture.asset(
+          _ToastMetrics.illustrationAsset,
+          width: _ToastMetrics.illustrationWidth,
+          height: _ToastMetrics.illustrationHeight,
+          fit: BoxFit.contain,
+          excludeFromSemantics: true,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            if (icon != null) ...<Widget>[
-              Icon(
-                icon,
-                size: _ToastMetrics.iconSize,
-                color: AppColors.textInverse,
-              ),
-              const SizedBox(width: AppSpacing.xs),
-            ],
-            Flexible(
-              child: Text(
-                message,
-                style: textStyle,
-                textAlign: TextAlign.center,
-              ),
+        const SizedBox(height: _ToastMetrics.illustrationGap),
+        DecoratedBox(
+          decoration: const BoxDecoration(
+            color: AppColors.surfaceDark,
+            borderRadius: AppRadius.borderMd,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
             ),
-          ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (icon != null) ...<Widget>[
+                  Icon(
+                    icon,
+                    size: _ToastMetrics.iconSize,
+                    color: AppColors.textInverse,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
+                Flexible(
+                  child: Text(
+                    message,
+                    style: textStyle,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -136,6 +152,16 @@ abstract final class _ToastMetrics {
 
   /// 图标尺寸。
   static const double iconSize = 18;
+
+  /// 提示态 IP：「感叹」形象的素材与尺寸。
+  ///
+  /// 素材来自 `careerly-assets/svg/感叹.svg`（viewBox 233×212）。
+  /// 形象只做提示用途，**不进入**文字读屏顺序。
+  static const String illustrationAsset =
+      'assets/images/nebula/careerly-alert.svg';
+  static const double illustrationWidth = 52;
+  static const double illustrationHeight = 48;
+  static const double illustrationGap = 6;
 
   /// 停留时长。
   ///

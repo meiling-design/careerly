@@ -216,17 +216,22 @@ Loading / Empty / Error / Retry / Disabled
 
 尤其：简历上传、简历解析、分析、AI 对话。
 
-### 5.6 Android Back 导航规则（2026-09-23 产品确认）
+### 5.6 Android Back 导航规则（2026-09-23 产品确认，2026-11-14 更新）
 
 一句话：**一级页面负责切换，二级/三级页面负责返回。**
 
 ```text
 一级页面（首页 / 分析 / AI / 我的）：Bottom Navigation 管理，
-  ❌ 无页面级 Back      ❌ 不返回上一一级页面
-  Back = 退出 / 系统默认处理
+  ❌ 无页面级 Back（不进入分支内的上一页）
+  首页            →  Back = 直接退出 App
+  分析 / AI / 我的 →  第一次 Back 切回首页；在首页再 Back 才退出 App
 二级 / 三级页面：统一支持 Back
 ```
 
+- **一级页面的「非首页先回首页」执行层**：
+  `lib/app/shell/careerly_shell.dart` 的 `PopScope`。
+  它只在**分支根路径**上拦截（`/analysis`、`/ai`、`/profile`），
+  分支内的二级页仍由 `careerlyBack()` / `Navigator.maybePop` 先 pop。
 - **三个入口同一个 Back Action**：顶部返回按钮、Android 系统 Back、
   左边缘向右的 Edge Swipe Back，必须落在同一条代码路径上。
   执行层是 `lib/app/router/back_navigation.dart` 的 `careerlyBack()`

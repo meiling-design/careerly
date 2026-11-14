@@ -20,6 +20,7 @@ export 'careerly_labeled_divider.dart';
 export 'careerly_navigation_bar.dart';
 export 'careerly_placeholder_note.dart';
 export 'careerly_press_feedback.dart';
+export 'careerly_problem_dialog.dart';
 export 'careerly_progress.dart';
 export 'careerly_scaffold.dart';
 export 'careerly_section_header.dart';

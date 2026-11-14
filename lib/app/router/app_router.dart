@@ -67,10 +67,11 @@ import 'page_transitions.dart';
 ///
 /// **路由只表达页面层级，不承载业务状态。**
 ///
-/// ## Android Back 行为（CLAUDE.md §5.6，产品已确认）
+/// ## Android Back 行为（2026-11-14 产品侧更新）
 ///
 /// ```text
-/// 一级页面（4 个分支根）：不做页面级 Back → 退出 / 系统默认处理
+/// 一级页面 · 首页        ：直接退出 App（系统默认处理）
+/// 一级页面 · 分析/AI/我的：先回到首页；在首页再次 Back 才退出
 /// 二级 / 三级页面        ：统一 Back = 当前栈 pop（回到上一个操作上下文）
 /// ```
 ///
@@ -110,7 +111,10 @@ GoRouter createAppRouter({String initialLocation = AppRoutes.home}) {
               BuildContext context,
               GoRouterState state,
               StatefulNavigationShell navigationShell,
-            ) => CareerlyShell(navigationShell: navigationShell),
+            ) => CareerlyShell(
+              navigationShell: navigationShell,
+              currentLocation: state.uri.path,
+            ),
         branches: <StatefulShellBranch>[
           _branch(
             location: AppRoutes.home,
@@ -343,8 +347,9 @@ StatefulShellBranch _analysisBranch() {
             name: AppRouteNames.analysisJob,
             builder: (BuildContext context, GoRouterState state) =>
                 AnalysisJobDetailPage(
-              jobId: state.pathParameters[AppRoutes.analysisJobIdParam] ?? '',
-            ),
+                  jobId:
+                      state.pathParameters[AppRoutes.analysisJobIdParam] ?? '',
+                ),
           ),
           _subRoute(
             segment:
@@ -352,8 +357,9 @@ StatefulShellBranch _analysisBranch() {
             name: AppRouteNames.analysisGap,
             builder: (BuildContext context, GoRouterState state) =>
                 AnalysisGapPage(
-              jobId: state.pathParameters[AppRoutes.analysisGapIdParam] ?? '',
-            ),
+                  jobId:
+                      state.pathParameters[AppRoutes.analysisGapIdParam] ?? '',
+                ),
           ),
           _subRoute(
             segment: AppRoutes.analysisTargetsSegment,
@@ -521,11 +527,7 @@ GoRoute _subRoute({
     name: name,
     routes: routes,
     pageBuilder: (BuildContext context, GoRouterState state) =>
-        _subRoutePage(
-          name: name,
-          child: builder(context, state),
-          state: state,
-        ),
+        _subRoutePage(name: name, child: builder(context, state), state: state),
   );
 }
 

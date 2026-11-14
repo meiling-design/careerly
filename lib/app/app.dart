@@ -5,7 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
 import '../core/constants/app_constants.dart';
+import '../core/errors/app_error.dart';
+import '../core/errors/crash_reporter.dart';
 import '../data/api/api_client.dart';
+import '../design_system/components/careerly_problem_dialog.dart';
 import '../design_system/theme/careerly_theme.dart';
 import '../design_system/tokens/tokens.dart';
 import 'providers.dart';
@@ -104,7 +107,29 @@ class CareerlyApp extends StatelessWidget {
                 decoration: const BoxDecoration(
                   gradient: AppColors.backgroundGradient,
                 ),
-                child: child ?? const SizedBox.shrink(),
+                // 全局故障提示（`CrashReporter` 在 main() 里挂钩）。
+                //
+                // 放在 `MaterialApp.router` 的 builder 里而不是某个页面：
+                // ① 它盖在 Navigator **之上**，任何页面 / 弹层出错都能提示；
+                // ② 不依赖出错页面的 BuildContext —— 那个 context 可能已经失效。
+                child: ValueListenableBuilder<AppError?>(
+                  valueListenable: CrashReporter.current,
+                  builder: (BuildContext context, AppError? error, Widget? _) {
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: <Widget>[
+                        child ?? const SizedBox.shrink(),
+                        if (error != null)
+                          Positioned.fill(
+                            child: CareerlyProblemDialog(
+                              message: error.message,
+                              onDismiss: CrashReporter.clear,
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
               );
             },
           );

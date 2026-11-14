@@ -7,11 +7,32 @@ import 'package:flutter_svg/flutter_svg.dart';
 enum AICopilotMotionState { idle, thinking, responding }
 
 /// Nebula companion above the AI composer, animated from real chat state.
+///
+/// ## 两种形象按页面状态区分（2026-11-14 产品侧指定）
+///
+/// ```text
+/// 快捷引导态（welcome: true）  → 「办公」IP（careerly-assets/svg/办公.svg）
+/// 对话态（welcome: false）     → 原有四态星云形象
+///                                idle / thinking / responding / completed
+/// ```
+///
+/// 动效（悬浮、呼吸、粒子、完成弹跳）在两种状态下一致，
+/// 只有**图形素材**按状态切换。
 class AICopilotCharacter extends StatefulWidget {
-  const AICopilotCharacter({super.key, required this.state, this.completionId});
+  const AICopilotCharacter({
+    super.key,
+    required this.state,
+    this.completionId,
+    this.welcome = false,
+  });
 
   final AICopilotMotionState state;
   final String? completionId;
+
+  /// 是否为 AI 快捷引导（欢迎）态。
+  ///
+  /// `true` 时使用「办公」IP；`false` 时使用对话态的四张星云素材。
+  final bool welcome;
 
   @override
   State<AICopilotCharacter> createState() => _AICopilotCharacterState();
@@ -22,6 +43,13 @@ class _AICopilotCharacterState extends State<AICopilotCharacter>
   static const double _width = 100;
   static const double _height = 93;
   static const Duration _messageDuration = Duration(milliseconds: 2200);
+
+  /// 快捷引导页的 IP 形象（2026-11-14 产品侧指定）。
+  ///
+  /// 素材来源：`careerly-assets/svg/办公.svg` —— 与「感叹」「休息」
+  /// 属于同一套 IP。
+  static const String _officeAsset =
+      'assets/images/nebula/careerly-ai-office.svg';
 
   late final AnimationController _ambient = AnimationController(
     vsync: this,
@@ -151,7 +179,11 @@ class _AICopilotCharacterState extends State<AICopilotCharacter>
     });
   }
 
+  /// 按页面状态选择 IP 素材。
+  ///
+  /// 快捷引导态固定用「办公」；对话态保留原来的四态星云稿。
   String get _assetPath {
+    if (widget.welcome) return _officeAsset;
     if (_showCompletion) {
       return 'assets/images/nebula/careerly-ai-completed.svg';
     }
@@ -196,6 +228,7 @@ class _AICopilotCharacterState extends State<AICopilotCharacter>
                     width: _width,
                     height: _height,
                     fit: BoxFit.contain,
+                    alignment: Alignment.bottomCenter,
                     excludeFromSemantics: true,
                   ),
                 ),

@@ -70,4 +70,40 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('welcome 态用「办公」IP，对话态仍用星云四态素材', (WidgetTester tester) async {
+    String assetName(WidgetTester tester) {
+      final SvgPicture picture = tester.widget<SvgPicture>(
+        find.byType(SvgPicture),
+      );
+      return (picture.bytesLoader as SvgAssetLoader).assetName;
+    }
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: AICopilotCharacter(
+              state: AICopilotMotionState.idle,
+              welcome: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(assetName(tester), contains('careerly-ai-office.svg'));
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: AICopilotCharacter(state: AICopilotMotionState.idle),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(assetName(tester), contains('careerly-ai-idle.svg'));
+  });
 }

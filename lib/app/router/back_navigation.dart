@@ -6,9 +6,9 @@
 /// ## 规则（产品已确认）
 ///
 /// ```text
-/// 一级页面（首页 / 分析 / AI / 我的）：由 Bottom Navigation 管理，
-///                                     不使用页面级 Back，不返回更前的一级页面
-/// 二级 / 三级页面                    ：统一支持 Back
+/// 一级页面 · 首页（/home）        ：直接退出 App
+/// 一级页面 · 分析 / AI / 我的      ：先回到首页；首页再 Back 才退出
+/// 二级 / 三级页面                 ：统一支持 Back，pop 回上一个操作上下文
 ///
 /// 顶部返回按钮 ─┐
 /// 系统 Back    ├─→ 同一个 Back Action（Navigator.maybePop）
@@ -16,6 +16,11 @@
 ///
 /// Back = 当前 Navigation Stack 的 pop = 回到「上一个操作上下文」
 /// ```
+///
+/// ⚠️ 一级页面的「非首页先回首页」**不在本文件执行** ——
+/// 它由 `app/shell/careerly_shell.dart` 的 [PopScope] 拦截
+/// （见该文件「Android Back / 边缘右滑行为」）。本文件继续只负责
+/// 「pop 之前要不要先问一句」。
 ///
 /// ## 为什么必须走 [careerlyBack]，而不是 `context.pop()`
 ///
@@ -72,8 +77,9 @@ import '../../design_system/tokens/tokens.dart';
 /// 使 [CareerlyBackScope] 的离开确认对**顶部按钮**同样生效。
 ///
 /// 返回 `true` 表示本次返回已被处理（真的 pop 了，或被守卫拦下等待确认）。
-/// 返回 `false` 表示当前已经是导航栈底 —— 一级页面的系统 Back 就是这个情形，
-/// 交给 Android 默认处理（退到后台 / 退出），**不**改写成「回到首页」。
+/// 返回 `false` 表示当前已经是导航栈底 —— 首页根页面就是这个情形，
+/// 交给 Android 默认处理（退出 App）。非首页的一级页面由 Shell 的
+/// [PopScope] 先行拦截并切回首页，因此走不到这里。
 Future<bool> careerlyBack(BuildContext context, [Object? result]) {
   return Navigator.of(context).maybePop(result);
 }
@@ -260,9 +266,11 @@ class _GuardButton extends StatelessWidget {
 /// 已经是栈底      →  SystemNavigator.pop()（交给 Android，退到后台）
 /// ```
 ///
-/// 后者只发生在**一级页面**上（例如「分析进行中」的离开确认）——
-/// 那时没有可 pop 的目标，语义就是「退出 / 退到后台」，
-/// 与规则里「一级页面 = 退出/系统默认处理」一致。
+/// 后者只发生在**首页根**（或带守卫的栈底页）上 ——
+/// 那时没有可 pop 的目标，语义就是「退出 / 退到后台」。
+///
+/// ⚠️ 非首页的一级页面不会走到这里：Shell 的 [PopScope] 会先把 Back
+/// 改成「切回首页」，所以在分析 / AI / 我的根页面按一次 Back 不会退出。
 ///
 /// ⚠️ 这里**不会**调用 `exitAnalysis()` 之类的中断逻辑：
 /// 守卫只负责「离开界面」，任务是否继续由任务自己的状态决定

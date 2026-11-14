@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router/app_routes.dart';
@@ -51,8 +55,96 @@ import '../../../design_system/tokens/tokens.dart';
 /// 状态栏样式（浅色 / 深色内容）的全局策略归 **K13**（`TODO.md` §2.2），
 /// **本批未实现** —— 它牵涉全局的 `SystemChrome` / `AnnotatedRegion`，
 /// 不是开屏一页的事。
-class OnboardingSplashPage extends StatelessWidget {
+class OnboardingSplashPage extends StatefulWidget {
   const OnboardingSplashPage({super.key});
+
+  @override
+  State<OnboardingSplashPage> createState() => _OnboardingSplashPageState();
+}
+
+class _OnboardingSplashPageState extends State<OnboardingSplashPage>
+    with TickerProviderStateMixin {
+  /// Figma `careerly-splash--full` 的总时长（最后一项在 1.92s + 380ms 结束）。
+  static const Duration _fullIntroDuration = Duration(milliseconds: 2300);
+
+  /// Figma `careerly-splash--repeat`：只有一次很短的进场。
+  static const Duration _repeatIntroDuration = Duration(milliseconds: 420);
+
+  /// 同一次 App 进程内只播完整版一次。
+  ///
+  /// Figma 用 `sessionStorage['careerly-splash-seen']` 做同一件事：
+  /// 第二次进入开屏时不再等品牌字标画完（`careerly-splash--repeat`）。
+  /// Flutter 侧用静态标记表达，退出 App 后自然重置。
+  static bool _introPlayed = false;
+
+  late final bool _fullIntro = !_introPlayed;
+  late final AnimationController _intro = AnimationController(
+    vsync: this,
+    duration: _fullIntro ? _fullIntroDuration : _repeatIntroDuration,
+  );
+  late final AnimationController _breath = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2800),
+  );
+
+  Timer? _breathTimer;
+  bool _reduceMotion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _introPlayed = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _reduceMotion) return;
+      _intro.forward();
+      // Figma：球体入场 520ms + 120ms 延迟后，再等 810ms 开始呼吸投影。
+      _breathTimer = Timer(Duration(milliseconds: _fullIntro ? 1450 : 500), () {
+        if (mounted) _breath.repeat(reverse: true);
+      });
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+  }
+
+  @override
+  void dispose() {
+    _breathTimer?.cancel();
+    _intro.dispose();
+    _breath.dispose();
+    super.dispose();
+  }
+
+  /// 把「绝对时间轴」换算成当前进度。
+  ///
+  /// 时间点直接来自 Figma `index.css` 的 `careerly-splash--full`：
+  ///
+  /// ```text
+  /// 120ms  球体 scale-in 520ms
+  /// 430ms  字标从左到右显现 880ms
+  /// 1140ms Careerly 文案
+  /// 1380ms 标语
+  /// 1580ms 说明文案
+  /// 1780ms 主按钮
+  /// 1920ms 登录文字链
+  /// ```
+  ///
+  /// `repeat` 模式与「减少动态效果」都直接返回 1（立即呈现）。
+  double _phase(double beginMs, double durationMs) {
+    if (!_fullIntro || _reduceMotion) return 1;
+    final double total = _fullIntroDuration.inMilliseconds.toDouble();
+    final double begin = (beginMs / total).clamp(0.0, 1.0);
+    final double end = ((beginMs + durationMs) / total).clamp(0.0, 1.0);
+    return Interval(
+      begin,
+      end,
+      curve: Curves.easeOutCubic,
+    ).transform(_intro.value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,32 +166,112 @@ class OnboardingSplashPage extends StatelessWidget {
           // 自带 34px home indicator 区），这里的 `bottom` 从
           // **SafeArea 底边**量起 —— Android 的导航条高度因机而异，
           // 用 SafeArea 表达「让开系统占位」比硬编 34 更接近意图。
-          child: Stack(
-            children: <Widget>[
-              const Positioned.fill(child: _SplashHeadline()),
-              const Positioned(
-                left: _SplashMetrics.horizontalInset,
-                right: _SplashMetrics.horizontalInset,
-                bottom: _SplashMetrics.footerBottom,
-                child: _SplashFooter(),
-              ),
-              Positioned(
-                left: _SplashMetrics.horizontalInset,
-                right: _SplashMetrics.horizontalInset,
-                bottom: _SplashMetrics.primaryButtonBottom,
-                child: const _SplashPrimaryAction(),
-              ),
-            ],
+          child: AnimatedBuilder(
+            animation: Listenable.merge(<Listenable>[_intro, _breath]),
+            builder: (BuildContext context, Widget? _) {
+              final double surfaceOpacity = _reduceMotion
+                  ? 1
+                  : _fullIntro
+                  ? _phase(0, 420)
+                  : Curves.easeOut.transform(_intro.value);
+              final _SplashMotion motion = _SplashMotion(
+                orbScale: 0.88 + 0.12 * _phase(120, 520),
+                orbOpacity: _phase(120, 300),
+                orbShadow: _orbShadow(),
+                logoReveal: _phase(430, 880),
+                logoOpacity: _phase(430, 260),
+                brand: _phase(1140, 460),
+                tagline: _phase(1380, 460),
+                description: _phase(1580, 420),
+                primaryAction: _phase(1780, 420),
+                footer: _phase(1920, 380),
+              );
+
+              return Opacity(
+                opacity: surfaceOpacity.clamp(0.0, 1.0),
+                child: Stack(
+                  children: <Widget>[
+                    Positioned.fill(child: _SplashHeadline(motion: motion)),
+                    Positioned(
+                      left: _SplashMetrics.horizontalInset,
+                      right: _SplashMetrics.horizontalInset,
+                      bottom: _SplashMetrics.footerBottom,
+                      child: _SplashReveal(
+                        progress: motion.footer,
+                        child: const _SplashFooter(),
+                      ),
+                    ),
+                    Positioned(
+                      left: _SplashMetrics.horizontalInset,
+                      right: _SplashMetrics.horizontalInset,
+                      bottom: _SplashMetrics.primaryButtonBottom,
+                      child: _SplashReveal(
+                        progress: motion.primaryAction,
+                        child: const _SplashPrimaryAction(),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),
     );
   }
+
+  /// Figma `_splash-breathe`：投影在 2.8s 内柔和地变亮 / 变大。
+  List<BoxShadow> _orbShadow() {
+    final double glow = _reduceMotion ? 0 : math.sin(_breath.value * math.pi);
+    return <BoxShadow>[
+      BoxShadow(
+        color: Color.lerp(
+          const Color(0x594F7EF5),
+          const Color(0x6E726FEE),
+          glow,
+        )!,
+        offset: const Offset(0, 20),
+        blurRadius: 48 + 8 * glow,
+      ),
+    ];
+  }
+}
+
+/// 本次进场动画的数值快照。
+///
+/// 把「时间轴」与「具体 Widget」解耦：State 只负责计算进度，
+/// 视觉组件只负责把进度落到 `Transform` / `Opacity` 上。
+class _SplashMotion {
+  const _SplashMotion({
+    required this.orbScale,
+    required this.orbOpacity,
+    required this.orbShadow,
+    required this.logoReveal,
+    required this.logoOpacity,
+    required this.brand,
+    required this.tagline,
+    required this.description,
+    required this.primaryAction,
+    required this.footer,
+  });
+
+  final double orbScale;
+  final double orbOpacity;
+  final List<BoxShadow> orbShadow;
+  final double logoReveal;
+  final double logoOpacity;
+  final double brand;
+  final double tagline;
+  final double description;
+  final double primaryAction;
+  final double footer;
 }
 
 /// 中部的品牌球 + 文字区。
 class _SplashHeadline extends StatelessWidget {
-  const _SplashHeadline();
+  const _SplashHeadline({required this.motion});
+
+  final _SplashMotion motion;
 
   @override
   Widget build(BuildContext context) {
@@ -111,50 +283,139 @@ class _SplashHeadline extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          // Figma: 141×141 圆 + 135deg 品牌渐变 + `0 20px 48px rgba(79,126,245,0.35)`
-          Container(
-            width: _SplashMetrics.orbSize,
-            height: _SplashMetrics.orbSize,
-            decoration: const BoxDecoration(
-              gradient: AppColors.brandGradient,
-              borderRadius: AppRadius.borderPill,
-              boxShadow: AppShadows.splashOrb,
-            ),
-          ),
+          _SplashOrb(motion: motion),
           const SizedBox(height: AppSpacing.xl),
 
           // Figma: 渐变填充文字（157deg，与 brandGradient 的 135deg 不同）
-          ShaderMask(
-            blendMode: BlendMode.srcIn,
-            shaderCallback: (Rect bounds) =>
-                AppColors.splashTitleGradient.createShader(bounds),
-            child: const Text(
-              'Careerly',
-              textAlign: TextAlign.center,
-              style: AppTypography.splashBrandTitle,
+          _SplashReveal(
+            progress: motion.brand,
+            child: ShaderMask(
+              blendMode: BlendMode.srcIn,
+              shaderCallback: (Rect bounds) =>
+                  AppColors.splashTitleGradient.createShader(bounds),
+              child: const Text(
+                'Careerly',
+                textAlign: TextAlign.center,
+                style: AppTypography.splashBrandTitle,
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
 
-          const Text(
-            '看见能力 · 跨越 Gap',
-            textAlign: TextAlign.center,
-            style: AppTypography.splashTagline,
-          ),
-          const Text(
-            '记录成长',
-            textAlign: TextAlign.center,
-            style: AppTypography.splashTagline,
+          _SplashReveal(
+            progress: motion.tagline,
+            child: const Column(
+              children: <Widget>[
+                Text(
+                  '看见能力 · 跨越 Gap',
+                  textAlign: TextAlign.center,
+                  style: AppTypography.splashTagline,
+                ),
+                Text(
+                  '记录成长',
+                  textAlign: TextAlign.center,
+                  style: AppTypography.splashTagline,
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: AppSpacing.blockGap),
 
-          const Text(
-            '你的职业成长，从看见自己开始。',
-            textAlign: TextAlign.center,
-            style: AppTypography.splashDescription,
+          _SplashReveal(
+            progress: motion.description,
+            child: const Text(
+              '你的职业成长，从看见自己开始。',
+              textAlign: TextAlign.center,
+              style: AppTypography.splashDescription,
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 开屏品牌球：渐变圆 + **白色字标** + 呼吸投影。
+///
+/// Figma `OnSplash` 的球体不是空的 —— 中心有一个 126×60 的白色字标，
+/// 且字标带一段「从左向右显现」的入场（`_splash-mark-draw`）。
+/// 这里用 [CustomClipper] 做同样的横向揭示：素材是填充路径，
+/// 无法直接复用 stroke-dashoffset 的描边动画。
+class _SplashOrb extends StatelessWidget {
+  const _SplashOrb({required this.motion});
+
+  final _SplashMotion motion;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: motion.orbOpacity.clamp(0.0, 1.0),
+      child: Transform.scale(
+        scale: motion.orbScale,
+        child: Container(
+          width: _SplashMetrics.orbSize,
+          height: _SplashMetrics.orbSize,
+          decoration: BoxDecoration(
+            gradient: AppColors.brandGradient,
+            borderRadius: AppRadius.borderPill,
+            boxShadow: motion.orbShadow,
+          ),
+          alignment: Alignment.center,
+          child: SizedBox(
+            width: _SplashMetrics.logoWidth,
+            height: _SplashMetrics.logoHeight,
+            child: Opacity(
+              opacity: motion.logoOpacity.clamp(0.0, 1.0),
+              child: ClipRect(
+                clipper: _SplashLogoClipper(
+                  reveal: motion.logoReveal.clamp(0.0, 1.0),
+                ),
+                child: SvgPicture.asset(
+                  _SplashMetrics.logoAsset,
+                  fit: BoxFit.contain,
+                  colorFilter: const ColorFilter.mode(
+                    Colors.white,
+                    BlendMode.srcIn,
+                  ),
+                  excludeFromSemantics: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 字标从左到右的揭示裁切。
+class _SplashLogoClipper extends CustomClipper<Rect> {
+  const _SplashLogoClipper({required this.reveal});
+
+  final double reveal;
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, 0, size.width * reveal, size.height);
+
+  @override
+  bool shouldReclip(covariant _SplashLogoClipper oldClipper) =>
+      oldClipper.reveal != reveal;
+}
+
+/// Figma `_splash-copy-in`：淡入 + 上移 9px。
+class _SplashReveal extends StatelessWidget {
+  const _SplashReveal({required this.progress, required this.child});
+
+  final double progress;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final double t = progress.clamp(0.0, 1.0);
+    return Opacity(
+      opacity: t,
+      child: Transform.translate(offset: Offset(0, (1 - t) * 9), child: child),
     );
   }
 }
@@ -224,6 +485,14 @@ abstract final class _SplashMetrics {
   /// 它不属于间距 / 圆角 / 颜色 / 字号任何一类既有 Token 家族，
   /// 且只在这一处出现。若后续再出现「品牌大球」场景，应提为 Token。
   static const double orbSize = 141;
+
+  /// Figma 品牌字标：`width: 126, height: 60, viewBox 60 48 188 83`。
+  ///
+  /// 素材来自 `careerly-assets/svg/logo.svg`（黑色字标），
+  /// 视觉上通过 `ColorFilter` 转成白色 —— 与 Figma 的白色描边一致。
+  static const String logoAsset = 'assets/images/brand/careerly-logo.svg';
+  static const double logoWidth = 126;
+  static const double logoHeight = 60;
 
   /// Figma：主按钮容器 `left-6 right-6`（`inset-x-6`）→ 左右各 24。
   ///

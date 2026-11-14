@@ -1176,7 +1176,7 @@ Phase 10  Android QA
 
 | # | 问题 | 结论 | 记录 |
 |---|---|---|---|
-| **K4** | Android Back 的「**非首个 Tab 按返回先回首页**」不在任何锁定的产品规则源中（`01_PRD` / `04_IA` / `07_Baseline` / `06_Spec` 均无；`06_Spec` §39 只有一句「必须遵循页面层级」） | ✅ **2026-09-18 产品侧裁决：保持现状**。go_router 默认行为（**分支内有二级页 → 先 pop；分支根 → 退出 App**）即满足「遵循页面层级」。**未改任何代码** | `CHANGELOG.md` Session 009 |
+| **K4** | Android Back 的「**非首个 Tab 按返回先回首页**」不在任何锁定的产品规则源中（`01_PRD` / `04_IA` / `07_Baseline` / `06_Spec` 均无；`06_Spec` §39 只有一句「必须遵循页面层级」） | ✅ **2026-09-18 产品侧裁决：保持现状**。go_router 默认行为（**分支内有二级页 → 先 pop；分支根 → 退出 App**）即满足「遵循页面层级」。**未改任何代码**。<br>🔄 **2026-11-14 产品侧更新（推翻上式）**：一级页面改为 **首页直接退出；分析 / AI / 我的先回首页，在首页再 Back 才退出**。已落地在 `lib/app/shell/careerly_shell.dart` 的 `PopScope`，规则同步至 `CLAUDE.md` §5.6 | `CHANGELOG.md` Session 009 · 2026-11-14 |
 | **K5** | Figma Glass 的多层 `inset box-shadow`，Flutter `BoxShadow` 不支持 inset | ✅ 方案**早已在 Phase 1 落地**（`_GlassEdgePainter` 用「裁剪到圆角矩形 + 沿边画内缩色带」还原，`_GlassFilters` 把 `backdrop-filter` 链翻译为 `ui.ImageFilter.compose`），只是当时未登记。批 1 已泛化为公共基元 —— 从「阻塞项」降级为「低风险重构」 | `CHANGELOG.md` Session 004 · D13 |
 | **K6** | 未引入 `flutter_localizations`，Material 内建组件标签为英文 | ✅ **2026-09-18 已落地**：写入 `pubspec.yaml` + `MaterialApp.router` 接线（delegates + `supportedLocales: [zh_CN]`）。⚠️ `supportedLocales` 的登记范围**未经产品侧裁决**，见 §3.1 | `CHANGELOG.md` Session 006 |
 | **K8** | 仓库未初始化 git | ✅ `fa4d290 chore: establish Careerly Phase 1 baseline`，Phase 1 基线已提交 | `CHANGELOG.md` Session 004 |

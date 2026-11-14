@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app/app.dart';
 import 'app/router/app_debug_entry.dart';
+import 'core/errors/crash_reporter.dart';
 import 'data/api/api_client.dart';
 import 'data/api/token_store.dart';
 import 'data/mock/mock_config.dart';
@@ -55,6 +56,9 @@ import 'data/mock/mock_config.dart';
 /// 这里只做「恢复凭据」这一件事，**不**决定启动落在哪一屏（那是 D54）。
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 未捕获异常的兜底提示（「休息」IP + 提示框）。
+  // 必须在 runApp 之前挂钩，否则启动阶段的异常不会被接住。
+  CrashReporter.install();
   MockSettings.applyDemoDataFromEnvironment();
 
   final ApiClient apiClient = ApiClient(tokenStore: SecureTokenStore());

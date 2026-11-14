@@ -1,6 +1,7 @@
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -555,6 +556,34 @@ class _Welcome extends StatelessWidget {
               BoxShadow(color: Color(0x965B66F1), blurRadius: 36.8),
             ],
           ),
+          // 对应 Figma `AI` 欢迎态的 88px 渐变圆：
+          // 标志不是居中缩小的，而是 **150×100 的白色字标故意越界裁切**
+          // （Figma: left -31 / top -6 / opacity 0.94）。
+          child: ClipOval(
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                Positioned(
+                  left: -31,
+                  top: -6,
+                  width: 150,
+                  height: 100,
+                  child: Opacity(
+                    opacity: 0.94,
+                    child: SvgPicture.asset(
+                      'assets/images/brand/careerly-logo.svg',
+                      fit: BoxFit.contain,
+                      colorFilter: const ColorFilter.mode(
+                        Colors.white,
+                        BlendMode.srcIn,
+                      ),
+                      excludeFromSemantics: true,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: 16),
         Text(
@@ -700,6 +729,7 @@ class _AIInput extends StatelessWidget {
               child: AICopilotCharacter(
                 state: copilotState,
                 completionId: completionId,
+                welcome: welcome,
               ),
             ),
             Container(
