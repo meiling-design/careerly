@@ -10,19 +10,25 @@ import '../../features/analysis/presentation/gap_page.dart';
 import '../../features/analysis/presentation/job_detail_page.dart';
 import '../../features/analysis/presentation/targets_page.dart';
 import '../../features/home/presentation/home_page.dart';
+import '../../features/legal/legal_document.dart';
+import '../../features/legal/presentation/legal_document_page.dart';
 import '../../features/onboarding/presentation/onboarding_confirm_page.dart';
 import '../../features/onboarding/presentation/onboarding_login_page.dart';
 import '../../features/onboarding/presentation/onboarding_parsing_page.dart';
 import '../../features/onboarding/presentation/onboarding_register_page.dart';
+import '../../features/onboarding/presentation/onboarding_reset_password_page.dart';
 import '../../features/onboarding/presentation/onboarding_resume_page.dart';
 import '../../features/onboarding/presentation/onboarding_splash_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
+import '../../features/profile/presentation/delete_account_page.dart';
+import '../../features/profile/presentation/delete_career_data_page.dart';
 import '../../features/profile/presentation/settings_page.dart';
 import '../../features/profile/presentation/awards_page.dart';
 import '../../features/profile/presentation/capability_page.dart';
 import '../../features/profile/presentation/career_assets_page.dart';
 import '../../features/profile/presentation/growth_record_page.dart';
 import '../../features/profile/presentation/membership_page.dart';
+import '../../features/profile/presentation/personal_info_page.dart';
 import '../../features/profile/presentation/project_detail_page.dart';
 import '../../features/profile/presentation/projects_page.dart';
 import '../../features/profile/presentation/resume_detail_page.dart';
@@ -145,6 +151,56 @@ GoRouter createAppRouter({String initialLocation = AppRoutes.home}) {
               name: AppRouteNames.settings,
               child: const SettingsPage(),
             ),
+        // 设置下的二级页。嵌在 /settings 之下（而不是平铺成
+        // /settings-delete-account）是为了让返回语义自然落在
+        // 「回到设置」—— 与 /profile 下的二级页同一处置（K4）。
+        routes: <RouteBase>[
+          _subRoute(
+            segment: AppRoutes.settingsPersonalInfoSegment,
+            name: AppRouteNames.settingsPersonalInfo,
+            builder: (_, _) => const PersonalInfoPage(),
+          ),
+          _subRoute(
+            segment: AppRoutes.settingsDeleteAccountSegment,
+            name: AppRouteNames.settingsDeleteAccount,
+            builder: (_, _) => const DeleteAccountPage(),
+          ),
+          _subRoute(
+            segment: AppRoutes.settingsDeleteCareerDataSegment,
+            name: AppRouteNames.settingsDeleteCareerData,
+            builder: (_, _) => const DeleteCareerDataPage(),
+          ),
+        ],
+      ),
+      // -------------------------------------------------------------------------
+      // 协议页（发布基线 §1.0f · E2 / E3）
+      //
+      // ⚠️ 与 `/settings` 同类：在 Shell **之外** —— 协议页没有底部导航。
+      //
+      // ⚠️ 与 `/settings/...` 的嵌套写法不同：`/legal` **没有自己的页面**，
+      // 因此这里建两条**顶级路由**，而不是「父路由 + 子路由」——
+      // 硬套父子会多出一个没有实体的中间节点。
+      //
+      // 返回语义不受影响：两条都由 `context.push` 进入，
+      // Back = 当前导航栈 pop（CLAUDE.md §5.6 / K4）——
+      // 从注册页进就回注册页，从设置进就回设置。
+      // -------------------------------------------------------------------------
+      _legalRoute(
+        document: LegalDocument.termsOfService,
+        location: AppRoutes.legalTerms,
+        name: AppRouteNames.legalTerms,
+      ),
+      _legalRoute(
+        document: LegalDocument.privacyPolicy,
+        location: AppRoutes.legalPrivacy,
+        name: AppRouteNames.legalPrivacy,
+      ),
+      // AI 数据使用说明 —— 2026-10-07 产品侧裁决 D123 = A 之后新增。
+      // 上面那段注释里的「两条顶级路由」在本轮变成三条，写法完全同构。
+      _legalRoute(
+        document: LegalDocument.aiDataProcessing,
+        location: AppRoutes.legalAiData,
+        name: AppRouteNames.legalAiData,
       ),
       _onboardingRoute(
         location: AppRoutes.onboardingRegister,
@@ -162,6 +218,13 @@ GoRouter createAppRouter({String initialLocation = AppRoutes.home}) {
         location: AppRoutes.onboardingLogin,
         name: AppRouteNames.onboardingLogin,
         page: const OnboardingLoginPage(),
+      ),
+      // 重置密码 —— 登录页的二级页面（`context.push` 进入，Back 回登录页）。
+      // 不是一级页面，也没有底部导航。
+      _onboardingRoute(
+        location: AppRoutes.onboardingResetPassword,
+        name: AppRouteNames.onboardingResetPassword,
+        page: const OnboardingResetPasswordPage(),
       ),
       _onboardingRoute(
         location: AppRoutes.onboardingResume,
@@ -198,6 +261,30 @@ GoRoute _onboardingRoute({
           key: ValueKey<String>(name),
           name: name,
           child: page,
+        ),
+  );
+}
+
+/// 构造一条协议页路由（Shell 之外的二级页）。
+///
+/// 两条协议路由只有 [document] 不同，因此共用一个构造器 ——
+/// 与页面层「一个类 + 一个枚举」的处置一致（`CLAUDE.md` §8.4）。
+///
+/// 页面 key 用**路由名**：这两条都不带参数，不存在详情页那种
+/// 「不同 id 撞 key」的问题（对照 [_subRoutePage] 的注释）。
+GoRoute _legalRoute({
+  required LegalDocument document,
+  required String location,
+  required String name,
+}) {
+  return GoRoute(
+    path: location,
+    name: name,
+    pageBuilder: (BuildContext context, GoRouterState state) =>
+        CareerlyPageTransitions.slide<void>(
+          key: ValueKey<String>(name),
+          name: name,
+          child: LegalDocumentPage(document: document),
         ),
   );
 }

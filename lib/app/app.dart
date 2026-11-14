@@ -29,6 +29,7 @@ class CareerlyApp extends StatelessWidget {
     this.initialLocation = AppRoutes.home,
     this.overrides = const <SingleChildWidget>[],
     this.apiClient,
+    this.useApi = false,
   });
 
   /// 启动时落在哪条路由。
@@ -57,6 +58,13 @@ class CareerlyApp extends StatelessWidget {
   /// 恢复完的客户端从这里注入。不传则由 `careerlyProviders` 自建。
   final ApiClient? apiClient;
 
+  /// 是否把 Repository 绑到真实后端（见 [careerlyProviders] 的同名参数）。
+  ///
+  /// 默认 `false` = Mock。**`main()` 会显式传 `true`** —— 也就是说
+  /// 这个默认值只服务于「测试与调试直接 pump [CareerlyApp]」的场景，
+  /// 让那 17 处 widget 测试不必改一行就仍然是 Mock。
+  final bool useApi;
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -64,6 +72,7 @@ class CareerlyApp extends StatelessWidget {
         initialLocation: initialLocation,
         overrides: overrides,
         apiClient: apiClient,
+        useApi: useApi,
       ),
       child: Builder(
         builder: (BuildContext context) {

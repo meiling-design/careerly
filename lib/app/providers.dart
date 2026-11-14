@@ -13,6 +13,7 @@ import '../features/home/state/home_provider.dart';
 import '../features/onboarding/state/auth_provider.dart';
 import '../features/onboarding/state/onboarding_provider.dart';
 import '../features/profile/state/career_assets_provider.dart';
+import '../features/profile/state/growth_celebration_provider.dart';
 import '../features/profile/state/growth_provider.dart';
 import '../features/profile/state/resume_provider.dart';
 import '../features/profile/state/user_profile_provider.dart';
@@ -59,17 +60,33 @@ List<SingleChildWidget> careerlyProviders({
   /// 而这里是同步的 `List` 构建 —— 所以由 `main()` 建好并恢复完再传进来。
   /// 不传则本函数自建一个（内存 TokenStore），行为与 P1-6 之前一致。
   ApiClient? apiClient,
-}) {
-  // 真实后端开关：--dart-define=CAREERLY_USE_API=true 时，
-  // 后端已建端点对应的接口（auth / analysis / resume / quota / growth /
-  // career assets / home summary / profile / ai）改绑 API 实现。
-  const bool useApi = ApiClient.useApi;
 
+  /// 真实后端开关：为 `true` 时，后端已建端点对应的接口
+  /// （auth / analysis / resume / quota / growth / career assets /
+  /// home summary / profile / ai）改绑 API 实现，否则绑 Mock。
+  ///
+  /// ## 为什么是参数而不是编译期常量
+  ///
+  /// 原来这里读 `const bool ApiClient.useApi`（`bool.fromEnvironment`），
+  /// 默认 `false` —— 意味着 `flutter run` **零参数时必然走 Mock**，
+  /// 想看真实后端必须每次手打一长串 `--dart-define`。
+  ///
+  /// 现在默认值由**入口**决定，而不是由全局常量决定：
+  ///
+  /// ```text
+  /// main()（flutter run 的入口）   → true   零参数即接真实后端
+  /// 测试 / CareerlyApp 自身默认     → false  仍然是 Mock，测试无需改一行
+  /// ```
+  ///
+  /// 显式传 `--dart-define=CAREERLY_USE_API=false` 可覆盖入口的默认值
+  /// （见 `ApiClient.useApiOverride`）。
+  bool useApi = false,
+}) {
   final ApiClient client = apiClient ?? ApiClient();
 
   return <SingleChildWidget>[
     // -------------------------------------------------------------------------
-    // Data Source 层（默认 Mock；CAREERLY_USE_API=true 时部分换绑 API）
+    // Data Source 层（useApi 为 true 时换绑 API，否则绑 Mock）
     // -------------------------------------------------------------------------
     Provider<ApiClient>(
       create: (_) => client,
@@ -172,6 +189,9 @@ List<SingleChildWidget> careerlyProviders({
     ChangeNotifierProvider<GrowthProvider>(
       create: (BuildContext context) =>
           GrowthProvider(context.read<GrowthRepository>()),
+    ),
+    ChangeNotifierProvider<GrowthCelebrationProvider>(
+      create: (_) => GrowthCelebrationProvider(),
     ),
     // 成长时间线与月网格是两个粒度不同的数据流（Figma 两份源数据），
     // 因此两个 Provider —— 合成一个会让任一为空连带另一块也无数据。
