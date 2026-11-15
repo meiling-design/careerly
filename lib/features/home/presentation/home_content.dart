@@ -38,9 +38,10 @@ class HomeContent {
 
   /// 按阶段装配内容。
   ///
-  /// 内容阶段由真实摘要状态决定；今日内容可在任何阶段提供。
+  /// 三态**共用同一套 Hero 与四象限结构**（D64 ①bis），
+  /// 只有卡片里的数据不同：State 01 / 02 给引导文案，State 03 给真实摘要。
   ///
-  /// [greeting] / [userName] 只用于空态 Hero 的问好：
+  /// [greeting] / [userName] 用于问候式 Hero：
   /// 问候语按当前时段（[homeGreetingFor]），姓名来自真实用户资料
   /// （`UserProfile.displayName`）—— **不**回落到 Figma 的 `Alex`。
   factory HomeContent.forStage(
@@ -51,108 +52,49 @@ class HomeContent {
   }) {
     switch (stage) {
       case HomeStage.firstUse:
-        return _firstUse(
-          summary.dailyContent,
-          greeting: greeting,
-          userName: userName,
-        );
       case HomeStage.baselineOnly:
-        return _baselineOnly(
+        return _notAnalyzed(
           summary.dailyContent,
           greeting: greeting,
           userName: userName,
         );
       case HomeStage.analyzed:
-        return _analyzed(summary);
+        return _analyzed(summary, greeting: greeting, userName: userName);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // State 01 —— 首次使用（D64 ② 逐字）
-  // ---------------------------------------------------------------------------
-
-  static HomeContent _firstUse(
-    String? dailyContent, {
-    required String greeting,
-    required String userName,
-  }) {
-    return HomeContent(
-      hero: HomeHeroContent(
-        // Figma 的问候式 Hero：小字问候 + 真实姓名 + 品牌短句，
-        // 主按钮直接进入「新建分析」。
-        label: greeting.isEmpty ? '你好！' : greeting,
-        title: userName.trim(),
-        meta: '看见能力，也看见前进的自己~',
-        actionLabel: '新建分析',
-        action: HomeHeroAction.newAnalysis,
-      ),
-      stilCards: <HomeStilCardData>[
-        HomeStilCardData(
-          kind: HomeStilCardKind.status,
-          title: '当前状态',
-          lines: const <String>['还没有岗位分析'],
-          actionLabel: '去新建分析',
-          target: HomeCardTarget.analysis,
-        ),
-        HomeStilCardData(
-          kind: HomeStilCardKind.growth,
-          title: '成长记录',
-          lines: const <String>['简历更新、技能增加', '都会成为职业资产'],
-          actionLabel: '查看成长记录',
-          lineAccent: AppColors.success,
-          target: HomeCardTarget.growth,
-        ),
-        HomeStilCardData(
-          kind: HomeStilCardKind.suggestion,
-          title: '下一步建议',
-          lines: const <String>['不确定提升方向？', '和 AI 聊聊职业方向'],
-          actionLabel: '与AI聊聊',
-          lineAccent: AppColors.homeCardHighlight,
-          target: HomeCardTarget.ai,
-        ),
-        HomeStilCardData(
-          kind: HomeStilCardKind.daily,
-          title: '今天也可以向前一步',
-          lines: _dailyLines(dailyContent),
-        ),
-      ],
-      section: HomeSectionContent.firstAnalysis(
-        title: '开始你的第一次分析',
-        body: '找到一个你感兴趣的岗位，把 JD 粘贴进 Careerly。',
-        actionLabel: '分析第一个岗位 →',
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // State 02 —— 已有简历、无岗位分析（⚠️ AI 起草 → D76）
-  // ---------------------------------------------------------------------------
-
-  /// ⚠️ **产品侧只给了 State 01 与 State 03 的文案，State 02 未给**
-  /// （D64 ② 只覆盖 State 01）。
+  /// 问候式 Hero —— 三态共用。
   ///
-  /// 因此这里按「**最小改写**」起草：与 State 01 **结构完全相同**，
-  /// 只把「还没有简历」这一件事改写为「已经有简历、只差一个岗位」，
-  /// 且**只用 D64 已经出现过的词**（职业基线 / 目标岗位 / 能力匹配度 /
-  /// 第一次分析）。起草结果逐条列在 **待裁决 · D76** 供产品侧增删。
-  static HomeContent _baselineOnly(
+  /// 左侧：时段问候 + 真实昵称 + 品牌短句；下方深色「＋新建分析」胶囊。
+  /// 右侧插画与裁切由 [HomeHeroCard] 负责，与内容无关。
+  static HomeHeroContent _hero({
+    required String greeting,
+    required String userName,
+  }) {
+    return HomeHeroContent(
+      label: greeting.isEmpty ? '你好！' : greeting,
+      title: userName.trim(),
+      meta: '看见能力，也看见前进的自己~',
+      actionLabel: '新建分析',
+    );
+  }
+
+  /// 2×2 卡片的引导态（State 01 / 02 共用）。
+  ///
+  /// State 01 与 State 02 的**可见文案完全一致**：两者都还没有岗位分析，
+  /// 差异只在首页之外的职业基线，因此不再维护两份重复结构。
+  static HomeContent _notAnalyzed(
     String? dailyContent, {
     required String greeting,
     required String userName,
   }) {
     return HomeContent(
-      hero: HomeHeroContent(
-        label: greeting.isEmpty ? '你好！' : greeting,
-        title: userName.trim(),
-        meta: '看见能力，也看见前进的自己~',
-        actionLabel: '新建分析',
-        action: HomeHeroAction.newAnalysis,
-      ),
+      hero: _hero(greeting: greeting, userName: userName),
       stilCards: <HomeStilCardData>[
         HomeStilCardData(
           kind: HomeStilCardKind.status,
           title: '当前状态',
-          lines: const <String>['还没有岗位分析'],
+          lines: const <String>[],
           actionLabel: '去新建分析',
           target: HomeCardTarget.analysis,
         ),
@@ -187,32 +129,29 @@ class HomeContent {
   }
 
   // ---------------------------------------------------------------------------
-  // State 03 —— 完整 Dashboard（Figma 结构 + 真实数据）
+  // State 03 —— 完整 Dashboard（四象限 + 真实数据）
   // ---------------------------------------------------------------------------
 
-  /// ⚠️ 本态是 Figma 首页**唯一有数据**的一态，因此 Hero 与四张卡都从
-  /// [HomeSummary] 取数；取不到就留空（`CareerlyAsyncStateView` 之外
-  /// 不再编造占位数据）。
-  static HomeContent _analyzed(HomeSummary summary) {
+  /// Hero **不**承载分析结论（旧版的「岗位名 / 查看分析」数据卡已废弃）；
+  /// 真实数据只进入固定的四象限卡片与下方列表，避免有数据时换一套骨架。
+  static HomeContent _analyzed(
+    HomeSummary summary, {
+    required String greeting,
+    required String userName,
+  }) {
     final List<MatchChange> matches = summary.matchChanges;
     final MatchChange? top = matches.isEmpty ? null : matches.first;
-    final String headline = summary.headline.trim();
 
     return HomeContent(
-      hero: HomeHeroContent(
-        label: '当前职业状态',
-        title: headline.isNotEmpty ? headline : top?.jobTitle ?? '',
-        meta: summary.subheadline.trim(),
-        actionLabel: '查看分析',
-        action: HomeHeroAction.viewAnalysis,
-      ),
+      hero: _hero(greeting: greeting, userName: userName),
       stilCards: <HomeStilCardData>[
         HomeStilCardData(
           kind: HomeStilCardKind.status,
           title: '当前状态',
-          lines: <String>[
-            matches.isEmpty ? '已完成目标岗位分析' : '最近有 ${matches.length} 个岗位匹配变化',
-          ],
+          // 右上角只放短标签；岗位变化条数留在下方列表，
+          // 不把长句塞进卡片头部挤掉标题。
+          lines: const <String>[],
+          statusBadge: top == null ? null : 'TOP 1',
           actionLabel: '查看详情',
           statusScore: top?.score,
           target: HomeCardTarget.analysis,
@@ -258,26 +197,10 @@ class HomeContent {
   }
 }
 
-/// Hero 卡内小按钮的**目标**。
-///
-/// 与 [HomeHeroContent.actionLabel] 分开：文案归文案，目标归目标 ——
-/// 这样改文案不会悄悄改掉跳转（Figma 的按钮文字与它的 `onClick`
-/// 本就是两件事）。
-enum HomeHeroAction {
-  /// State 01：还没有简历 → 去建职业基线。
-  uploadResume,
-
-  /// State 02：有基线、无岗位 → 去添加目标岗位（JD 入口在「分析」）。
-  addJob,
-
-  /// 空态主按钮：去「分析」开始一次新的岗位分析。
-  newAnalysis,
-
-  /// State 03：去看这条岗位匹配的完整分析。
-  viewAnalysis,
-}
-
 /// Hero 卡内容。
+///
+/// Hero 是三态共用的问候区：问候语 + 昵称 + 品牌短句 + 「新建分析」。
+/// 分析结论不进入 Hero —— 那会让有数据时换成另一套骨架。
 @immutable
 class HomeHeroContent {
   const HomeHeroContent({
@@ -285,23 +208,19 @@ class HomeHeroContent {
     required this.title,
     required this.meta,
     required this.actionLabel,
-    required this.action,
   });
 
-  /// 小标签。
+  /// 小标签（时段问候）。
   final String label;
 
-  /// 主标题（岗位名 / 空态标题）。
+  /// 主标题（真实昵称）。为空时该行不渲染。
   final String title;
 
-  /// 附加说明行（岗位时间 / 空态说明句）。为空时该行不渲染。
+  /// 附加说明行（品牌短句）。为空时该行不渲染。
   final String meta;
 
-  /// 按钮文字。
+  /// 深色胶囊按钮文字。
   final String actionLabel;
-
-  /// 按钮的跳转目标。
-  final HomeHeroAction action;
 }
 
 /// 2×2 卡片的数据。
@@ -313,6 +232,7 @@ class HomeStilCardData {
     required this.lines,
     this.actionLabel = '',
     this.statusScore,
+    this.statusBadge,
     this.lineAccent,
     this.target,
   });
@@ -320,13 +240,16 @@ class HomeStilCardData {
   final HomeStilCardKind kind;
   final String title;
 
-  /// 描述行（0–2 行）。
+  /// 描述行（0–2 行）。「当前状态」卡不展示描述行。
   final List<String> lines;
 
   final String actionLabel;
 
   /// 最匹配岗位的真实匹配分；无分析时不显示读数。
   final int? statusScore;
+
+  /// 「当前状态」卡右上角的短标签（如 `TOP 1`）；无数据时不渲染。
+  final String? statusBadge;
 
   /// 最后一行的高亮色。为 `null` 时该卡所有描述行都用中性灰。
   final Color? lineAccent;
@@ -344,9 +267,6 @@ enum HomeCardTarget {
 
   /// 「当前状态」→ 分析 Tab（Figma `onAnalysisClick` → `go('analysis')`）。
   analysis,
-
-  /// 「职业基线已建立」→ 我的职业能力详情（IA §6 Empty State）。
-  capability,
 
   /// 「最近成长」→ Figma 是 `go('cap-change')`（能力变化页）。
   ///

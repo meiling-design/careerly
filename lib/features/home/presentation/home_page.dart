@@ -172,7 +172,8 @@ class _HomeContent extends StatelessWidget {
         children: <Widget>[
           HomeHeroCard(
             content: content.hero,
-            onAction: _onHeroAction(context, content.hero.action),
+            // 三态共用同一个「＋新建分析」入口：分析 Tab 的新建分析页。
+            onAction: () => context.go(AppRoutes.analysis),
             celebration: celebration,
             onCelebrationFinished: onCelebrationFinished,
           ),
@@ -186,8 +187,6 @@ class _HomeContent extends StatelessWidget {
                   cards: content.stilCards,
                   onOpenAi: () => context.go(AppRoutes.ai),
                   onOpenAnalysis: () => context.go(AppRoutes.analysis),
-                  onOpenCapability: () =>
-                      context.go(AppRoutes.profileCapability),
                   onOpenGrowth: () => context.go(AppRoutes.profileGrowthRecord),
                 ),
               ),
@@ -208,27 +207,5 @@ class _HomeContent extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  /// Hero 卡内小按钮的点击目标。
-  ///
-  /// 目标由 [HomeHeroContent.action] 给出，**不**从按钮文案反推 ——
-  /// 改文案不会悄悄改掉跳转。
-  ///
-  /// ⚠️ 「上传简历」目前复用 Onboarding 的**提交简历**页
-  /// —— 应用内**没有**第二处简历上传入口（`我的 → 我的简历` 属 Phase 6）。
-  /// 复用而非新建页面，是因为新建一级页面须先经产品侧裁决。
-  /// 该归属问题登记 **待裁决 · D80**。
-  VoidCallback _onHeroAction(BuildContext context, HomeHeroAction action) {
-    return switch (action) {
-      HomeHeroAction.uploadResume => () => context.go(
-        AppRoutes.onboardingResume,
-      ),
-      // 目标岗位来自 JD，而 JD 入口只在「分析」。
-      HomeHeroAction.addJob => () => context.go(AppRoutes.analysis),
-      // 空态的「新建分析」与添加岗位落到同一处：分析 Tab 的新建分析页。
-      HomeHeroAction.newAnalysis => () => context.go(AppRoutes.analysis),
-      HomeHeroAction.viewAnalysis => () => context.go(AppRoutes.analysis),
-    };
   }
 }

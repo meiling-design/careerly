@@ -322,9 +322,15 @@ void main() {
         ),
       );
 
-      expect(homeText('当前职业状态'), findsOneWidget);
-      expect(homeText('已完成目标岗位分析'), findsOneWidget);
+      // Hero 不因有数据而换成旧版数据卡。
+      expect(homeText(homeGreetingFor(DateTime.now())), findsOneWidget);
+      expect(homeText('新建分析'), findsOneWidget);
+      expect(homeText('当前职业状态'), findsNothing);
+
+      // 没有匹配变化时，区块仍进入「岗位匹配变化」形态，只是没有行。
+      expect(homeText('岗位匹配变化'), findsOneWidget);
       expect(homeText('开始你的第一次分析'), findsNothing);
+      expect(homeText('已完成目标岗位分析'), findsNothing);
     });
   });
 
@@ -333,14 +339,21 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('Phase 5 · 首页 State 03（已有岗位分析）', () {
-    testWidgets('Hero 取最匹配的那条岗位，读数来自数据', (WidgetTester tester) async {
+    testWidgets('Hero 与空态同构：问候 + 品牌短句 + 新建分析', (WidgetTester tester) async {
       await pumpStub(tester, analyzed);
 
-      expect(homeText('当前职业状态'), findsOneWidget);
-      expect(homeText('当前与目标岗位的匹配度 61 分'), findsOneWidget);
-      expect(homeText('最需要补上的是「测试能力」'), findsOneWidget);
-      expect(homeText('查看分析'), findsOneWidget);
+      // 有数据时**不**回落到旧版数据卡（岗位名 / 查看分析）。
+      expect(homeText(homeGreetingFor(DateTime.now())), findsOneWidget);
+      expect(homeText('看见能力，也看见前进的自己~'), findsOneWidget);
+      expect(homeText('新建分析'), findsOneWidget);
+      expect(homeText('当前职业状态'), findsNothing);
+      expect(homeText('查看分析'), findsNothing);
+      expect(homeText('当前与目标岗位的匹配度 61 分'), findsNothing);
+      expect(homeText('最需要补上的是「测试能力」'), findsNothing);
+
+      // 真实数据只进入四象限与列表。
       expect(homeText('测试岗位 A'), findsOneWidget);
+      expect(homeText('TOP 1'), findsOneWidget);
 
       // 匹配度读数从真实摘要渲染到「当前状态」卡。
       expect(homeText('61%'), findsNWidgets(2));
@@ -374,8 +387,9 @@ void main() {
       expect(homeText('建议甲'), findsOneWidget);
       expect(homeText('建议乙'), findsOneWidget);
 
-      // 状态卡使用真实匹配变化数量和真实匹配分。
-      expect(homeText('最近有 2 个岗位匹配变化'), findsOneWidget);
+      // 状态卡使用真实匹配分；右上角只放短标签，不塞长句。
+      expect(homeText('TOP 1'), findsOneWidget);
+      expect(homeText('最近有 2 个岗位匹配变化'), findsNothing);
       expect(homeText('61%'), findsNWidgets(2));
 
       // 成长卡的两行 = `recentGrowth`。

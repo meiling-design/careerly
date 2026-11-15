@@ -12,14 +12,12 @@ class HomeStilCards extends StatelessWidget {
     required this.cards,
     this.onOpenAi,
     this.onOpenAnalysis,
-    this.onOpenCapability,
     this.onOpenGrowth,
   });
 
   final List<HomeStilCardData> cards;
   final VoidCallback? onOpenAi;
   final VoidCallback? onOpenAnalysis;
-  final VoidCallback? onOpenCapability;
   final VoidCallback? onOpenGrowth;
 
   @override
@@ -53,7 +51,6 @@ class HomeStilCards extends StatelessWidget {
       null => null,
       HomeCardTarget.ai => onOpenAi,
       HomeCardTarget.analysis => onOpenAnalysis,
-      HomeCardTarget.capability => onOpenCapability,
       HomeCardTarget.growth => onOpenGrowth,
     };
 
@@ -85,6 +82,7 @@ class _StatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final int? score = data.statusScore;
+    final String? badge = data.statusBadge;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -123,30 +121,27 @@ class _StatusCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (score != null && data.lines.isNotEmpty) ...<Widget>[
+                  if (badge != null && badge.isNotEmpty) ...<Widget>[
                     const SizedBox(width: _StilMetrics.statusChipGap),
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: _StilMetrics.statusChipHorizontal,
-                          vertical: _StilMetrics.statusChipVertical,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: _StilMetrics.statusChipHorizontal,
+                        vertical: _StilMetrics.statusChipVertical,
+                      ),
+                      decoration: const BoxDecoration(
+                        color: AppColors.homeStatusChipFill,
+                        borderRadius: BorderRadius.all(
+                          Radius.circular(_StilMetrics.statusChipRadius),
                         ),
-                        decoration: const BoxDecoration(
-                          color: AppColors.homeStatusChipFill,
-                          borderRadius: BorderRadius.all(
-                            Radius.circular(_StilMetrics.statusChipRadius),
-                          ),
+                      ),
+                      child: Text(
+                        badge,
+                        style: AppTypography.homeCardDesc.copyWith(
+                          fontSize: _StilMetrics.statusChipFontSize,
+                          height: 14 / _StilMetrics.statusChipFontSize,
+                          color: AppColors.homeStatusChipText,
                         ),
-                        child: Text(
-                          data.lines.first,
-                          style: AppTypography.homeCardDesc.copyWith(
-                            fontSize: _StilMetrics.statusChipFontSize,
-                            height: 14 / _StilMetrics.statusChipFontSize,
-                            color: AppColors.homeStatusChipText,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        maxLines: 1,
                       ),
                     ),
                   ],

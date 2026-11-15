@@ -13,7 +13,6 @@ void main() {
       title: '成长一步',
       meta: '',
       actionLabel: '继续',
-      action: HomeHeroAction.viewAnalysis,
     );
     final GrowthCelebration celebration = GrowthCelebration(
       id: 1,
@@ -51,7 +50,6 @@ void main() {
       title: '成长一步',
       meta: '',
       actionLabel: '继续',
-      action: HomeHeroAction.viewAnalysis,
     );
     final GrowthCelebration celebration = GrowthCelebration(
       id: 2,
