@@ -6,8 +6,9 @@
 /// ## 规则（产品已确认）
 ///
 /// ```text
-/// 一级页面 · 首页（/home）        ：直接退出 App
-/// 一级页面 · 分析 / AI / 我的      ：先回到首页；首页再 Back 才退出
+/// 键盘 / 弹窗 / 抽屉 / 未保存表单：先消费本次 Back（收起 / 关闭 / 确认）
+/// 一级页面 · 首页（/home）        ：moveTaskToBack(true) 退到后台
+/// 一级页面 · 分析 / AI / 我的      ：先回到首页；首页再 Back 才退后台
 /// 二级 / 三级页面                 ：统一支持 Back，pop 回上一个操作上下文
 ///
 /// 顶部返回按钮 ─┐
@@ -15,6 +16,9 @@
 /// Edge Swipe   ─┘
 ///
 /// Back = 当前 Navigation Stack 的 pop = 回到「上一个操作上下文」
+///
+/// ❌ 任何返回路径都不得调用 finish() / exit(0) / logout() / clearToken()。
+/// 首页退后台走 `AppBackPlatform.moveTaskToBack()`（Android `moveTaskToBack`）。
 /// ```
 ///
 /// ⚠️ 一级页面的「非首页先回首页」**不在本文件执行** ——
@@ -63,10 +67,28 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/services/app_back_platform.dart';
 import '../../design_system/components/components.dart';
 import '../../design_system/tokens/tokens.dart';
+import 'app_routes.dart';
+
+/// 返回前的**第一优先拦截层**：收起软键盘。
+///
+/// 产品规则（2026-11-15）：存在软键盘时，Back / 侧滑**先收起键盘**，
+/// 不触发页面回退。返回值 `true` 表示本次返回已被键盘消费，
+/// 调用方应直接结束、不要继续 pop。
+///
+/// 只认 `MediaQuery.viewInsets.bottom > 0`（真的被软键盘顶起），
+/// 不认「有焦点」—— 外接硬件键盘打字时不应吞掉返回。
+bool dismissSoftKeyboardIfVisible(BuildContext context) {
+  final EdgeInsets insets =
+      MediaQuery.maybeViewInsetsOf(context) ?? EdgeInsets.zero;
+  if (insets.bottom <= 0) return false;
+  FocusManager.instance.primaryFocus?.unfocus();
+  return true;
+}
 
 /// 执行一次 Careerly Back Action。
 ///
@@ -78,8 +100,8 @@ import '../../design_system/tokens/tokens.dart';
 ///
 /// 返回 `true` 表示本次返回已被处理（真的 pop 了，或被守卫拦下等待确认）。
 /// 返回 `false` 表示当前已经是导航栈底 —— 首页根页面就是这个情形，
-/// 交给 Android 默认处理（退出 App）。非首页的一级页面由 Shell 的
-/// [PopScope] 先行拦截并切回首页，因此走不到这里。
+/// 由 Shell 的 [PopScope] 消费并调用 `moveTaskToBack(true)`。
+/// 非首页的一级页面由 Shell 先行拦截并切回首页，因此走不到这里。
 Future<bool> careerlyBack(BuildContext context, [Object? result]) {
   return Navigator.of(context).maybePop(result);
 }
@@ -237,6 +259,69 @@ class _GuardButton extends StatelessWidget {
   }
 }
 
+/// Shell 之外的**顶级路由**的 Back 兜底（`/settings`、`/legal/*`）。
+///
+/// 这些页面没有 [StatefulShellRoute] 的分支保护：如果通过深链 / 调试入口
+/// **直接**打开它们，导航栈里可能没有首页。此时 Back 不能直接退出 App，
+/// 必须先把首页补到栈底；首页本身才退后台。
+///
+/// 页内二级页（例如 `/settings/personal-info`）由 go_router 正常 pop，
+/// 不需要额外包裹 —— 本组件只负责「顶级路由的栈底语义」。
+class CareerlyRootBackScope extends StatelessWidget {
+  const CareerlyRootBackScope({
+    super.key,
+    required this.child,
+    this.fallbackToHome = true,
+  });
+
+  final Widget child;
+
+  /// 栈底是否把首页补到栈底。
+  ///
+  /// - 应用内页面（`/settings`、`/legal/*`）→ `true`；
+  /// - Onboarding（开屏 / 登录 / 注册）→ `false`：登录前没有「首页」，
+  ///   栈底 Back 只退后台，**不能**借机进入需要登录的主界面。
+  final bool fallbackToHome;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope<Object?>(
+      // 始终自己处理，才能先收键盘、再决定 pop / go(home) / 退后台。
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop) return;
+        if (dismissSoftKeyboardIfVisible(context)) return;
+        _leaveToRoot(context, result, fallbackToHome: fallbackToHome);
+      },
+      child: child,
+    );
+  }
+}
+
+/// 栈底离开动作：有上一页就 pop；否则回首页；首页才退后台。
+void _leaveToRoot(
+  BuildContext context,
+  Object? result, {
+  bool fallbackToHome = true,
+}) {
+  final NavigatorState navigator = Navigator.of(context);
+  if (navigator.canPop()) {
+    navigator.pop(result);
+    return;
+  }
+
+  final GoRouter? router = GoRouter.maybeOf(context);
+  if (router != null && fallbackToHome) {
+    final String location = router.routeInformationProvider.value.uri.path;
+    if (location.isNotEmpty && location != AppRoutes.home) {
+      router.go(AppRoutes.home);
+      return;
+    }
+  }
+
+  AppBackPlatform.moveTaskToBack();
+}
+
 /// 给一棵子树装上「Back 守卫」。
 ///
 /// ```dart
@@ -262,12 +347,13 @@ class _GuardButton extends StatelessWidget {
 /// ## 确认之后的「离开」是什么
 ///
 /// ```text
-/// 栈里还有上一页  →  pop（二级回一级、三级回二级）
-/// 已经是栈底      →  SystemNavigator.pop()（交给 Android，退到后台）
+/// 栈里还有上一页      →  pop（二级回一级、三级回二级）
+/// 栈底且不是首页      →  go('/home')（首页补到栈底）
+/// 栈底且就是首页      →  moveTaskToBack(true)（退后台，不 finish）
 /// ```
 ///
-/// 后者只发生在**首页根**（或带守卫的栈底页）上 ——
-/// 那时没有可 pop 的目标，语义就是「退出 / 退到后台」。
+/// 最后一种只发生在**首页根**（或带守卫的栈底页）上 ——
+/// 那时没有可 pop 的目标，语义就是「退到后台」，**不是**「退出 App」。
 ///
 /// ⚠️ 非首页的一级页面不会走到这里：Shell 的 [PopScope] 会先把 Back
 /// 改成「切回首页」，所以在分析 / AI / 我的根页面按一次 Back 不会退出。
@@ -296,6 +382,9 @@ class _CareerlyBackScopeState extends State<CareerlyBackScope> {
     // 已经 pop 掉了（无守卫的正常返回）—— 什么都不用做。
     if (didPop) return;
 
+    // 第一优先：软键盘。收起键盘算「已消费本次返回」，不 pop 页面。
+    if (dismissSoftKeyboardIfVisible(context)) return;
+
     final CareerlyBackGuard? guard = widget.guard;
     if (guard == null) {
       // `canPop` 为 true 时 didPop 必为 true，这里只是防御性分支。
@@ -312,15 +401,14 @@ class _CareerlyBackScopeState extends State<CareerlyBackScope> {
     _leave(result);
   }
 
-  /// 真正离开：有上一页就 pop，没有（栈底）就交给 Android。
-  void _leave(Object? result) {
-    final NavigatorState navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop(result);
-      return;
-    }
-    SystemNavigator.pop();
-  }
+  /// 真正离开。
+  ///
+  /// ```text
+  /// 有上一页                 → pop（逐级回退）
+  /// 栈底且当前不是首页       → go('/home')（把首页补到栈底）
+  /// 栈底且当前就是首页       → moveTaskToBack(true)（退后台，不 finish）
+  /// ```
+  void _leave(Object? result) => _leaveToRoot(context, result);
 
   @override
   Widget build(BuildContext context) {

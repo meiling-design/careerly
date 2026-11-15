@@ -38,6 +38,7 @@ import '../../features/profile/presentation/work_detail_page.dart';
 import '../../features/profile/presentation/work_experience_page.dart';
 import '../shell/careerly_shell.dart';
 import 'app_routes.dart';
+import 'back_navigation.dart';
 import 'page_transitions.dart';
 
 /// Careerly 路由表。
@@ -70,9 +71,10 @@ import 'page_transitions.dart';
 /// ## Android Back 行为（2026-11-14 产品侧更新）
 ///
 /// ```text
-/// 一级页面 · 首页        ：直接退出 App（系统默认处理）
-/// 一级页面 · 分析/AI/我的：先回到首页；在首页再次 Back 才退出
+/// 一级页面 · 首页        ：moveTaskToBack(true) 退到后台（不 finish）
+/// 一级页面 · 分析/AI/我的：先回到首页；在首页再次 Back 才退到后台
 /// 二级 / 三级页面        ：统一 Back = 当前栈 pop（回到上一个操作上下文）
+/// Shell 之外的顶级路由    ：栈底先补首页，首页才退后台
 /// ```
 ///
 /// - 「回到哪一页」**由这里的嵌套层级决定**（三级嵌在二级内、二级嵌在分支内），
@@ -84,22 +86,20 @@ import 'page_transitions.dart';
 /// - 离开确认（未保存修改 / 分析进行中）用 `CareerlyBackScope` 的守卫，
 ///   由页面声明「脏不脏」，不由路由表管理。
 ///
-/// ## ⚠️ `initialLocation` 默认值仍是首页（Phase 4 批 1 **未改动**）
+/// ## 启动入口与会话恢复
 ///
-/// Figma 原型的入口是 `on-splash`，而 Flutter 侧仍从 `/home` 启动。
-/// **这是有意不改的**：「App 启动进入 Onboarding 还是首页」取决于
-/// **会话持久化**（已注册用户不该再看一遍引导），
-/// 而本轮 D52 明确「纯 Mock、不引入本地存储依赖」——
-/// 在这个前提下**无法表达**这个判断，硬改成开屏会得到一个
-/// 「每次启动都要求重新注册」的错误行为。
+/// 本函数的默认值仍是 `/home`；真实启动入口由 `main()` 决定：
 ///
-/// 因此 Onboarding 当前**可达但未接线**：
-/// 直接访问 `/onboarding/splash` 即可进入，视觉定稿不受影响。
-/// 入口归属已登记 **待裁决 · D54**（`docs/05_progress/TODO.md` §3.1）。
+/// ```text
+/// restoreSession() 成功（已登录） →  /home
+/// 没有已保存会话                 →  /onboarding/splash
+/// CAREERLY_ENTRY 显式指定         →  开发者选择的入口
+/// ```
+///
+/// 依据 2026-11-15 产品规则：重新打开 App 必须保持登录状态。
 ///
 /// 📌 真机上做视觉验收时，用 `AppDebugEntry` 指定本次启动的入口：
 /// `flutter run --dart-define=CAREERLY_ENTRY=splash`。
-/// 那个开关**不改变本函数的默认值**，与 D54 无关。
 GoRouter createAppRouter({String initialLocation = AppRoutes.home}) {
   return GoRouter(
     initialLocation: initialLocation,
@@ -153,7 +153,7 @@ GoRouter createAppRouter({String initialLocation = AppRoutes.home}) {
             CareerlyPageTransitions.slide<void>(
               key: const ValueKey<String>(AppRouteNames.settings),
               name: AppRouteNames.settings,
-              child: const SettingsPage(),
+              child: const CareerlyRootBackScope(child: SettingsPage()),
             ),
         // 设置下的二级页。嵌在 /settings 之下（而不是平铺成
         // /settings-delete-account）是为了让返回语义自然落在
@@ -264,7 +264,11 @@ GoRoute _onboardingRoute({
         CareerlyPageTransitions.onboarding<void>(
           key: ValueKey<String>(name),
           name: name,
-          child: page,
+          // 登录前没有「首页」：栈底 Back 只退后台，不补首页、不 finish。
+          child: CareerlyRootBackScope(
+            fallbackToHome: false,
+            child: page,
+          ),
         ),
   );
 }
@@ -288,7 +292,9 @@ GoRoute _legalRoute({
         CareerlyPageTransitions.slide<void>(
           key: ValueKey<String>(name),
           name: name,
-          child: LegalDocumentPage(document: document),
+          child: CareerlyRootBackScope(
+            child: LegalDocumentPage(document: document),
+          ),
         ),
   );
 }

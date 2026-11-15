@@ -6,18 +6,20 @@ import 'app_routes.dart';
 ///
 /// ## 为什么需要它
 ///
-/// Figma 原型的入口是 `on-splash`。当前未接入会话持久化，因此首次启动统一进入
-/// 欢迎页；已注册用户的跳过逻辑留待后续 Auth / Cache 阶段接入。
+/// Figma 原型的入口是 `on-splash`。`main()` 会先尝试恢复会话：
 ///
-/// > 「已注册用户不该再看一遍引导」这个判断**只能由会话持久化提供**。
-/// > D52 把本轮限定为「纯 Mock、不引入本地存储依赖」，
-/// > 在该前提下硬把默认入口改成开屏，会得到
-/// > 「每次启动都要求重新注册」的错误行为 —— **比暂时不接线更糟**。
+/// ```text
+/// 会话恢复成功（已登录） →  首页
+/// 没有已保存会话         →  欢迎页（登录 / 注册）
+/// ```
+///
+/// 「已注册用户不该再看一遍引导」这个判断已由 `ApiClient.restoreSession()`
+/// 提供（Token 落在 Secure Storage）。本文件只负责**开发期覆盖**。
 ///
 /// `CAREERLY_ENTRY` 仍可在开发期覆盖启动入口：
 ///
 /// ```text
-/// 不传 define   →  欢迎页
+/// 不传 define   →  按会话恢复结果（首页 / 欢迎页）
 /// 传入 `home`  →  首页
 /// 传入其他入口 →  落到指定入口
 /// ```
@@ -65,6 +67,13 @@ abstract final class AppDebugEntry {
     'parsing': AppRoutes.onboardingParsing,
     'confirm': AppRoutes.onboardingConfirm,
   };
+
+  /// 开发期是否**显式**指定了入口。
+  ///
+  /// `main()` 用它区分两种情况：
+  /// - 显式指定 → 尊重开发者选定的屏幕（测试 / 视觉验收）；
+  /// - 未指定   → 按会话恢复结果决定：已登录直接进首页，否则走欢迎页。
+  static bool get hasOverride => _raw.trim().isNotEmpty;
 
   /// 本次启动实际要落的路径。没有覆盖值时进入欢迎页。
   static String get initialLocation {

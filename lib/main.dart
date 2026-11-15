@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app/app.dart';
 import 'app/router/app_debug_entry.dart';
+import 'app/router/app_routes.dart';
 import 'core/errors/crash_reporter.dart';
 import 'data/api/api_client.dart';
 import 'data/api/token_store.dart';
@@ -63,11 +64,18 @@ Future<void> main() async {
 
   final ApiClient apiClient = ApiClient(tokenStore: SecureTokenStore());
   // 恢复失败不算错误：就是「没有已保存的会话」，正常走登录流程。
-  await apiClient.restoreSession();
+  //
+  // 恢复成功 = 用户仍处于登录态。产品规则（2026-11-15）要求重新打开
+  // App 时保持登录状态，因此直接进首页，不再让用户重走登录。
+  // 开发期显式指定 CAREERLY_ENTRY 时仍以开发者选择为准。
+  final bool hasSession = await apiClient.restoreSession();
+  final String initialLocation = AppDebugEntry.hasOverride
+      ? AppDebugEntry.initialLocation
+      : (hasSession ? AppRoutes.home : AppDebugEntry.initialLocation);
 
   runApp(
     CareerlyApp(
-      initialLocation: AppDebugEntry.initialLocation,
+      initialLocation: initialLocation,
       apiClient: apiClient,
       // 未显式指定 CAREERLY_USE_API 时接真实后端；
       // --dart-define=CAREERLY_USE_API=false 可强制回到 Mock。

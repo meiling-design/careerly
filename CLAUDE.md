@@ -216,22 +216,44 @@ Loading / Empty / Error / Retry / Disabled
 
 尤其：简历上传、简历解析、分析、AI 对话。
 
-### 5.6 Android Back 导航规则（2026-09-23 产品确认，2026-11-14 更新）
+### 5.6 Android Back 导航规则（2026-09-23 产品确认，2026-11-15 更新）
 
-一句话：**一级页面负责切换，二级/三级页面负责返回。**
+一句话：**一级页面负责切换，二级/三级页面负责返回；首页是唯一根页面。**
 
 ```text
+首页是唯一根页面。深链 / 通知直接进入一级或下级页面时，
+路由栈底部必须补齐首页，形成 [首页, 当前页]。
+
+优先拦截层：弹窗 / 抽屉 / 软键盘 / 未保存表单
+  → 先关闭 / 收起 / 确认，不触发页面回退。
+
 一级页面（首页 / 分析 / AI / 我的）：Bottom Navigation 管理，
   ❌ 无页面级 Back（不进入分支内的上一页）
-  首页            →  Back = 直接退出 App
-  分析 / AI / 我的 →  第一次 Back 切回首页；在首页再 Back 才退出 App
+  首页            →  moveTaskToBack(true) 退到后台
+  分析 / AI / 我的 →  第一次 Back 切回首页；在首页再 Back 才退到后台
 二级 / 三级页面：统一支持 Back
+
+❌ 红线：返回 / 退后台逻辑中绝对禁止调用
+   finish() / exit(0) / logout() / clearToken()。
+   「滑出 App」只等于 Android moveTaskToBack(true)，不是结束进程。
+   重新打开 App 必须保持登录状态和原有任务状态。
 ```
 
 - **一级页面的「非首页先回首页」执行层**：
   `lib/app/shell/careerly_shell.dart` 的 `PopScope`。
   它只在**分支根路径**上拦截（`/analysis`、`/ai`、`/profile`），
   分支内的二级页仍由 `careerlyBack()` / `Navigator.maybePop` 先 pop。
+- **首页退后台执行层**：`lib/core/services/app_back_platform.dart`
+  → 自定义 MethodChannel → `MainActivity.moveTaskToBack(true)`。
+  ❌ 不用 `SystemNavigator.pop()`（Android 上等价于 `finish()`）。
+- **Shell 之外的顶级路由**（`/settings`、`/legal/*`）：
+  `CareerlyRootBackScope` 负责栈底补首页；直接深链进入也不会 Back 退出。
+- **深链直达分支内下级页**（如 `/profile/capability`）：
+  go_router 会保留合成的父页，Back 顺序为「下级 → 父级 → 首页」，
+  **不**改造成字面的 `[首页, 当前页]`。2026-11-15 产品侧确认：
+  暂不接受该架构改造成本，当前行为视为合规。
+- **Onboarding 例外**：登录前没有「首页」，开屏 / 登录 / 注册在栈底
+  Back 时只**退后台**，不补首页、不 `finish`，避免未登录进入主界面。
 - **三个入口同一个 Back Action**：顶部返回按钮、Android 系统 Back、
   左边缘向右的 Edge Swipe Back，必须落在同一条代码路径上。
   执行层是 `lib/app/router/back_navigation.dart` 的 `careerlyBack()`

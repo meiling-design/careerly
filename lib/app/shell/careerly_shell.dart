@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/services/app_back_platform.dart';
 import '../../design_system/components/components.dart';
 import '../../design_system/tokens/tokens.dart';
 import '../router/app_routes.dart';
+import '../router/back_navigation.dart';
 
 /// Careerly App Shell。
 ///
@@ -30,18 +32,22 @@ import '../router/app_routes.dart';
 ///
 /// ```text
 /// 分支内有二级页面  →  先 pop 二级页面（Back = 回到上一个操作上下文）
-/// 一级页面 · 首页   →  直接退出 App
-/// 一级页面 · 其他   →  先回到「首页」；在首页再次 Back 才退出 App
+/// 一级页面 · 首页   →  moveTaskToBack(true) 退到后台（不 finish）
+/// 一级页面 · 其他   →  先回到「首页」；在首页再次 Back 才退到后台
 /// ```
 ///
 /// 这是对旧规则（「一级页面之间不互相返回」）的**产品侧更新**。
 /// 执行位置在本 Shell 的 [PopScope]：
 ///
-/// - 非首页分支的**根页面**：`canPop: false`，系统 Back / 边缘右滑
-///   被拦截后执行 `goBranch(0)`；
-/// - 首页根页面：`canPop: true`，交给 Android 默认处理（退出）；
+/// - 所有**一级页面根**：`canPop: false`，系统 Back / 边缘右滑被拦截后
+///   - 首页 → [AppBackPlatform.moveTaskToBack]（Android 退后台）；
+///   - 分析 / AI / 我的 → `goBranch(0)` 切回首页；
 /// - 分支内的二级 / 三级页面：`canPop: true`，由 go_router 先把
-///   分支 Navigator 的页面 pop 掉，轮不到 Shell 这一层。
+///   分支 Navigator 的页面 pop 掉，轮不到 Shell 这一层；
+/// - 拦截前先收软键盘（`dismissSoftKeyboardIfVisible`）。
+///
+/// ❌ 返回路径中**不得**调用 `finish()` / `exit(0)` / `logout()` /
+/// `clearToken()`。退后台不等于退出登录，也不清理任务状态。
 ///
 /// 统一的 Back Action 与离开确认守卫见
 /// `app/router/back_navigation.dart`；页面返回入口一律走 `careerlyBack()`，
@@ -144,16 +150,30 @@ class _CareerlyShellState extends State<CareerlyShell>
 
   @override
   Widget build(BuildContext context) {
-    // 只有「非首页的一级页面根」才拦截 Back 并切回首页。
+    // 一级页面的根才由 Shell 拦截：
+    //   首页根      → 退到后台（moveTaskToBack，不 finish）
+    //   非首页根    → 切回首页
     // 分支内的二级页保持 canPop: true，由 go_router 先 pop 掉。
-    final bool goHomeOnBack =
-        CareerlyShell.branchRoots.contains(widget.currentLocation) &&
-        widget.currentLocation != AppRoutes.home;
+    final bool atBranchRoot = CareerlyShell.branchRoots.contains(
+      widget.currentLocation,
+    );
+    final bool atHomeRoot = widget.currentLocation == AppRoutes.home;
 
     return PopScope<Object?>(
-      canPop: !goHomeOnBack,
+      canPop: !atBranchRoot,
       onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (didPop || !goHomeOnBack) return;
+        if (didPop || !atBranchRoot) return;
+
+        // 第一优先：软键盘。收起键盘 = 本次 Back 已被消费。
+        if (dismissSoftKeyboardIfVisible(context)) return;
+
+        if (atHomeRoot) {
+          // 产品红线：首页再次 Back 只退到后台。
+          // ❌ 不调用 SystemNavigator.pop()（Android 上等于 finish()）。
+          AppBackPlatform.moveTaskToBack();
+          return;
+        }
+
         widget.navigationShell.goBranch(0);
       },
       child: Scaffold(
