@@ -39,6 +39,9 @@ class AnalysisTask {
   static const String statusCompleted = 'completed';
   static const String statusFailed = 'failed';
 
+  /// 用户主动取消（「退出分析」确认后由后端落库）。
+  static const String statusCancelled = 'cancelled';
+
   /// 任务句柄。
   final String taskId;
 
@@ -58,11 +61,13 @@ class AnalysisTask {
   final AnalysisTaskProgress? progress;
 
   /// 是否已到终态（不再变化）。轮询循环据此退出。
-  bool get isTerminal => isCompleted || isFailed;
+  bool get isTerminal => isCompleted || isFailed || isCancelled;
 
   bool get isCompleted => status == statusCompleted;
 
   bool get isFailed => status == statusFailed;
+
+  bool get isCancelled => status == statusCancelled;
 
   factory AnalysisTask.fromJson(Map<String, dynamic> json) {
     final Object? rawProgress = json['progress'];
@@ -114,6 +119,81 @@ class AnalysisTask {
       'progress: $progress)';
 }
 
+/// 5 个产品步骤中单步的真实状态（后端 `_progress_payload().steps[i]`）。
+///
+/// 状态取值与后端逐字一致：`pending` / `running` / `completed` /
+/// `failed` / `cancelled`。**UI 只渲染这个字段，不再自行推断。**
+@immutable
+class AnalysisStepProgress {
+  const AnalysisStepProgress({
+    required this.index,
+    required this.status,
+    this.progressPercent,
+    this.error,
+  });
+
+  static const String statusPending = 'pending';
+  static const String statusRunning = 'running';
+  static const String statusCompleted = 'completed';
+  static const String statusFailed = 'failed';
+  static const String statusCancelled = 'cancelled';
+
+  /// 0 基步骤下标（0..4）。
+  final int index;
+
+  /// 见上方 `status*` 常量。
+  final String status;
+
+  /// 当前步的**真实**进度（0..100）。
+  ///
+  /// `null` = 该步无法精确预估（如大模型生成中）→ UI 必须展示
+  /// 不确定态动画，**禁止**用本地时钟补一个假数字。
+  final int? progressPercent;
+
+  /// 失败 / 取消时后端给出的真实原因。
+  final String? error;
+
+  bool get isCompleted => status == statusCompleted;
+
+  bool get isRunning => status == statusRunning;
+
+  bool get isFailed => status == statusFailed;
+
+  bool get isCancelled => status == statusCancelled;
+
+  factory AnalysisStepProgress.fromJson(Map<String, dynamic> json) {
+    return AnalysisStepProgress(
+      index: json['index'] as int? ?? 0,
+      status: json['status'] as String? ?? statusPending,
+      progressPercent: json['progressPercent'] as int?,
+      error: json['error'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'index': index,
+    'status': status,
+    'progressPercent': progressPercent,
+    'error': error,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AnalysisStepProgress &&
+          other.index == index &&
+          other.status == status &&
+          other.progressPercent == progressPercent &&
+          other.error == error;
+
+  @override
+  int get hashCode => Object.hash(index, status, progressPercent, error);
+
+  @override
+  String toString() =>
+      'AnalysisStepProgress($index, $status, $progressPercent%, error: $error)';
+}
+
 /// 引擎的实时节点进度（后端 `_progress_payload` 的镜像）。
 @immutable
 class AnalysisTaskProgress {
@@ -125,6 +205,8 @@ class AnalysisTaskProgress {
     this.stepIndex,
     this.totalSteps,
     this.updatedAt,
+    this.steps = const <AnalysisStepProgress>[],
+    this.overallProgress,
   });
 
   /// 引擎当前节点名（`crawl` / `normalize` / …）。**仅供调试**，
@@ -152,7 +234,19 @@ class AnalysisTaskProgress {
   /// 后端写入该进度的时间（epoch 秒）。
   final double? updatedAt;
 
+  /// 5 个步骤各自的真实状态（后端判定）。
+  ///
+  /// 空列表表示后端尚未下发 steps（旧版本 / 排队中）—— 此时 UI 显示
+  /// 全部「等待中」，**不得**退回本地时钟模拟。
+  final List<AnalysisStepProgress> steps;
+
+  /// 后端按阶段权重汇总的总进度（0..100）。
+  ///
+  /// 完成前最高 99；只有全部 5 步 completed 且任务 completed 才为 100。
+  final int? overallProgress;
+
   factory AnalysisTaskProgress.fromJson(Map<String, dynamic> json) {
+    final Object? rawSteps = json['steps'];
     return AnalysisTaskProgress(
       currentNode: json['currentNode'] as String?,
       nodeStatus: json['nodeStatus'] as String?,
@@ -161,6 +255,13 @@ class AnalysisTaskProgress {
       stepIndex: json['stepIndex'] as int?,
       totalSteps: json['totalSteps'] as int?,
       updatedAt: (json['updatedAt'] as num?)?.toDouble(),
+      steps: rawSteps is List
+          ? rawSteps
+              .whereType<Map<String, dynamic>>()
+              .map(AnalysisStepProgress.fromJson)
+              .toList(growable: false)
+          : const <AnalysisStepProgress>[],
+      overallProgress: json['overallProgress'] as int?,
     );
   }
 
@@ -172,6 +273,8 @@ class AnalysisTaskProgress {
     'stepIndex': stepIndex,
     'totalSteps': totalSteps,
     'updatedAt': updatedAt,
+    'steps': steps.map((AnalysisStepProgress s) => s.toJson()).toList(),
+    'overallProgress': overallProgress,
   };
 
   @override
@@ -184,7 +287,9 @@ class AnalysisTaskProgress {
           other.totalNodes == totalNodes &&
           other.stepIndex == stepIndex &&
           other.totalSteps == totalSteps &&
-          other.updatedAt == updatedAt;
+          other.updatedAt == updatedAt &&
+          listEquals(other.steps, steps) &&
+          other.overallProgress == overallProgress;
 
   @override
   int get hashCode => Object.hash(
@@ -195,11 +300,14 @@ class AnalysisTaskProgress {
     stepIndex,
     totalSteps,
     updatedAt,
+    Object.hashAll(steps),
+    overallProgress,
   );
 
   @override
   String toString() =>
       'AnalysisTaskProgress($currentNode/$nodeStatus, '
       'step: $stepIndex/$totalSteps, '
-      'nodes: $completedCount/$totalNodes)';
+      'nodes: $completedCount/$totalNodes, '
+      'overall: $overallProgress)';
 }

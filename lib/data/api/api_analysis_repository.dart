@@ -100,6 +100,13 @@ class ApiAnalysisRepository implements AnalysisRepository, AnalysisProgressSourc
   }
 
   @override
+  Future<AnalysisTask> cancelAnalysisTask(String taskId) async {
+    final dynamic data =
+        await _client.post('/api/v1/analysis/tasks/$taskId/cancel');
+    return AnalysisTask.fromJson(data as Map<String, dynamic>);
+  }
+
+  @override
   Future<QuotaState> fetchQuota() async {
     final dynamic data = await _client.get('/api/v1/quota');
     return QuotaState.fromJson(data as Map<String, dynamic>);

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../core/errors/error_handler.dart';
 import '../../../core/errors/app_error.dart';
 import '../../../core/state/state.dart';
+import '../../../data/api/analysis_task_store.dart';
 import '../../../data/api/api_client.dart';
 import '../../../data/models/analysis_project.dart';
 import '../../../data/models/analysis_task.dart';
@@ -23,9 +26,31 @@ import '../../../data/repositories/analysis_repository.dart';
 /// 失败回滚在同处 catch、退出回滚在 [exitAnalysis]。**注释落后于代码**，
 /// 已按 `TODO.md` §4.7 的 P1 债改正。
 class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
-  AnalysisProvider(this._repository);
+  AnalysisProvider(
+    this._repository, {
+    ActiveAnalysisTaskStore? taskStore,
+  }) : _taskStore = taskStore ?? InMemoryActiveAnalysisTaskStore();
 
   final AnalysisRepository _repository;
+
+  /// 当前进行中任务的持久化句柄（杀进程后恢复用）。
+  final ActiveAnalysisTaskStore _taskStore;
+
+  /// 当前进行中的任务 id；`null` = 没有可恢复的任务。
+  String? _activeTaskId;
+
+  /// 总进度的单调基线：后端读数只允许前进，不允许回退。
+  int _maxOverallProgress = 0;
+
+  /// 真实后端数据源（只有它实现 [AnalysisProgressSource]）。
+  AnalysisProgressSource? get _progressSource {
+    final AnalysisRepository repository = _repository;
+    // 两个 interface 类型互不相关，Dart 不会为 `is` 检查产生类型提升，
+    // 因此这里必须显式转换（不是多余的转换）。
+    return repository is AnalysisProgressSource
+        ? repository as AnalysisProgressSource
+        : null;
+  }
 
   QuotaState? _quota;
   AsyncState<AnalysisProject> _analysisState =
@@ -227,16 +252,12 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
     _quota = _quota!.consume();
     final int run = ++_runId;
     _taskProgress = null;
-    _setAnalysisLoading(progress: 0.15, message: '准备岗位信息');
+    _maxOverallProgress = 0;
+    _activeTaskId = null;
+    _setAnalysisLoading(progress: 0.0, message: '准备岗位信息');
 
     // 能力探测：只有真实后端能报节点进度（见 AnalysisProgressSource 的文档）。
-    //
-    // 这里的 `as` 是必要的：两个 interface 类型互不相关，Dart 不会为
-    // `is` 检查产生类型提升（不是「多余的转换」）。
-    final AnalysisProgressSource? source =
-        _repository is AnalysisProgressSource
-            ? _repository as AnalysisProgressSource
-            : null;
+    final AnalysisProgressSource? source = _progressSource;
     try {
       final AnalysisProject? project = source != null
           ? await _runWithRealProgress(
@@ -254,6 +275,8 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
       if (run != _runId) return; // 已退出：失败也作废
       _quota = _quota!.rollback();
       _taskProgress = null;
+      _activeTaskId = null;
+      unawaited(_taskStore.clear());
       _setAnalysisFailure(AppError.from(error, stackTrace));
     }
     notifyListeners();
@@ -274,6 +297,9 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
       rawJd: rawJd,
     );
     if (run != _runId) return null;
+    // 句柄必须先落盘：进程此刻被杀，下次进入仍能恢复同一条任务。
+    _activeTaskId = task.taskId;
+    await _taskStore.write(task.taskId);
     _applyTaskProgress(task);
 
     while (!task.isTerminal) {
@@ -284,11 +310,21 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
       _applyTaskProgress(task);
     }
 
+    await _taskStore.clear();
+    _activeTaskId = null;
+
     if (task.isFailed) {
       // 后端的 errorMessage 已是给用户看的中文（P1-2 归一化过），原样上屏。
       throw UnknownError(
         message: task.errorMessage ?? '分析失败，请稍后重试',
         detail: task.errorCode ?? 'ANALYSIS_FAILED',
+      );
+    }
+
+    if (task.isCancelled) {
+      throw UnknownError(
+        message: task.errorMessage ?? '分析已取消',
+        detail: task.errorCode ?? 'ANALYSIS_CANCELLED',
       );
     }
 
@@ -329,17 +365,108 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
 
   /// 把一次任务快照翻译成 UI 状态并通知监听者。
   ///
-  /// ⚠️ [AsyncState.loading] 的 `progress` 是**产品步骤**刻度的粗粒度读数，
-  /// 与引擎的 `completedCount / totalNodes` **不是**同一个刻度，
-  /// 故用 `totalSteps` 而非 `totalNodes` 换算。
+  /// 总进度**只信任后端**的 `overallProgress`（按 5 步权重汇总），
+  /// 并做单调夹紧：轮询乱序 / 网络重放都不允许进度条倒退。
   void _applyTaskProgress(AnalysisTask task) {
     _taskProgress = task.progress;
-    final int? step = task.progress?.stepIndex;
-    final int total = task.progress?.totalSteps ?? 1;
+
+    final int? reported = task.progress?.overallProgress;
+    // 旧后端没有 overallProgress 时才退回到「已完成的步数」估算；
+    // 这仍是**后端状态**的换算，不是前端计时器。
+    final int fallback = task.progress == null
+        ? 0
+        : ((task.progress!.steps.where((AnalysisStepProgress s) => s.isCompleted)
+                        .length) /
+                    (task.progress!.totalSteps ?? 5) *
+                    100)
+            .round();
+    final int value = reported ?? fallback;
+    // 完成前封顶 99：只有后端确认 5 步全部 SUCCEEDED 才允许 100。
+    final int capped = task.isCompleted ? value : value.clamp(0, 99);
+    if (capped > _maxOverallProgress) {
+      _maxOverallProgress = capped;
+    }
+
     _setAnalysisLoading(
-      progress: step == null ? 0 : ((step + 1) / total).clamp(0.0, 1.0),
-      message: '正在分析',
+      progress: _maxOverallProgress / 100,
+      message: task.isCompleted ? '分析完成' : '正在分析',
     );
+  }
+
+  /// 恢复上一次未完成的分析（杀进程 / 刷新后重新进入）。
+  ///
+  /// 只信任后端：用持久化的 `taskId` 重新查询真实状态，然后继续轮询。
+  /// 任务已终结时按终态落到结果页 / 失败态；没有可恢复任务则什么也不做。
+  Future<void> restoreActiveTask() async {
+    if (_analysisState is AsyncLoading<AnalysisProject>) return;
+    final AnalysisProgressSource? source = _progressSource;
+    if (source == null) {
+      await _taskStore.clear();
+      return;
+    }
+
+    String? taskId;
+    try {
+      taskId = await _taskStore.read();
+    } catch (_) {
+      return;
+    }
+    if (taskId == null || taskId.isEmpty) return;
+
+    final int run = ++_runId;
+    _taskProgress = null;
+    _maxOverallProgress = 0;
+    _setAnalysisLoading(progress: 0, message: '正在恢复分析进度');
+
+    try {
+      AnalysisTask task = await source.fetchAnalysisTask(taskId);
+      if (run != _runId) return;
+      if (!task.isTerminal) {
+        _activeTaskId = task.taskId;
+        _applyTaskProgress(task);
+        while (!task.isTerminal) {
+          await Future<void>.delayed(ApiClient.analysisPollInterval);
+          if (run != _runId) return;
+          task = await source.fetchAnalysisTask(task.taskId);
+          if (run != _runId) return;
+          _applyTaskProgress(task);
+        }
+      }
+
+      await _taskStore.clear();
+      _activeTaskId = null;
+      _taskProgress = null;
+
+      if (task.isCompleted && task.projectId != null) {
+        final AnalysisProject? project =
+            await _repository.fetchProject(task.projectId!);
+        if (run != _runId) return;
+        if (project != null) {
+          _analysisState = AsyncState<AnalysisProject>.success(project);
+          _replaceProjects(<AnalysisProject>[project, ..._projects]);
+        } else {
+          _setAnalysisFailure(const UnknownError(
+            message: '分析结果读取失败，请稍后重试',
+            detail: 'restore: fetchProject returned null',
+          ));
+        }
+      } else if (task.isFailed) {
+        _setAnalysisFailure(UnknownError(
+          message: task.errorMessage ?? '分析失败，请稍后重试',
+          detail: task.errorCode ?? 'ANALYSIS_FAILED',
+        ));
+      } else if (task.isCancelled) {
+        _analysisState = const AsyncState<AnalysisProject>.initial();
+      }
+      unawaited(loadQuota());
+    } catch (_) {
+      // 恢复失败不弹错：回到表单，用户仍可重新发起。
+      await _taskStore.clear();
+      _activeTaskId = null;
+      _taskProgress = null;
+      _analysisState = const AsyncState<AnalysisProject>.initial();
+    }
+    notifyListeners();
   }
 
   Future<void> retryAnalysis() =>
@@ -348,23 +475,45 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   /// 退出进行中的分析（进度页退出确认 Sheet 的「退出」）。
   ///
   /// 语义（Phase 6 补做时定，待验收确认）：
-  /// - 分析被中止 = 本次分析**没有交付**，按 Baseline §5 的失败口径
-  ///   **回滚额度**（与 `_repository.analyze` 抛错同路）；
+  /// - **先取消后端任务**，再回滚本地乐观扣减的额度；
   /// - 代际号 `+1`，迟到的结果 / 失败一律作废（防僵屍结果）；
   /// - 状态回到「新建分析」表单（[AsyncInitial]），不是历史列表——
-  ///   用户的输入语境还在表单侧。
+  ///   用户的输入语境还在表单侧；
+  /// - **不触碰登录态**（token / 会话一律不动）。
   ///
   /// ⚠️ 仅当分析**进行中**才回滚；已成功 / 已失败后再调是幂等空操作。
   void exitAnalysis() {
     final bool wasLoading = _analysisState is AsyncLoading<AnalysisProject>;
+    final String? taskId = _activeTaskId;
+    _activeTaskId = null;
+    unawaited(_taskStore.clear());
+    if (taskId != null) {
+      unawaited(_cancelRemote(taskId));
+    }
+
     _runId++;
     if (wasLoading) {
       _quota = _quota!.rollback();
     }
     // 不清掉的话，下一次分析的「正在分析」页会从上一轮遗留的步号开始。
     _taskProgress = null;
+    _maxOverallProgress = 0;
     _analysisState = const AsyncState<AnalysisProject>.initial();
     notifyListeners();
+  }
+
+  /// 通知后端取消任务。失败**不阻塞**本地退出 —— 本地必须先离开，
+  /// 后端即使没收到也会因进程结束而只剩一条孤立的 processing 任务。
+  Future<void> _cancelRemote(String taskId) async {
+    final AnalysisProgressSource? source = _progressSource;
+    if (source == null) return;
+    try {
+      await source.cancelAnalysisTask(taskId);
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('[Careerly] 取消分析任务失败: $error');
+      }
+    }
   }
 
   void showNewAnalysis() {

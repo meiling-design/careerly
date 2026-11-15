@@ -85,4 +85,10 @@ abstract interface class AnalysisProgressSource {
   /// 对应 `GET /api/v1/analysis/tasks/{task_id}`。调用方轮询直到
   /// [AnalysisTask.isTerminal]；成功后用 [AnalysisTask.projectId] 取结果。
   Future<AnalysisTask> fetchAnalysisTask(String taskId);
+
+  /// 取消进行中的分析任务（「退出分析」确认后调用）。
+  ///
+  /// 对应 `POST /api/v1/analysis/tasks/{task_id}/cancel`。后端幂等：
+  /// 已终态的任务原样返回终态快照。
+  Future<AnalysisTask> cancelAnalysisTask(String taskId);
 }

@@ -69,6 +69,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
       final AnalysisProvider provider = context.read<AnalysisProvider>();
       provider.load();
       provider.loadQuota();
+      // 杀进程 / 刷新后恢复：如果本地还存着进行中任务的 taskId，
+      // 重新接上后端轮询，而不是从 0 重新开始。
+      provider.restoreActiveTask();
       // 新建分析的第一步是「选择当前简历」（PRD §9.3 / IA §7.2），
       // 因此本页需要简历画像。
       //

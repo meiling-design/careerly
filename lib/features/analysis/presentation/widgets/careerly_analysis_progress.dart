@@ -123,29 +123,13 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
   Duration _elapsed = Duration.zero;
   bool _done = false;
 
-  // -- 真实进度模式（见 widget.progress）--
-
-  /// 后端最近一次报出的步号，0 基。
-  ///
-  /// `null` 在真实进度模式下表示「后端给了未知节点」—— 此时**停住等**，
-  /// 不是退回本地时钟。判据是 [_realMode]，不是这个字段。
-  int? _serverStep;
-
   /// 是否处于真实进度模式。
   ///
-  /// ⚠️ 判据是 `widget.progress != null`（「这次分析有没有真实进度源」），
-  /// **不是** `_serverStep != null`（「这一步映射出来没有」）。
-  /// 用后者会漏掉一种情况：后端报了映射表外的节点 → `stepIndex` 为 null
-  /// → 组件以为「没有真实进度」→ 退回本地时钟 → 7.3 秒定形「分析完成」。
-  /// 那正是本模式要修掉的缺陷。
+  /// ⚠️ 判据是 `widget.progress != null`（「这次分析有没有真实进度源」）。
+  /// 真实模式下**没有任何本地计时器**：总进度、步号、步内百分比全部
+  /// 来自后端轮询结果（`CLAUDE.md` 产品要求：禁止定时器/本地估算模拟）。
   bool get _realMode => widget.progress != null;
 
-  /// **进入当前步之后**经过的时间，用于步**内**的百分比推进。
-  ///
-  /// 与 [_elapsed] 的区别：[_elapsed] 是整条时间线的累计时长，
-  /// [_serverStep] 变化时这里要归零 —— 否则第 2 步会带着第 1 步的
-  /// 已用时长，一进来就直接跳到该步终点。
-  Duration _inStep = Duration.zero;
   Timer? _ticker;
   Timer? _halo2Delay;
   Timer? _settleTimer;
@@ -189,9 +173,6 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
     _halo2Delay = Timer(AppMotion.orbHaloDelay, () {
       if (mounted && !_done) _halo2.repeat();
     });
-    // 首帧就带着进度进来时（轮询比组件挂载快），这里必须补一次初始化 ——
-    // didUpdateWidget 只在**变化**时触发，不会为初始值补课。
-    _serverStep = widget.progress?.stepIndex;
     _ticker = Timer.periodic(AppMotion.analysisTick, _onTick);
   }
 
@@ -209,45 +190,12 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
     super.dispose();
   }
 
-  @override
-  void didUpdateWidget(CareerlyAnalysisProgress oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final int? next = widget.progress?.stepIndex;
-    // 后端给了未知节点（next == null）时**保持现状**：既不倒回第 0 步，
-    // 也不换模式 —— 继续按当前步停住，等引擎走到下一个已知节点。
-    if (next == null || next <= (_serverStep ?? -1)) return;
-    final Duration? seed = _inStepForHandoff(next);
-    setState(() {
-      _serverStep = next;
-      _inStep = seed ?? Duration.zero;
-    });
-  }
-
-  /// 从本地时钟切到真实进度时的**无缝交接**。
+  /// UI 时钟。**仅 Mock 本地时钟模式使用**。
   ///
-  /// 组件先以本地时钟起步（拿到第一次轮询结果前没有进度可报），约 1 秒后
-  /// 真实步号到达。若此时把 [_inStep] 归零，百分比会从本地时钟已经走到的
-  /// 读数（第 0 步约 15%）**倒退**回 1% —— 肉眼可见地跳一下。
-  ///
-  /// 只有当后端报的正是第 0 步时才需要交接（否则是直接跳到后面的步，
-  /// 从该步起点开始才是对的），此时用 [_elapsed] 接着走即可 —— 两种模式下
-  /// 第 0 步的节拍时长相同，所以接得上。
-  Duration? _inStepForHandoff(int next) {
-    if (_serverStep != null || next != 0) return null;
-    final Duration cap = AppMotion.analysisBeats[0].duration;
-    return _elapsed < cap ? _elapsed : cap;
-  }
-
-  /// UI 时钟。Figma 的 `setInterval(tickMs=40)` + 每步 `setTimeout(duration)`。
-  ///
-  /// 真实进度模式下它**只推进步内百分比**，不推进步号、也永不定形 ——
-  /// 步号的唯一来源是后端。
+  /// 真实进度模式下这个 tick 不做任何事 —— 进度只随父级轮询结果重建。
   void _onTick(Timer timer) {
     if (!mounted || _done) return;
-    if (_realMode) {
-      _onTickRealProgress();
-      return;
-    }
+    if (_realMode) return;
     if (_elapsed >= _total) return;
     Duration next = _elapsed + AppMotion.analysisTick;
     final bool crossed = next >= _total;
@@ -269,25 +217,6 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
         });
       });
     }
-  }
-
-  /// 真实进度模式的节拍：只推进 [_inStep]，并在该步的节拍时长处**停住**。
-  ///
-  /// 停住 = 百分比停在该步的 `endPercent`，等后端把步号推到下一步。
-  /// **不设** [_done]、**不调** [CareerlyAnalysisProgress.onDone] ——
-  /// 定形的依据是任务终态，不是动画播完。
-  void _onTickRealProgress() {
-    final int? step = _serverStep;
-    // 未知节点（step == null）或步号越界：**停住等**下一个已知节点，
-    // 既不前推也不定形。
-    if (step == null) return;
-    final List<AppMotionBeat> beats = AppMotion.analysisBeats;
-    if (step >= beats.length) return;
-    final Duration cap = beats[step].duration;
-    if (_inStep >= cap) return; // 本步已推到头 —— 等待后端推进
-    Duration next = _inStep + AppMotion.analysisTick;
-    if (next > cap) next = cap;
-    setState(() => _inStep = next);
   }
 
   Duration get _total {
@@ -312,9 +241,7 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
   /// 百分比初值 [AppMotion.analysisStartPercent]（1，不是 0）。
   (int, int, double) _compute() {
     final List<AppMotionBeat> beats = AppMotion.analysisBeats;
-    // 真实模式：步号未知时按第 0 步起点显示（「排队中」的样子），
-    // 而不是回退到本地时钟那条会自行定形的路径。
-    if (_realMode) return _computeFromServer(_serverStep ?? 0, beats);
+    if (_realMode) return _computeFromServer();
     if (_done || _elapsed >= _total) {
       return (beats.length, 100, 1);
     }
@@ -340,35 +267,66 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
     return (beats.length, 100, 1);
   }
 
-  /// 真实进度模式的读数推导。
+  /// 真实进度模式的读数 —— **完全来自后端**。
   ///
-  /// 与本地时钟模式的唯一区别是**谁决定步号**：这里由后端节点决定
-  /// （[step]），组件只负责在当前步内把百分比推到该步的 `endPercent`。
-  /// 缓动、起点读数 [_pctStart]、初值 [AppMotion.analysisStartPercent]
-  /// 与 Figma 逐值一致 —— 视觉不变，变的只是「什么时候进下一步」。
-  ///
-  /// ⚠️ 本模式下**没有** `(beats.length, 100, 1)` 这个收尾分支：后端从不
-  /// 报出「第 5 步之后」，第 5 步推到 `endPercent` 后停住，直到任务终态
-  /// 让页面替换本组件。自己凑一个 100% 就又回到「假完成」的老问题。
-  (int, int, double) _computeFromServer(int step, List<AppMotionBeat> beats) {
-    if (step >= beats.length) {
-      // 后端步号越界（映射变更 / 版本错配）：显示已到末步读数，不崩。
-      // 这不是「完成」—— 完成由任务终态表达。
-      return (beats.length, beats.last.endPercent, 1);
+  /// - 总进度：`progress.overallProgress`（后端按 5 步权重汇总，完成前 ≤99）
+  /// - 当前步：后端 `steps` 里第一个 `running` 的步骤
+  /// - 步内百分比：后端 `progressPercent`；`null` 时返回 0，由 UI 展示
+  ///   不确定态动画（绝不用本地时钟补一个数字）
+  (int, int, double) _computeFromServer() {
+    final AnalysisTaskProgress progress = widget.progress!;
+    final List<AnalysisStepProgress> steps = progress.steps;
+    AnalysisStepProgress? running;
+    for (final AnalysisStepProgress step in steps) {
+      if (step.isRunning) {
+        running = step;
+        break;
+      }
     }
-    final AppMotionBeat beat = beats[step];
-    final double from = _pctStart(step);
-    final double to = beat.endPercent.toDouble();
-    final double frac =
-        (_inStep.inMicroseconds / beat.duration.inMicroseconds).clamp(0.0, 1.0);
-    final double eased =
-        1 - math.pow(1 - frac, AppMotion.analysisEaseExponent).toDouble();
-    final int pct = math.max(
-      AppMotion.analysisStartPercent,
-      (from + (to - from) * eased).round(),
-    );
-    final double stepPct = to <= from ? 1 : ((pct - from) / (to - from));
-    return (step, pct, stepPct.clamp(0.0, 1.0));
+    final int completedCount =
+        steps.where((AnalysisStepProgress s) => s.isCompleted).length;
+    final int stepIndex = running?.index ?? completedCount;
+    final int overall = (progress.overallProgress ?? 0).clamp(0, 99);
+    final double activePct = running?.progressPercent == null
+        ? 0
+        : (running!.progressPercent! / 100).clamp(0.0, 1.0);
+    return (stepIndex, overall, activePct);
+  }
+
+  /// 把后端 5 步（或 Mock 的本地步号）翻译成时间线视图模型。
+  List<_StepView> _stepViews(int localStepIndex, double localActivePct) {
+    if (_realMode) {
+      final List<AnalysisStepProgress> steps = widget.progress!.steps;
+      return List<_StepView>.generate(_steps.length, (int i) {
+        final AnalysisStepProgress? step =
+            i < steps.length ? steps[i] : null;
+        return _StepView(
+          state: switch (step?.status) {
+            AnalysisStepProgress.statusCompleted => _StepState.complete,
+            AnalysisStepProgress.statusRunning => _StepState.active,
+            AnalysisStepProgress.statusFailed => _StepState.failed,
+            AnalysisStepProgress.statusCancelled => _StepState.cancelled,
+            _ => _StepState.idle,
+          },
+          // 只有后端给了真实百分比才画确定进度；否则 null → 不确定态。
+          progress: step?.progressPercent == null
+              ? null
+              : (step!.progressPercent! / 100).clamp(0.0, 1.0),
+          error: step?.error,
+        );
+      });
+    }
+    return List<_StepView>.generate(_steps.length, (int i) {
+      final _StepState state = _done || i < localStepIndex
+          ? _StepState.complete
+          : i == localStepIndex
+              ? _StepState.active
+              : _StepState.idle;
+      return _StepView(
+        state: state,
+        progress: state == _StepState.active ? localActivePct : null,
+      );
+    });
   }
 
   Future<void> _showExitSheet() {
@@ -384,7 +342,8 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
             const Text('正在分析中', style: AppTypography.analysisSheetTitle),
             const SizedBox(height: 8),
             const Text(
-              '现在离开不会影响你的简历和岗位信息，但本次分析需要重新开始。',
+              '退出将取消正在进行的分析，本次分析需要重新开始。'
+              '你的简历和岗位信息不受影响。',
               style: AppTypography.analysisSheetBody,
             ),
             const SizedBox(height: 24),
@@ -421,6 +380,7 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
   @override
   Widget build(BuildContext context) {
     final (int stepIndex, int percent, double activeStepPct) = _compute();
+    final List<_StepView> stepViews = _stepViews(stepIndex, activeStepPct);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -445,8 +405,7 @@ class _CareerlyAnalysisProgressState extends State<CareerlyAnalysisProgress>
                 const SizedBox(height: 20),
                 _TimelineCard(
                   pulse: _pulse,
-                  stepIndex: stepIndex,
-                  activeStepPct: activeStepPct,
+                  steps: stepViews,
                   done: _done,
                 ),
                 if (!_done) ...<Widget>[
@@ -938,14 +897,15 @@ class _TaskLine extends StatelessWidget {
 class _TimelineCard extends StatelessWidget {
   const _TimelineCard({
     required this.pulse,
-    required this.stepIndex,
-    required this.activeStepPct,
+    required this.steps,
     required this.done,
   });
 
   final AnimationController pulse;
-  final int stepIndex;
-  final double activeStepPct;
+
+  /// 5 步的展示状态。真实模式下逐项来自后端 `steps[i]`，
+  /// Mock 模式下由本地时钟换算 —— 但形状一致，渲染代码只有一份。
+  final List<_StepView> steps;
   final bool done;
 
   @override
@@ -982,12 +942,9 @@ class _TimelineCard extends StatelessWidget {
                             _CareerlyAnalysisProgressState._steps.length - 1,
                         label: _CareerlyAnalysisProgressState._steps[i].$1,
                         sub: _CareerlyAnalysisProgressState._steps[i].$2,
-                        state: done || i < stepIndex
-                            ? _StepState.complete
-                            : i == stepIndex
-                                ? _StepState.active
-                                : _StepState.idle,
-                        activeStepPct: activeStepPct,
+                        view: i < steps.length
+                            ? steps[i]
+                            : const _StepView(state: _StepState.idle),
                       ),
                   ],
                 ),
@@ -1000,7 +957,25 @@ class _TimelineCard extends StatelessWidget {
   }
 }
 
-enum _StepState { complete, active, idle }
+enum _StepState { complete, active, idle, failed, cancelled }
+
+/// 单步的视图模型。真实模式下由后端 `AnalysisStepProgress` 逐项映射。
+@immutable
+class _StepView {
+  const _StepView({
+    required this.state,
+    this.progress,
+    this.error,
+  });
+
+  final _StepState state;
+
+  /// 0..1；`null` = 不确定态（后端无法给出真实百分比）。
+  final double? progress;
+
+  /// 失败 / 取消的真实原因。
+  final String? error;
+}
 
 /// 一行步骤：28×28 徽标 + 连接线（左列），标题 / 状态 / 副行 / 进度条（右列）。
 /// 左列随行高拉伸（Figma 的 `flex` 连接线）。
@@ -1011,8 +986,7 @@ class _StepRow extends StatelessWidget {
     required this.isLast,
     required this.label,
     required this.sub,
-    required this.state,
-    required this.activeStepPct,
+    required this.view,
   });
 
   final AnimationController pulse;
@@ -1020,11 +994,14 @@ class _StepRow extends StatelessWidget {
   final bool isLast;
   final String label;
   final String sub;
-  final _StepState state;
-  final double activeStepPct;
+  final _StepView view;
+
+  _StepState get state => view.state;
 
   bool get _complete => state == _StepState.complete;
   bool get _active => state == _StepState.active;
+  bool get _failed => state == _StepState.failed;
+  bool get _cancelled => state == _StepState.cancelled;
 
   @override
   Widget build(BuildContext context) {
@@ -1032,16 +1009,25 @@ class _StepRow extends StatelessWidget {
         ? AppColors.success
         : _active
             ? AppColors.textPrimary
-            : AppColors.textSecondary;
+            : _failed || _cancelled
+                ? AppColors.danger
+                : AppColors.textSecondary;
     final Color statusColor = _complete
         ? AppColors.success
         : _active
             ? AppColors.primaryBlue
-            : AppColors.analysisStepStatusIdle;
+            : _failed || _cancelled
+                ? AppColors.danger
+                : AppColors.analysisStepStatusIdle;
     final String statusText = switch (state) {
       _StepState.complete => '已完成 · 100%',
-      _StepState.active => '进行中 · ${(activeStepPct * 100).round()}%',
+      // 百分比只在后端给了真实值时展示；否则只用不确定态动画表达「进行中」。
+      _StepState.active => view.progress == null
+          ? '进行中'
+          : '进行中 · ${(view.progress! * 100).round()}%',
       _StepState.idle => '等待中',
+      _StepState.failed => '失败',
+      _StepState.cancelled => '已取消',
     };
 
     return IntrinsicHeight(
@@ -1060,6 +1046,8 @@ class _StepRow extends StatelessWidget {
                       width: 2,
                       margin: const EdgeInsets.symmetric(vertical: 3),
                       decoration: BoxDecoration(
+                        // 只有「已完成」的步才把连线变绿；失败/取消之后的
+                        // 连线保持灰色，如实表达流程停在这里。
                         color: _complete
                             ? AppColors.analysisStepRailDone
                             : AppColors.analysisStepRailIdle,
@@ -1099,23 +1087,45 @@ class _StepRow extends StatelessWidget {
                     ],
                   ),
                   Text(sub, style: AppTypography.analysisStepSub),
+                  // 失败 / 取消：展示后端给出的真实原因。
+                  if (_failed || _cancelled) ...<Widget>[
+                    const SizedBox(height: 4),
+                    Text(
+                      view.error ??
+                          (_failed ? '分析失败，请稍后重试' : '分析已取消'),
+                      style: AppTypography.analysisStepSub
+                          .copyWith(color: AppColors.danger),
+                    ),
+                  ],
                   if (_active) ...<Widget>[
                     const SizedBox(height: 8),
                     // 当前步进度条。Figma `h-1` 圆角轨道 + `S.primary` 填充。
                     ClipRRect(
                       borderRadius: BorderRadius.circular(2),
-                      child: SizedBox(
-                        height: 4,
-                        child: Stack(
-                          children: <Widget>[
-                            Container(color: AppColors.analysisStepRailIdle),
-                            FractionallySizedBox(
-                              widthFactor: activeStepPct,
-                              child: Container(color: AppColors.primaryBlue),
+                      child: view.progress != null
+                          ? SizedBox(
+                              height: 4,
+                              child: Stack(
+                                children: <Widget>[
+                                  Container(
+                                    color: AppColors.analysisStepRailIdle,
+                                  ),
+                                  FractionallySizedBox(
+                                    widthFactor: view.progress,
+                                    child: Container(
+                                      color: AppColors.primaryBlue,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          // 后端无法精确预估（单节点 LLM 生成中）：
+                          // 用不确定态动画，绝不伪造本地百分比。
+                          : LinearProgressIndicator(
+                              minHeight: 4,
+                              backgroundColor: AppColors.analysisStepRailIdle,
+                              color: AppColors.primaryBlue,
                             ),
-                          ],
-                        ),
-                      ),
                     ),
                   ],
                 ],
@@ -1143,6 +1153,8 @@ class _StepBadge extends StatelessWidget {
 
   bool get _complete => state == _StepState.complete;
   bool get _active => state == _StepState.active;
+  bool get _failed => state == _StepState.failed;
+  bool get _cancelled => state == _StepState.cancelled;
 
   @override
   Widget build(BuildContext context) {
@@ -1150,7 +1162,9 @@ class _StepBadge extends StatelessWidget {
         ? AppColors.analysisStepBadgeDone
         : _active
             ? AppColors.primaryBlue
-            : AppColors.analysisStepBadgeIdle;
+            : _failed || _cancelled
+                ? AppColors.dangerSurface
+                : AppColors.analysisStepBadgeIdle;
     return SizedBox(
       width: 28,
       height: 28,
@@ -1186,14 +1200,20 @@ class _StepBadge extends StatelessWidget {
             decoration: BoxDecoration(shape: BoxShape.circle, color: background),
             child: _complete
                 ? const Icon(Icons.check, size: 14, color: AppColors.success)
-                : Text(
-                    '${index + 1}',
-                    style: AppTypography.analysisStepBadge.copyWith(
-                      color: _active
-                          ? AppColors.textInverse
-                          : AppColors.analysisStepBadgeIdleInk,
-                    ),
-                  ),
+                : _failed || _cancelled
+                    ? Icon(
+                        _failed ? Icons.close : Icons.remove,
+                        size: 14,
+                        color: AppColors.danger,
+                      )
+                    : Text(
+                        '${index + 1}',
+                        style: AppTypography.analysisStepBadge.copyWith(
+                          color: _active
+                              ? AppColors.textInverse
+                              : AppColors.analysisStepBadgeIdleInk,
+                        ),
+                      ),
           ),
         ],
       ),

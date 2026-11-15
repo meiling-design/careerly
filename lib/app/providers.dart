@@ -175,8 +175,13 @@ List<SingleChildWidget> careerlyProviders({
           HomeProvider(context.read<HomeRepository>()),
     ),
     ChangeNotifierProvider<AnalysisProvider>(
-      create: (BuildContext context) =>
-          AnalysisProvider(context.read<AnalysisRepository>()),
+      create: (BuildContext context) => AnalysisProvider(
+        context.read<AnalysisRepository>(),
+        // 生产环境把进行中任务的句柄落盘，杀进程后可恢复真实进度。
+        taskStore: useApi
+            ? SecureActiveAnalysisTaskStore()
+            : InMemoryActiveAnalysisTaskStore(),
+      ),
     ),
     ChangeNotifierProvider<AIProvider>(
       create: (BuildContext context) =>

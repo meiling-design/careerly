@@ -16,6 +16,7 @@
 /// growth / career assets / home summary / profile / ai）。
 library;
 
+export 'analysis_task_store.dart';
 export 'api_ai_repository.dart';
 export 'api_analysis_repository.dart';
 export 'api_auth_repository.dart';
