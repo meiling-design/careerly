@@ -5,9 +5,11 @@ import 'package:careerly/data/mock/mock_config.dart';
 import 'package:careerly/design_system/components/careerly_card.dart';
 import 'package:careerly/design_system/components/careerly_navigation_bar.dart';
 import 'package:careerly/design_system/tokens/tokens.dart';
+import 'package:careerly/features/profile/state/growth_celebration_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 /// Phase 8 批 3 / 8A —— 成长足迹二级页：周日历条 + 月网格日历 + 当天事件区 + 时间线。
 ///
@@ -86,11 +88,12 @@ void main() {
 
   /// 演示数据里**最新**的事件日。
   DateTime latestEventDate() {
-    final List<DateTime> dates = DemoFixture.growthCalendarEvents
-        .map((e) => e.occurredAt)
-        .whereType<DateTime>()
-        .toList()
-      ..sort();
+    final List<DateTime> dates =
+        DemoFixture.growthCalendarEvents
+            .map((e) => e.occurredAt)
+            .whereType<DateTime>()
+            .toList()
+          ..sort();
     return dates.last;
   }
 
@@ -107,15 +110,8 @@ void main() {
   }
 
   /// `周X` 标签（周一起始，与页面渲染同一口径）。
-  String weekdayLabel(DateTime date) => <String>[
-    '一',
-    '二',
-    '三',
-    '四',
-    '五',
-    '六',
-    '日',
-  ][date.weekday - 1];
+  String weekdayLabel(DateTime date) =>
+      <String>['一', '二', '三', '四', '五', '六', '日'][date.weekday - 1];
 
   /// 当日事件区标题。
   String dayHeader(DateTime date) =>
@@ -138,9 +134,7 @@ void main() {
 
   // ── 🔴 Phase 8A 核心不变量：日历与事件解耦 ───────────────────────────
 
-  testWidgets('空数据：日历照常渲染，当天给出空状态（Phase 8A 解耦）', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('空数据：日历照常渲染，当天给出空状态（Phase 8A 解耦）', (WidgetTester tester) async {
     await openGrowthRecord(tester);
 
     final DateTime now = DateTime.now();
@@ -344,8 +338,7 @@ void main() {
     // 月精度日期标签（Figma `'2026.08'.replace('.', '/')`）。
     for (final event in DemoFixture.growthTimeline) {
       final DateTime at = event.occurredAt!;
-      final String label =
-          '${at.year}/${at.month.toString().padLeft(2, '0')}';
+      final String label = '${at.year}/${at.month.toString().padLeft(2, '0')}';
       expect(find.text(label), findsWidgets);
     }
 
@@ -364,15 +357,36 @@ void main() {
     // fixture 里出现的类型：experience / capability / skill / matchScore
     // → 徽章短名 项目 / 能力 / 简历 / 分析（图例+徽章同源，故 findsWidgets）。
     // rank 在 fixture 中不存在 —— 徽章不渲染，只在图例里出现一次。
-    final Set<String> expectedShortLabels = <String>{
-      '项目',
-      '能力',
-      '简历',
-      '分析',
-    };
+    final Set<String> expectedShortLabels = <String>{'项目', '能力', '简历', '分析'};
     for (final String label in expectedShortLabels) {
       expect(find.text(label), findsWidgets);
     }
     expect(find.text('排名'), findsOneWidget);
+  });
+
+  testWidgets('完成岗位分析后在成长足迹播放庆祝动效并独立消费', (WidgetTester tester) async {
+    await openGrowthRecord(tester);
+
+    final BuildContext context = tester.element(
+      find.byType(CareerlyNavigationBar),
+    );
+    final GrowthCelebrationProvider celebrations =
+        Provider.of<GrowthCelebrationProvider>(context, listen: false);
+    celebrations.record(GrowthMilestone.jobAnalysisCompleted);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('太棒了！又向前一步 ✨'), findsOneWidget);
+    expect(find.byType(CustomPaint), findsWidgets);
+
+    await tester.pump(const Duration(milliseconds: 5200));
+    await tester.pump();
+
+    expect(find.text('太棒了！又向前一步 ✨'), findsNothing);
+    expect(celebrations.nextRecordAnimation, isNull);
+    expect(
+      celebrations.nextPending?.milestone,
+      GrowthMilestone.jobAnalysisCompleted,
+    );
   });
 }

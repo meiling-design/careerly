@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/router/app_routes.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../data/models/models.dart';
 import '../../../design_system/components/components.dart';
 import '../../../design_system/tokens/tokens.dart';
@@ -367,7 +368,8 @@ class _ProfileInfoCard extends StatelessWidget {
     final AnalysisProvider analysis = context.watch<AnalysisProvider>();
 
     // 「分析岗位」= 全部分析项目里已添加的岗位总数（派生，不硬编码）。
-    final int analyzedJobs = analysis.data?.fold<int>(
+    final int analyzedJobs =
+        analysis.data?.fold<int>(
           0,
           (int sum, AnalysisProject project) => sum + project.jobs.length,
         ) ??
@@ -430,10 +432,7 @@ class _ProfileInfoCard extends StatelessWidget {
             const SizedBox(height: _ProfileMetrics.infoCardGap),
             CareerlyStatRow(
               stats: <CareerlyStat>[
-                CareerlyStat(
-                  value: '${resume.versions.length}',
-                  label: '简历版本',
-                ),
+                CareerlyStat(value: '${resume.versions.length}', label: '简历版本'),
                 CareerlyStat(value: '$analyzedJobs', label: '分析岗位'),
                 CareerlyStat(
                   value: '${analysis.quota?.used ?? 0}',
@@ -720,8 +719,7 @@ class _AssetsCard extends StatelessWidget {
                     ),
                     const SizedBox(width: _ProfileMetrics.assetsHeaderTextGap),
                     _ViewAllPill(
-                      onTap: () =>
-                          context.push(AppRoutes.profileCareerAssets),
+                      onTap: () => context.push(AppRoutes.profileCareerAssets),
                     ),
                   ],
                 ),
@@ -1019,8 +1017,9 @@ class _ResumeCard extends StatelessWidget {
         iconSurface: AppColors.profileResumeIconSurface,
         iconInk: AppColors.success,
         title: '我的简历',
-        subtitle:
-            current == null ? _ProfileCopy.resumeEmpty : _resumeSubtitle(current),
+        subtitle: current == null
+            ? _ProfileCopy.resumeEmpty
+            : _resumeSubtitle(current),
         trailing: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -1060,8 +1059,7 @@ class _ResumeCard extends StatelessWidget {
     if (at == null) return version.label;
     // ⚠️ `toLocal()` 不能省 —— 后端时间戳是 UTC（见 `formatResumeDate` 的说明）。
     final DateTime local = at.toLocal();
-    final String date =
-        '${local.year}.${_two(local.month)}.${_two(local.day)}';
+    final String date = '${local.year}.${_two(local.month)}.${_two(local.day)}';
     return version.label.isEmpty ? date : '${version.label} · $date';
   }
 
@@ -1296,7 +1294,12 @@ abstract final class _ProfileMetrics {
   /// 简历卡右列：「最新版」Chip 与雪佛龙之间 `gap: 6`（Figma L3289）。
   static const double chipChevronGap = 6;
 
-  static const double pageBottom = 24;
+  /// 滚动内容底部留白。
+  ///
+  /// 一级页面内容全高滚动（内容可从悬浮导航下方穿过），
+  /// 因此导航避让必须由页面自己的滚动内容承担：
+  /// Figma 根布局 `pb-24`（96）+ ProfilePage 自身 `pb-6`（24）= 120。
+  static const double pageBottom = AppConstants.navigationBarContentInset + 24;
 
   /// 卡片列表的总高度。
   ///

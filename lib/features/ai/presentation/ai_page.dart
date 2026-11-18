@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/router/app_routes.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/state/state.dart';
 import '../../../data/models/ai_chat.dart';
 import '../../../data/models/ai_message.dart';
@@ -85,93 +86,102 @@ class _AIPageState extends State<AIPage> {
     return CareerlyScaffold(
       showAppBar: false,
       padding: EdgeInsets.zero,
-      child: Stack(
-        children: <Widget>[
-          Positioned.fill(
-            child: hasConversation
-                ? Column(
-                    children: <Widget>[
-                      _AIHeader(
-                        welcome: false,
-                        onBack: _startNewConversation,
-                        onHistory: _openHistory,
-                      ),
-                      const _ConversationContext(),
-                      Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                          children: <Widget>[
-                            for (final AIMessage message in provider.messages)
-                              _MessageBubble(message: message),
-                            if (provider.streamingMessage != null)
-                              _MessageBubble(
-                                message: provider.streamingMessage!,
-                              ),
-                            if (provider.isLoading &&
-                                provider.streamingMessage == null)
-                              const _TypingIndicator(),
-                            if (provider.responseState
-                                case AsyncFailure<AIMessage>())
-                              _RetryMessage(onRetry: provider.retryLastMessage),
-                          ],
-                        ),
-                      ),
-                      _AIInput(
-                        controller: _controller,
-                        enabled: !provider.isLoading,
-                        onChanged: (_) => setState(() {}),
-                        onSend: () => _sendMessage(_controller.text),
-                        copilotState: copilotState,
-                        completionId: completionId,
-                      ),
-                    ],
-                  )
-                : Stack(
-                    children: <Widget>[
-                      Positioned.fill(
-                        top: 44,
-                        child: _WelcomePanel(
-                          suggestions: _suggestions,
-                          onSelect: _sendMessage,
-                        ),
-                      ),
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: _AIHeader(
-                          welcome: true,
-                          onBack: _goHome,
+      child: Padding(
+        // 一级页面内容全高滚动（Shell 不再裁短视口），AI 页的输入区
+        // 需要自己让出悬浮导航的高度（Figma：输入条 bottom 97px）。
+        padding: const EdgeInsets.only(
+          bottom: AppConstants.navigationBarContentInset,
+        ),
+        child: Stack(
+          children: <Widget>[
+            Positioned.fill(
+              child: hasConversation
+                  ? Column(
+                      children: <Widget>[
+                        _AIHeader(
+                          welcome: false,
+                          onBack: _startNewConversation,
                           onHistory: _openHistory,
                         ),
-                      ),
-                      Positioned(
-                        left: 33,
-                        right: 33,
-                        bottom: 0,
-                        child: _AIInput(
+                        const _ConversationContext(),
+                        Expanded(
+                          child: ListView(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                            children: <Widget>[
+                              for (final AIMessage message in provider.messages)
+                                _MessageBubble(message: message),
+                              if (provider.streamingMessage != null)
+                                _MessageBubble(
+                                  message: provider.streamingMessage!,
+                                ),
+                              if (provider.isLoading &&
+                                  provider.streamingMessage == null)
+                                const _TypingIndicator(),
+                              if (provider.responseState
+                                  case AsyncFailure<AIMessage>())
+                                _RetryMessage(
+                                  onRetry: provider.retryLastMessage,
+                                ),
+                            ],
+                          ),
+                        ),
+                        _AIInput(
                           controller: _controller,
                           enabled: !provider.isLoading,
-                          welcome: true,
                           onChanged: (_) => setState(() {}),
                           onSend: () => _sendMessage(_controller.text),
                           copilotState: copilotState,
                           completionId: completionId,
                         ),
-                      ),
-                    ],
-                  ),
-          ),
-          _AIHistoryDrawer(
-            isOpen: _historyOpen,
-            conversations: provider.conversations,
-            activeConversationId: provider.activeConversationId,
-            enabled: !provider.isLoading,
-            onClose: _closeHistory,
-            onNewConversation: _startNewConversation,
-            onSelect: _selectConversation,
-          ),
-        ],
+                      ],
+                    )
+                  : Stack(
+                      children: <Widget>[
+                        Positioned.fill(
+                          top: 44,
+                          child: _WelcomePanel(
+                            suggestions: _suggestions,
+                            onSelect: _sendMessage,
+                          ),
+                        ),
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: _AIHeader(
+                            welcome: true,
+                            onBack: _goHome,
+                            onHistory: _openHistory,
+                          ),
+                        ),
+                        Positioned(
+                          left: 33,
+                          right: 33,
+                          bottom: 0,
+                          child: _AIInput(
+                            controller: _controller,
+                            enabled: !provider.isLoading,
+                            welcome: true,
+                            onChanged: (_) => setState(() {}),
+                            onSend: () => _sendMessage(_controller.text),
+                            copilotState: copilotState,
+                            completionId: completionId,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+            _AIHistoryDrawer(
+              isOpen: _historyOpen,
+              conversations: provider.conversations,
+              activeConversationId: provider.activeConversationId,
+              enabled: !provider.isLoading,
+              onClose: _closeHistory,
+              onNewConversation: _startNewConversation,
+              onSelect: _selectConversation,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -540,9 +550,9 @@ class _Welcome extends StatelessWidget {
         Container(
           width: 88,
           height: 88,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: LinearGradient(
+            gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: <Color>[
@@ -552,26 +562,49 @@ class _Welcome extends StatelessWidget {
               ],
               stops: <double>[0, 0.6, 1],
             ),
-            boxShadow: <BoxShadow>[
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.32),
+              width: 1,
+            ),
+            boxShadow: const <BoxShadow>[
               BoxShadow(color: Color(0x965B66F1), blurRadius: 36.8),
             ],
           ),
-          // 对应 Figma `AI` 欢迎态的 88px 渐变圆：
-          // 标志不是居中缩小的，而是 **150×100 的白色字标故意越界裁切**
-          // （Figma: left -31 / top -6 / opacity 0.94）。
+          // 88px 品牌渐变球：
+          // - 字标**完整居中**（54×21，横向留 17px 内边距），不再越界裁切；
+          // - ClipOval 只负责把光泽层收进圆内，字标本身完整落在圆内；
+          // - 左上高光 + 白色描边共同撑起「圆球」的光泽质感。
           child: ClipOval(
             child: Stack(
-              clipBehavior: Clip.none,
+              fit: StackFit.expand,
               children: <Widget>[
+                // 左上柔光：模拟球面受光。
                 Positioned(
-                  left: -31,
-                  top: -6,
-                  width: 150,
-                  height: 100,
+                  left: -10,
+                  top: -16,
+                  width: 76,
+                  height: 58,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: <Color>[
+                            Colors.white.withValues(alpha: 0.38),
+                            Colors.white.withValues(alpha: 0),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Center(
                   child: Opacity(
-                    opacity: 0.94,
+                    opacity: 0.86,
                     child: SvgPicture.asset(
                       'assets/images/brand/careerly-logo.svg',
+                      width: 54,
+                      height: 21,
                       fit: BoxFit.contain,
                       colorFilter: const ColorFilter.mode(
                         Colors.white,

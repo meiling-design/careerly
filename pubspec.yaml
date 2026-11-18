@@ -66,6 +66,13 @@ dependencies:
   pdfrx: ^2.4.8
   flutter_svg: ^2.3.4
 
+  # 打开系统邮件应用（帮助中心 / 意见反馈 / 关于页的联系邮箱）。
+  #
+  # 反馈没有后端接口，走 `mailto:` 是**真实可达**的提交路径 ——
+  # 邮件由用户自己的邮件应用发出，不会出现「点提交但没有任何去向」的表单。
+  # 该包此前已作为传递依赖存在于 `pubspec.lock`，本次只是提升为直接依赖。
+  url_launcher: ^6.3.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

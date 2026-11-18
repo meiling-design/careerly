@@ -36,10 +36,16 @@ abstract interface class AnalysisRepository {
 
   /// 使用一条 JD 创建并执行一次单岗位分析。
   ///
+  /// [company] / [source] / [sourceUrl] 会被后端写进本次分析的
+  /// **JD 原文快照**（P1-02）；缺省值保持旧行为（粘贴 JD、无公司名）。
+  ///
   /// 额度扣减由 Provider 在调用前负责；Repository 只负责数据访问与分析结果。
   Future<AnalysisProject> analyze({
     required String title,
     required String rawJd,
+    String company = '',
+    String source = 'paste',
+    String? sourceUrl,
   });
 
   /// 读取分析额度状态。
@@ -78,6 +84,9 @@ abstract interface class AnalysisProgressSource {
   Future<AnalysisTask> startAnalysisTask({
     required String title,
     required String rawJd,
+    String company = '',
+    String source = 'paste',
+    String? sourceUrl,
   });
 
   /// 读取任务最新状态（含真实节点进度）。

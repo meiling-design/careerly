@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/router/app_routes.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../data/models/home_summary.dart';
 import '../../../design_system/components/components.dart';
 import '../../profile/state/growth_celebration_provider.dart';
@@ -100,25 +102,33 @@ class _HomePageState extends State<HomePage> {
         _router == null ||
         _router!.routeInformationProvider.value.uri.path == AppRoutes.home;
 
-    return CareerlyScaffold(
-      // Figma 首页没有独立标题栏；欢迎 Hero 延伸至页面左右边缘。
-      showAppBar: false,
-      padding: EdgeInsets.zero,
-      child: CareerlyAsyncStateView<HomeSummary>(
-        state: provider.state,
-        onRetry: provider.load,
-        loadingMessage: '正在载入你的职业主页',
-        builder: (BuildContext context, HomeSummary summary) => _HomeContent(
-          content: HomeContent.forStage(
-            provider.stage,
-            summary,
-            greeting: greeting,
-            userName: userName,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+      child: CareerlyScaffold(
+        // Figma 首页没有独立标题栏；欢迎 Hero 延伸至页面左右边缘。
+        showAppBar: false,
+        applySafeArea: false,
+        padding: EdgeInsets.zero,
+        child: CareerlyAsyncStateView<HomeSummary>(
+          state: provider.state,
+          onRetry: provider.load,
+          loadingMessage: '正在载入你的职业主页',
+          builder: (BuildContext context, HomeSummary summary) => _HomeContent(
+            content: HomeContent.forStage(
+              provider.stage,
+              summary,
+              greeting: greeting,
+              userName: userName,
+            ),
+            celebration: isHomeVisible ? celebrations?.nextPending : null,
+            onCelebrationFinished: celebrations?.consume ?? _ignoreCelebration,
+            matchChangesKey: _matchChangesKey,
+            onJumpToChanges: _scrollToChanges,
           ),
-          celebration: isHomeVisible ? celebrations?.nextPending : null,
-          onCelebrationFinished: celebrations?.consume ?? _ignoreCelebration,
-          matchChangesKey: _matchChangesKey,
-          onJumpToChanges: _scrollToChanges,
         ),
       ),
     );
@@ -167,6 +177,11 @@ class _HomeContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
+      // 底部留白由页面自己承担（Figma 内容区 `pb-24`），
+      // 这样内容可以滚到悬浮导航下方，而末项仍能在导航上方停住。
+      padding: const EdgeInsets.only(
+        bottom: AppConstants.navigationBarContentInset,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[

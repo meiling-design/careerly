@@ -29,4 +29,5 @@ export 'careerly_stat_row.dart';
 export 'careerly_text_link.dart';
 export 'careerly_toast.dart';
 export 'careerly_top_bar.dart';
+export 'careerly_uploading_overlay.dart';
 export 'glass/glass.dart';

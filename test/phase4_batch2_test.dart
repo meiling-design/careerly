@@ -5,6 +5,7 @@ import 'package:careerly/app/router/app_routes.dart';
 import 'package:careerly/core/services/resume_file_picker.dart';
 import 'package:careerly/data/models/resume_file.dart';
 import 'package:careerly/design_system/components/careerly_navigation_bar.dart';
+import 'package:careerly/design_system/components/careerly_uploading_overlay.dart';
 import 'package:careerly/design_system/tokens/app_motion.dart';
 import 'package:careerly/features/home/presentation/home_page.dart';
 import 'package:careerly/features/onboarding/presentation/onboarding_confirm_page.dart';
@@ -140,6 +141,42 @@ void main() {
       await advance(tester, 2500);
 
       expect(find.byType(OnboardingParsingPage), findsOneWidget);
+
+      // 收尾：走完整个时间线，别把挂起的定时器留给下一个测试。
+      await advance(tester, timelineTotalMs() + 2000);
+    });
+
+    testWidgets('提交期间显示「正在上传简历」遮罩与循环图标', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        CareerlyApp(
+          initialLocation: AppRoutes.onboardingResume,
+          overrides: <SingleChildWidget>[
+            Provider<ResumeFilePicker>.value(
+              value: _FakeResumeFilePicker(_fakeFile()),
+            ),
+          ],
+        ),
+      );
+      await settleMock(tester);
+
+      await tester.tap(find.text('选择文件'));
+      await tester.pump(); // 选择器返回
+      await tester.pump(const Duration(milliseconds: 100)); // 提交已开始
+
+      // 后端解析很慢（实测 173–199s），提交期间必须有可见反馈。
+      expect(find.byType(CareerlyUploadingOverlay), findsOneWidget);
+      expect(find.text('正在上传简历'), findsOneWidget);
+      expect(find.byIcon(Icons.upload_rounded), findsOneWidget);
+      // 循环图标：持续旋转（开启「减少动态效果」时才退化为静态）。
+      expect(find.byType(RotationTransition), findsWidgets);
+      // 仍在原页，尚未进入解析页。
+      expect(find.byType(OnboardingResumePage), findsOneWidget);
+      expect(find.byType(OnboardingParsingPage), findsNothing);
+
+      // Mock 600ms 提交完成 → 转场到解析页，遮罩消失。
+      await advance(tester, 2500);
+      expect(find.byType(OnboardingParsingPage), findsOneWidget);
+      expect(find.byType(CareerlyUploadingOverlay), findsNothing);
 
       // 收尾：走完整个时间线，别把挂起的定时器留给下一个测试。
       await advance(tester, timelineTotalMs() + 2000);

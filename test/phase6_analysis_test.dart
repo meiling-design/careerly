@@ -368,6 +368,91 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // 三之二、分析结果页（2026-11-15 设计稿）
+  // ---------------------------------------------------------------------------
+
+  group('分析结果页（设计稿 2026-11-15）', () {
+    Future<void> openResult(WidgetTester tester) async {
+      await pumpPage(tester, host(analysis: StubAnalysisRepository()));
+      await addJob(tester, '测试 JD 文本');
+      await tester.tap(find.text('开始分析（1 个岗位）'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+    }
+
+    testWidgets('旧版页头与分段 Tab 不再出现在结果页', (WidgetTester tester) async {
+      await openResult(tester);
+
+      expect(find.text('分析结果'), findsOneWidget);
+      expect(find.text('职业分析'), findsNothing);
+      expect(find.text('新建分析'), findsNothing);
+      expect(find.text('历史分析'), findsNothing);
+    });
+
+    testWidgets('标准导航栏 + 两颗操作胶囊', (WidgetTester tester) async {
+      await openResult(tester);
+
+      // 设计稿：圆形返回钮 + 居中标题；下方「岗位匹配度 / 更新分析」。
+      expect(find.text('岗位匹配度'), findsOneWidget);
+      expect(find.text('更新分析'), findsOneWidget);
+      expect(find.byIcon(Icons.headphones_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.refresh_rounded), findsOneWidget);
+    });
+
+    testWidgets('基础信息行：小字置灰、单行摘要', (WidgetTester tester) async {
+      await openResult(tester);
+
+      expect(
+        find.text('2026.01.01 · 1 个目标岗位'),
+        findsOneWidget,
+        reason: '设计稿：基于简历 · 日期 · N 个目标岗位',
+      );
+    });
+
+    testWidgets('Top 1 主推卡：徽标 / 详情 / 超大分数 / 打勾清单', (
+      WidgetTester tester,
+    ) async {
+      await openResult(tester);
+
+      expect(find.text('#1'), findsOneWidget);
+      expect(find.text('最佳匹配'), findsOneWidget);
+      expect(find.text('查看详情'), findsOneWidget);
+      expect(find.text('测试 JD 文本'), findsOneWidget);
+      expect(find.text('42%'), findsOneWidget);
+      expect(find.text('较上次 —'), findsOneWidget);
+
+      final Finder checklist = find.byKey(
+        const ValueKey<String>('analysis-result-checklist'),
+      );
+      expect(checklist, findsOneWidget);
+      for (final String item in <String>[
+        '匹配度报告',
+        '能力分析',
+        '能力 Gap',
+        '成长建议',
+      ]) {
+        expect(
+          find.descendant(of: checklist, matching: find.text(item)),
+          findsOneWidget,
+          reason: '设计稿的 2×2 打勾清单必须齐全：$item',
+        );
+      }
+    });
+
+    testWidgets('320dp 窄屏不溢出', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(320, 720);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await openResult(tester);
+
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // 四、四态（CLAUDE.md §5.5）—— 历史分析
   // ---------------------------------------------------------------------------
 
@@ -563,11 +648,27 @@ class StubAnalysisRepository implements AnalysisRepository {
   Future<AnalysisProject> analyze({
     required String title,
     required String rawJd,
+    String company = '',
+    String source = 'paste',
+    String? sourceUrl,
   }) async {
     analyzeCalls++;
+    // P1-03：真实后端在任务开始时原子预占额度；桩同步模拟这个状态。
+    quota = quota.copyWith(
+      reserved: (quota.reserved + 1).clamp(0, quota.total),
+    );
     await _wait();
     final Object? failure = analyzeError;
-    if (failure != null) throw failure;
+    if (failure != null) {
+      quota = quota.copyWith(
+        reserved: (quota.reserved - 1).clamp(0, quota.total),
+      );
+      throw failure;
+    }
+    quota = quota.copyWith(
+      reserved: (quota.reserved - 1).clamp(0, quota.total),
+      used: (quota.used + 1).clamp(0, quota.total),
+    );
 
     final DateTime now = DateTime(2026, 1, 1);
     final String projectId = 'stub-project-$analyzeCalls';
@@ -665,5 +766,8 @@ class FailingProjectsRepository implements AnalysisRepository {
   Future<AnalysisProject> analyze({
     required String title,
     required String rawJd,
+    String company = '',
+    String source = 'paste',
+    String? sourceUrl,
   }) async => throw error;
 }

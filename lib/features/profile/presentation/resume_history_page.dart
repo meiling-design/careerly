@@ -131,7 +131,9 @@ class _ResumeHistoryPageState extends State<ResumeHistoryPage> {
                           onViewDetail: () => _openDetail(current),
                         ),
                         if (archived.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: _ResumeHistoryMetrics.sectionGap),
+                          const SizedBox(
+                            height: _ResumeHistoryMetrics.sectionGap,
+                          ),
                           const _HistoryListHeader(),
                           const SizedBox(height: _ResumeHistoryMetrics.listGap),
                           for (int i = 0; i < archived.length; i++) ...<Widget>[
@@ -160,6 +162,10 @@ class _ResumeHistoryPageState extends State<ResumeHistoryPage> {
             bottom: _ResumeHistoryMetrics.fabBottom,
             child: _ImportFab(onTap: _onImport),
           ),
+          // 导入同样走 `POST /resume` 的同步解析（最长几分钟），
+          // 期间铺忙等遮罩，覆盖顶栏与 FAB，避免重复导入。
+          if (provider.isUploading)
+            const Positioned.fill(child: CareerlyUploadingOverlay()),
         ],
       ),
     );

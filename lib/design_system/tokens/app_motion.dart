@@ -82,6 +82,13 @@ abstract final class AppMotion {
   /// 卡片重排（「我的」Tab → Card reorder）。IA §12：250–350ms。
   static const Duration cardReorder = Duration(milliseconds: 300);
 
+  /// 简历上传 / 解析遮罩里上传图标的旋转周期。
+  ///
+  /// ⚠️ **暂定值 · 待视觉验证** —— Figma **没有**「上传中」状态，
+  /// 本值是 Flutter 侧为循环提示取的：约 0.7 圈/秒，
+  /// 足以让用户看出「仍在进行」，又不至于抢注意力。
+  static const Duration uploadLoop = Duration(milliseconds: 1400);
+
   /// 列表项错峰进入的单项间隔。
   ///
   /// ⚠️ **暂定值 · 待视觉验证，且与 spec 有偏差**

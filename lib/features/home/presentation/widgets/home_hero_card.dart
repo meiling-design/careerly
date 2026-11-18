@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show PathMetric;
 
@@ -17,6 +18,7 @@ class HomeHeroCard extends StatefulWidget {
     this.onAction,
     this.celebration,
     this.onCelebrationFinished,
+    this.blinkInterval,
   });
 
   final HomeHeroContent content;
@@ -24,16 +26,67 @@ class HomeHeroCard extends StatefulWidget {
   final GrowthCelebration? celebration;
   final ValueChanged<int>? onCelebrationFinished;
 
+  /// 眨眼间隔覆盖值（仅测试使用）。
+  ///
+  /// 生产环境为 `null`：每次在 3–5 秒之间随机，避免机械感。
+  @visibleForTesting
+  final Duration? blinkInterval;
+
   @override
   State<HomeHeroCard> createState() => _HomeHeroCardState();
 }
 
 class _HomeHeroCardState extends State<HomeHeroCard>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
+  /// 首页 Hero 的 IP 形象（与 AI 页「办公」态同一套 IP）。
+  static const String _welcomeAsset = 'assets/images/nebula/home-welcome.svg';
+
+  /// 闭眼素材：由 `home-welcome.svg` 派生，只把眼睛沿 Y 轴压扁。
+  /// 两张图 viewBox 完全一致，叠在同一位置淡入淡出，不参与布局。
+  static const String _welcomeBlinkAsset =
+      'assets/images/nebula/home-welcome-blink.svg';
+
+  /// 眨眼（闭眼）持续时间：0.1–0.2 s，符合自然眨眼区间。
+  static const Duration _blinkDuration = Duration(milliseconds: 190);
+
+  static const int _blinkMinGapMs = 3000;
+  static const int _blinkMaxGapMs = 5000;
+
   late final AnimationController _celebrationController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 2200),
   )..addStatusListener(_onAnimationStatus);
+
+  /// 眨眼进度：0 → 1（闭眼）→ 0（睁眼）。
+  late final AnimationController _blink = AnimationController(
+    vsync: this,
+    duration: _blinkDuration,
+  );
+
+  /// 闭眼图层的透明度。两端为 0，静止时该图层完全不渲染。
+  late final Animation<double> _blinkOpacity =
+      TweenSequence<double>(<TweenSequenceItem<double>>[
+        TweenSequenceItem<double>(
+          tween: Tween<double>(
+            begin: 0,
+            end: 1,
+          ).chain(CurveTween(curve: Curves.easeOut)),
+          weight: 35,
+        ),
+        TweenSequenceItem<double>(tween: ConstantTween<double>(1), weight: 30),
+        TweenSequenceItem<double>(
+          tween: Tween<double>(
+            begin: 1,
+            end: 0,
+          ).chain(CurveTween(curve: Curves.easeIn)),
+          weight: 35,
+        ),
+      ]).animate(_blink);
+
+  final math.Random _random = math.Random();
+
+  Timer? _blinkTimer;
+  bool _reduceMotion = false;
 
   GrowthCelebration? _activeCelebration;
 
@@ -45,6 +98,30 @@ class _HomeHeroCardState extends State<HomeHeroCard>
         if (mounted) _startCelebration(widget.celebration);
       });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _reduceMotion = MediaQuery.disableAnimationsOf(context);
+      if (_reduceMotion) return;
+      _scheduleBlink();
+    });
+  }
+
+  /// 排下一次眨眼：3–5 s 随机，避免机械感。
+  void _scheduleBlink() {
+    _blinkTimer?.cancel();
+    if (_reduceMotion || !mounted) return;
+    final Duration gap =
+        widget.blinkInterval ??
+        Duration(
+          milliseconds:
+              _blinkMinGapMs +
+              _random.nextInt(_blinkMaxGapMs - _blinkMinGapMs + 1),
+        );
+    _blinkTimer = Timer(gap, () {
+      if (!mounted) return;
+      _blink.forward(from: 0);
+      _scheduleBlink();
+    });
   }
 
   @override
@@ -57,6 +134,8 @@ class _HomeHeroCardState extends State<HomeHeroCard>
 
   @override
   void dispose() {
+    _blinkTimer?.cancel();
+    _blink.dispose();
     _celebrationController.dispose();
     super.dispose();
   }
@@ -150,17 +229,52 @@ class _HomeHeroCardState extends State<HomeHeroCard>
                                 ),
                               );
                             },
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 180),
-                              switchInCurve: Curves.easeOutBack,
-                              switchOutCurve: Curves.easeIn,
-                              child: SvgPicture.asset(
-                                _activeCelebration == null
-                                    ? 'assets/images/nebula/home-welcome.svg'
-                                    : 'assets/images/nebula/home-celebration.svg',
-                                key: ValueKey<bool>(_activeCelebration != null),
-                                fit: BoxFit.contain,
-                              ),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: <Widget>[
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 180),
+                                  switchInCurve: Curves.easeOutBack,
+                                  switchOutCurve: Curves.easeIn,
+                                  child: SvgPicture.asset(
+                                    _activeCelebration == null
+                                        ? _welcomeAsset
+                                        : 'assets/images/nebula/home-celebration.svg',
+                                    key: ValueKey<bool>(
+                                      _activeCelebration != null,
+                                    ),
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                                // 眨眼图层：庆祝动画期间隐藏，避免和换图打架。
+                                if (_activeCelebration == null)
+                                  Positioned.fill(
+                                    child: AnimatedBuilder(
+                                      animation: _blink,
+                                      child: SvgPicture.asset(
+                                        _welcomeBlinkAsset,
+                                        fit: BoxFit.contain,
+                                        excludeFromSemantics: true,
+                                      ),
+                                      builder:
+                                          (
+                                            BuildContext context,
+                                            Widget? child,
+                                          ) {
+                                            // 静止时完全不挂载，避免常驻一层无谓的绘制。
+                                            if (_blinkOpacity.value == 0) {
+                                              return const SizedBox.shrink();
+                                            }
+                                            return IgnorePointer(
+                                              child: Opacity(
+                                                opacity: _blinkOpacity.value,
+                                                child: child,
+                                              ),
+                                            );
+                                          },
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ),

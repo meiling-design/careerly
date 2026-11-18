@@ -718,6 +718,20 @@ abstract final class AppTypography {
     fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
   );
 
+  /// 分析结果页 Top 1 主推卡的超大匹配度读数。
+  ///
+  /// 真值来源：`careerly-assets/分析结果页参考.png`（2026-11-15 设计定稿）。
+  /// 深色渐变卡上使用时由页面 `copyWith(color: Colors.white)` 染色。
+  static const TextStyle analysisResultScore = TextStyle(
+    fontFamily: fontFamilyNumeric ?? fontFamilyChinese,
+    fontSize: 40,
+    height: 1.0,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.5,
+    color: AppColors.textPrimary,
+    fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
+  );
+
   // ---------------------------------------------------------------------------
   // 首页（Phase 5）
   //

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app/app.dart';
 import 'app/router/app_debug_entry.dart';
@@ -57,6 +58,9 @@ import 'data/mock/mock_config.dart';
 /// 这里只做「恢复凭据」这一件事，**不**决定启动落在哪一屏（那是 D54）。
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 沉浸式适配：内容延伸到状态栏 / 导航栏下方，背景渐变直达手机顶部。
+  // 状态栏图标深浅由各页面用 `AnnotatedRegion<SystemUiOverlayStyle>` 决定。
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   // 未捕获异常的兜底提示（「休息」IP + 提示框）。
   // 必须在 runApp 之前挂钩，否则启动阶段的异常不会被接住。
   CrashReporter.install();

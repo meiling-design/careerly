@@ -18,12 +18,20 @@ enum AICopilotMotionState { idle, thinking, responding }
 ///
 /// 动效（悬浮、呼吸、粒子、完成弹跳）在两种状态下一致，
 /// 只有**图形素材**按状态切换。
+///
+/// ## 眨眼（2026-11-16）
+///
+/// 五种素材都有一张只把眼睛沿 Y 轴压扁的 `*-blink.svg`（星星的眼睛同步处理）。
+/// 静止时每 3–5 秒随机眨一次，闭眼过程 190ms；
+/// 闭眼图与睁眼图 viewBox 完全相同，只在同一位置淡入淡出，
+/// **不参与布局、不产生 Layout shift**。
 class AICopilotCharacter extends StatefulWidget {
   const AICopilotCharacter({
     super.key,
     required this.state,
     this.completionId,
     this.welcome = false,
+    this.blinkInterval,
   });
 
   final AICopilotMotionState state;
@@ -33,6 +41,12 @@ class AICopilotCharacter extends StatefulWidget {
   ///
   /// `true` 时使用「办公」IP；`false` 时使用对话态的四张星云素材。
   final bool welcome;
+
+  /// 眨眼间隔覆盖值（仅测试使用）。
+  ///
+  /// 生产环境为 `null`：每次在 3–5 秒之间随机，避免机械感。
+  @visibleForTesting
+  final Duration? blinkInterval;
 
   @override
   State<AICopilotCharacter> createState() => _AICopilotCharacterState();
@@ -51,6 +65,30 @@ class _AICopilotCharacterState extends State<AICopilotCharacter>
   static const String _officeAsset =
       'assets/images/nebula/careerly-ai-office.svg';
 
+  /// 每个形象对应的「闭眼」素材。
+  ///
+  /// 素材由原 SVG 派生：只把眼白/瞳孔沿 Y 轴压扁（scaleY 0.1），
+  /// 星形 IP 的眼睛也一并处理。眨眼时整张换图，
+  /// 两张图 viewBox 完全一致，因此不会产生任何布局抖动。
+  static const Map<String, String> _blinkAssetByAsset = <String, String>{
+    'assets/images/nebula/careerly-ai-office.svg':
+        'assets/images/nebula/careerly-ai-office-blink.svg',
+    'assets/images/nebula/careerly-ai-idle.svg':
+        'assets/images/nebula/careerly-ai-idle-blink.svg',
+    'assets/images/nebula/careerly-ai-thinking.svg':
+        'assets/images/nebula/careerly-ai-thinking-blink.svg',
+    'assets/images/nebula/careerly-ai-responding.svg':
+        'assets/images/nebula/careerly-ai-responding-blink.svg',
+    'assets/images/nebula/careerly-ai-completed.svg':
+        'assets/images/nebula/careerly-ai-completed-blink.svg',
+  };
+
+  /// 眨眼（闭眼）持续时间：0.1–0.2 s，符合自然眨眼区间。
+  static const Duration _blinkDuration = Duration(milliseconds: 190);
+
+  static const int _blinkMinGapMs = 3000;
+  static const int _blinkMaxGapMs = 5000;
+
   late final AnimationController _ambient = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1800),
@@ -68,7 +106,38 @@ class _AICopilotCharacterState extends State<AICopilotCharacter>
     duration: const Duration(milliseconds: 720),
   )..addStatusListener(_onCompletionStatus);
 
+  /// 眨眼进度：0 → 1（闭眼）→ 0（睁眼）。
+  late final AnimationController _blink = AnimationController(
+    vsync: this,
+    duration: _blinkDuration,
+  );
+
+  /// 闭眼图层的透明度。两端为 0，静止时该图层完全不渲染。
+  late final Animation<double> _blinkOpacity = TweenSequence<double>(
+    <TweenSequenceItem<double>>[
+      TweenSequenceItem<double>(
+        tween: Tween<double>(begin: 0, end: 1).chain(
+          CurveTween(curve: Curves.easeOut),
+        ),
+        weight: 35,
+      ),
+      TweenSequenceItem<double>(
+        tween: ConstantTween<double>(1),
+        weight: 30,
+      ),
+      TweenSequenceItem<double>(
+        tween: Tween<double>(begin: 1, end: 0).chain(
+          CurveTween(curve: Curves.easeIn),
+        ),
+        weight: 35,
+      ),
+    ],
+  ).animate(_blink);
+
+  final math.Random _random = math.Random();
+
   Timer? _messageTimer;
+  Timer? _blinkTimer;
   bool _showMessage = false;
   bool _showCompletion = false;
   bool _reduceMotion = false;
@@ -127,6 +196,25 @@ class _AICopilotCharacterState extends State<AICopilotCharacter>
       if (_reduceMotion) return;
       _ambient.repeat(reverse: true);
       _syncActivity();
+      _scheduleBlink();
+    });
+  }
+
+  /// 排下一次眨眼：默认 3–5 s 随机，测试可用 [widget.blinkInterval] 缩短。
+  void _scheduleBlink() {
+    _blinkTimer?.cancel();
+    if (_reduceMotion || !mounted) return;
+    final Duration gap =
+        widget.blinkInterval ??
+        Duration(
+          milliseconds:
+              _blinkMinGapMs +
+              _random.nextInt(_blinkMaxGapMs - _blinkMinGapMs + 1),
+        );
+    _blinkTimer = Timer(gap, () {
+      if (!mounted) return;
+      _blink.forward(from: 0);
+      _scheduleBlink();
     });
   }
 
@@ -147,10 +235,12 @@ class _AICopilotCharacterState extends State<AICopilotCharacter>
   @override
   void dispose() {
     _messageTimer?.cancel();
+    _blinkTimer?.cancel();
     _ambient.dispose();
     _activity.dispose();
     _interaction.dispose();
     _completion.dispose();
+    _blink.dispose();
     super.dispose();
   }
 
@@ -178,6 +268,10 @@ class _AICopilotCharacterState extends State<AICopilotCharacter>
       if (mounted) setState(() => _showMessage = false);
     });
   }
+
+  /// 当前状态对应的闭眼素材；未登记时退回原图（不闪烁但不出错）。
+  String get _blinkAssetPath =>
+      _blinkAssetByAsset[_assetPath] ?? _assetPath;
 
   /// 按页面状态选择 IP 素材。
   ///
@@ -222,14 +316,44 @@ class _AICopilotCharacterState extends State<AICopilotCharacter>
                   duration: const Duration(milliseconds: 180),
                   switchInCurve: Curves.easeOutBack,
                   switchOutCurve: Curves.easeIn,
-                  child: SvgPicture.asset(
-                    _assetPath,
+                  child: Stack(
                     key: ValueKey<String>(_assetPath),
-                    width: _width,
-                    height: _height,
-                    fit: BoxFit.contain,
-                    alignment: Alignment.bottomCenter,
-                    excludeFromSemantics: true,
+                    fit: StackFit.expand,
+                    children: <Widget>[
+                      SvgPicture.asset(
+                        _assetPath,
+                        width: _width,
+                        height: _height,
+                        fit: BoxFit.contain,
+                        alignment: Alignment.bottomCenter,
+                        excludeFromSemantics: true,
+                      ),
+                      // 眨眼图层：闭眼素材与原素材同 viewBox，
+                      // 叠在同一位置淡入淡出，不参与布局。
+                      AnimatedBuilder(
+                        animation: _blink,
+                        child: SvgPicture.asset(
+                          _blinkAssetPath,
+                          width: _width,
+                          height: _height,
+                          fit: BoxFit.contain,
+                          alignment: Alignment.bottomCenter,
+                          excludeFromSemantics: true,
+                        ),
+                        builder: (BuildContext context, Widget? child) {
+                          // 静止时完全不挂载，避免常驻一层无谓的绘制。
+                          if (_blinkOpacity.value == 0) {
+                            return const SizedBox.shrink();
+                          }
+                          return IgnorePointer(
+                            child: Opacity(
+                              opacity: _blinkOpacity.value,
+                              child: child,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
                 builder: (BuildContext context, Widget? child) {

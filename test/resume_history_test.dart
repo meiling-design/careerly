@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:careerly/data/models/career_assets.dart';
 import 'package:careerly/data/models/resume_file.dart';
 import 'package:careerly/data/models/resume_profile.dart';
@@ -5,6 +8,7 @@ import 'package:careerly/data/repositories/career_assets_repository.dart';
 import 'package:careerly/data/repositories/resume_repository.dart';
 import 'package:careerly/core/services/resume_file_picker.dart';
 import 'package:careerly/design_system/components/careerly_button.dart';
+import 'package:careerly/design_system/components/careerly_uploading_overlay.dart';
 import 'package:careerly/design_system/theme/careerly_theme.dart';
 import 'package:careerly/features/profile/presentation/resume_detail_page.dart';
 import 'package:careerly/features/profile/presentation/resume_history_page.dart';
@@ -75,6 +79,8 @@ void main() {
   Widget host({
     ResumeProfile? profile,
     CareerAssets? assets,
+    ResumeRepository? resumeRepository,
+    ResumeFilePicker? filePicker,
   }) {
     final GoRouter router = GoRouter(
       initialLocation: '/profile/resume-history',
@@ -97,12 +103,16 @@ void main() {
     return MultiProvider(
       providers: <SingleChildWidget>[
         Provider<ResumeRepository>.value(
-          value: _StubResumeRepository(profile ?? ResumeProfile.empty),
+          value:
+              resumeRepository ??
+              _StubResumeRepository(profile ?? ResumeProfile.empty),
         ),
         Provider<CareerAssetsRepository>.value(
           value: _StubCareerAssetsRepository(assets ?? CareerAssets.empty),
         ),
-        Provider<ResumeFilePicker>.value(value: const _StubFilePicker()),
+        Provider<ResumeFilePicker>.value(
+          value: filePicker ?? const _StubFilePicker(),
+        ),
         ChangeNotifierProvider<ResumeProvider>(
           create: (BuildContext context) =>
               ResumeProvider(context.read<ResumeRepository>()),
@@ -147,9 +157,7 @@ void main() {
       expect(find.text('项技能'), findsOneWidget);
     });
 
-    testWidgets('⚠️ 不渲染「最高匹配」与任何匹配度数字（§7 不得编造）', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('⚠️ 不渲染「最高匹配」与任何匹配度数字（§7 不得编造）', (WidgetTester tester) async {
       await pumpHost(tester, host(profile: seededProfile));
 
       // Figma 这两屏都写了 `最高匹配 86%`，取值来自原型的 `allVersions` 表。
@@ -230,9 +238,7 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('简历历史 →「查看详情」', () {
-    testWidgets('点「查看详情」进入详情页，页签为 PDF 预览 / 原始内容', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('点「查看详情」进入详情页，页签为 PDF 预览 / 原始内容', (WidgetTester tester) async {
       await pumpHost(tester, host(profile: seededProfile));
 
       await tester.tap(find.text('查看详情'));
@@ -307,6 +313,39 @@ void main() {
 
       expect(find.text('导入新简历'), findsNothing);
       expect(find.text('我的简历'), findsOneWidget);
+    });
+
+    testWidgets('导入文件期间显示「正在上传简历」遮罩', (WidgetTester tester) async {
+      final _GatedResumeRepository repository = _GatedResumeRepository(
+        seededProfile,
+      );
+      await pumpHost(
+        tester,
+        host(
+          profile: seededProfile,
+          resumeRepository: repository,
+          filePicker: const _FilePicker(),
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.add));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('从文件选择'));
+      // 弹层退出动画 350ms 走完，展示层 future 才完成 → 提交开始。
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 450));
+      await tester.pump();
+
+      expect(find.byType(CareerlyUploadingOverlay), findsOneWidget);
+      expect(find.text('正在上传简历'), findsOneWidget);
+      // 遮罩拦住重复导入：FAB 仍在树下，但已被 ModalBarrier 挡住。
+      expect(find.byIcon(Icons.add), findsOneWidget);
+
+      // 放行上传 → 遮罩消失，并进入新版本详情页。
+      repository.uploadGate.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(CareerlyUploadingOverlay), findsNothing);
+      expect(find.byType(ResumeDetailPage), findsOneWidget);
     });
 
     testWidgets('「粘贴文本」打开输入弹层，「导入」在空文本时禁用', (WidgetTester tester) async {
@@ -410,6 +449,29 @@ class _StubResumeRepository implements ResumeRepository {
 
   @override
   Future<ResumeProfile> buildBaseline() async => profile;
+}
+
+/// 上传会一直挂起，直到测试放行 —— 用来观察「上传中」遮罩。
+class _GatedResumeRepository extends _StubResumeRepository {
+  _GatedResumeRepository(super.profile);
+
+  final Completer<void> uploadGate = Completer<void>();
+
+  @override
+  Future<void> submitResumeFile(ResumeFileData file) => uploadGate.future;
+}
+
+/// 恒返回一份合法文件的选择器。
+class _FilePicker implements ResumeFilePicker {
+  const _FilePicker();
+
+  @override
+  Future<ResumeFileData?> pick() async => ResumeFileData(
+    name: 'cv.pdf',
+    extension: 'pdf',
+    sizeBytes: 4,
+    bytes: Uint8List(4),
+  );
 }
 
 class _StubCareerAssetsRepository implements CareerAssetsRepository {

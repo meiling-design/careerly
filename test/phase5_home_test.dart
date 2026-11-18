@@ -11,6 +11,7 @@ import 'package:careerly/features/home/presentation/widgets/home_hero_card.dart'
 import 'package:careerly/features/home/presentation/widgets/home_stil_cards.dart';
 import 'package:careerly/features/home/state/home_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -126,6 +127,26 @@ void main() {
       find.descendant(of: find.byType(HomePage), matching: matching);
 
   Finder homeText(String text) => onHome(find.text(text));
+
+  testWidgets('状态栏透明且白色图标，Hero 不避开顶部安全区', (WidgetTester tester) async {
+    await pumpStub(tester, const HomeSummary());
+
+    final CareerlyScaffold scaffold = tester.widget<CareerlyScaffold>(
+      onHome(find.byType(CareerlyScaffold)),
+    );
+    expect(scaffold.applySafeArea, isFalse);
+
+    final Finder overlay = onHome(
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is AnnotatedRegion<SystemUiOverlayStyle> &&
+            widget.value.statusBarColor == Colors.transparent &&
+            widget.value.statusBarIconBrightness == Brightness.light &&
+            widget.value.statusBarBrightness == Brightness.dark,
+      ),
+    );
+    expect(overlay, findsOneWidget);
+  });
 
   // ---------------------------------------------------------------------------
   // 夹具
@@ -396,6 +417,23 @@ void main() {
       expect(homeText('成长记录'), findsOneWidget);
       expect(homeText('成长甲'), findsOneWidget);
       expect(homeText('成长乙'), findsOneWidget);
+    });
+
+    testWidgets('当前状态圆环显示最新摘要中的最高匹配分', (WidgetTester tester) async {
+      await pumpStub(
+        tester,
+        const HomeSummary(
+          hasBaseline: true,
+          matchChanges: <MatchChange>[
+            MatchChange(jobId: 'j1', jobTitle: '测试岗位 A', score: 42),
+            MatchChange(jobId: 'j2', jobTitle: '测试岗位 B', score: 61),
+          ],
+        ),
+      );
+
+      // 61% 同时出现在圆环和岗位列表中，42% 只出现在列表。
+      expect(homeText('61%'), findsNWidgets(2));
+      expect(homeText('42%'), findsOneWidget);
     });
 
     testWidgets('delta 缺失（`null`）同样显示破折号，不显示 `+0%`', (

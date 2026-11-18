@@ -85,6 +85,9 @@ class MockAnalysisRepository implements AnalysisRepository {
   Future<AnalysisProject> analyze({
     required String title,
     required String rawJd,
+    String company = '',
+    String source = 'paste',
+    String? sourceUrl,
   }) async {
     await _config.simulate();
     if (_config.demoData) {
@@ -98,8 +101,9 @@ class MockAnalysisRepository implements AnalysisRepository {
     final Job job = Job(
       id: '$projectId-job',
       title: title.trim().isEmpty ? '未命名岗位' : title.trim(),
+      company: company,
       rawJd: rawJd,
-      source: 'paste',
+      source: source,
       createdAt: now,
     );
     final AnalysisResult result = AnalysisResult(
@@ -114,6 +118,20 @@ class MockAnalysisRepository implements AnalysisRepository {
           reasons: const <String>['Mock 分析已完成，等待真实能力模型接入'],
           gaps: const <String>['暂未接入真实能力 Gap 计算'],
           suggestion: '补充更多经历后再次分析',
+        ),
+      ],
+      // P1-02：Mock 也写快照 —— 页面读取的是**快照**，不是当前岗位。
+      // 这样「修改岗位 JD 后旧分析不变」的行为在 Mock 下同样可验证。
+      jobSnapshots: <JobSnapshot>[
+        JobSnapshot(
+          jobId: job.id,
+          title: job.title,
+          company: job.company,
+          rawJd: rawJd,
+          source: source,
+          sourceUrl: sourceUrl,
+          importMethod: source,
+          capturedAt: now,
         ),
       ],
       createdAt: now,

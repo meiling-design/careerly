@@ -37,19 +37,30 @@ void ensureAnalysisProjectsLoaded(BuildContext context) {
 class AnalysisJobEntry {
   const AnalysisJobEntry({
     required this.project,
+    required this.result,
     required this.job,
     required this.match,
+    this.snapshot,
     this.previousScore,
   });
 
   /// 包含该岗位的分析项目。
   final AnalysisProject project;
 
+  /// 提供 [match] 的那条分析结果（通常是项目的最新结果）。
+  final AnalysisResult result;
+
   /// 岗位实体。
   final Job job;
 
-  /// 最新一次分析中该岗位的匹配结果。
+  /// 该分析结果中此岗位的匹配结果。
   final JobMatch match;
+
+  /// 该分析结果保存的岗位原文快照（P1-02）。
+  ///
+  /// `null` 或 `available == false` 表示历史数据没有原文 ——
+  /// 页面必须显示缺失态，**不得**读 [job].rawJd 冒充。
+  final JobSnapshot? snapshot;
 
   /// 上一次分析中该岗位的匹配分；首次分析时为 `null`。
   final int? previousScore;
@@ -74,33 +85,43 @@ AnalysisJobEntry? findAnalysisJobEntry(
   for (final AnalysisProject project in projects) {
     for (final Job job in project.jobs) {
       if (job.id != jobId) continue;
-      final AnalysisResult? latest = project.latestResult;
-      if (latest == null) return null;
-      JobMatch? match;
-      for (final JobMatch m in latest.matches) {
-        if (m.jobId == jobId) {
-          match = m;
-          break;
+      // 从最新结果往前找：岗位可能在历史版本里，而「原文」必须取
+      // **提供这次匹配结果的那条记录**的快照（P1-02）。
+      for (int i = project.results.length - 1; i >= 0; i--) {
+        final AnalysisResult result = project.results[i];
+        JobMatch? match;
+        for (final JobMatch m in result.matches) {
+          if (m.jobId == jobId) {
+            match = m;
+            break;
+          }
         }
+        if (match == null) continue;
+        return AnalysisJobEntry(
+          project: project,
+          result: result,
+          job: job,
+          match: match,
+          snapshot: result.snapshotFor(jobId),
+          previousScore: _previousScore(project, jobId, beforeIndex: i),
+        );
       }
-      if (match == null) return null;
-      return AnalysisJobEntry(
-        project: project,
-        job: job,
-        match: match,
-        previousScore: _previousScore(project, jobId),
-      );
+      return null;
     }
   }
   return null;
 }
 
-/// 上一次分析（`results` 倒数第二条）中该岗位的匹配分。
-int? _previousScore(AnalysisProject project, String jobId) {
-  if (project.results.length < 2) return null;
-  final AnalysisResult previous = project.results[project.results.length - 2];
-  for (final JobMatch m in previous.matches) {
-    if (m.jobId == jobId) return m.score;
+/// [beforeIndex] 之前最近一次包含该岗位的匹配分。
+int? _previousScore(
+  AnalysisProject project,
+  String jobId, {
+  required int beforeIndex,
+}) {
+  for (int i = beforeIndex - 1; i >= 0; i--) {
+    for (final JobMatch m in project.results[i].matches) {
+      if (m.jobId == jobId) return m.score;
+    }
   }
   return null;
 }

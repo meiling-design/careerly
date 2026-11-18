@@ -84,8 +84,15 @@ class StubAnalysisRepository implements AnalysisRepository {
   Future<AnalysisProject> analyze({
     required String title,
     required String rawJd,
+    String company = '',
+    String source = 'paste',
+    String? sourceUrl,
   }) {
     analyzeCalls++;
+    // P1-03：任务开始时后端预占一次额度；桩模拟服务端读数。
+    quota = quota.copyWith(
+      reserved: (quota.reserved + 1).clamp(0, quota.total),
+    );
     final _PendingAnalysis pending = _PendingAnalysis(
       Completer<AnalysisProject>(),
       _buildProject(analyzeCalls, title: title, rawJd: rawJd),
@@ -98,6 +105,10 @@ class StubAnalysisRepository implements AnalysisRepository {
   void completeLatestAnalysis() {
     for (final _PendingAnalysis pending in _pending) {
       if (!pending.completer.isCompleted) {
+        quota = quota.copyWith(
+          reserved: (quota.reserved - 1).clamp(0, quota.total),
+          used: (quota.used + 1).clamp(0, quota.total),
+        );
         pending.completer.complete(pending.project);
         return;
       }
@@ -311,13 +322,14 @@ void main() {
   });
 
   group('退出分析（Provider.exitAnalysis）', () {
-    testWidgets('确认 Sheet 出现，点「退出」后回到新建分析且额度回滚', (tester) async {
+    testWidgets('确认 Sheet 出现，点「退出」后回到新建分析且**保留**预占额度', (tester) async {
       final repo = StubAnalysisRepository();
       await enterProgress(tester, repo);
 
-      // 进入分析时已扣 1 次额度。
+      // 进入分析时后端已预占 1 次额度（P1-03）。
       final before = providerOf(tester).quota!;
-      expect(before.used, 1);
+      expect(before.reserved, 1);
+      expect(before.used, 0);
 
       await tester.ensureVisible(find.text('退出分析'));
       await tester.pump();
@@ -333,8 +345,11 @@ void main() {
 
       // 回到「新建分析」表单（岗位信息保留，按钮带岗位计数）。
       expect(find.text('开始分析（1 个岗位）'), findsOneWidget);
-      // 额度已回滚。
-      expect(providerOf(tester).quota!.used, 0);
+      // P1-05：退出页面 ≠ 取消服务器任务，额度**不**回滚。
+      final after = providerOf(tester).quota!;
+      expect(after.reserved, 1);
+      expect(after.used, 0);
+      expect(after.remaining, 2);
     });
 
     testWidgets('「继续分析」关闭 Sheet 且保持进度视图', (tester) async {

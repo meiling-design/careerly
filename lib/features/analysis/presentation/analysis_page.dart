@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' show PathMetric;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -61,6 +62,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
   bool _addingUrl = false;
   bool _jobAdded = false;
 
+  /// 本次岗位输入的来源信息 —— 会随分析请求交给后端写成 JD 快照
+  /// （P1-02），历史分析因此能显示「原文从哪来」。
+  String _jobCompany = '';
+  String _jobImportSource = 'paste';
+  String? _jobSourceUrl;
+
   @override
   void initState() {
     super.initState();
@@ -98,27 +105,46 @@ class _AnalysisPageState extends State<AnalysisPage> {
     // （产品规则：分析进行中 Back 不应默认取消分析任务。）
     final bool analyzing =
         provider.analysisState is AsyncLoading<AnalysisProject>;
-    return CareerlyBackScope(
-      guard: analyzing ? const CareerlyBackGuard.analysisInProgress() : null,
-      child: CareerlyScaffold(
-        showAppBar: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            if (!analyzing)
-              _Header(
-                history: _history,
-                onNew: () {
-                  setState(() {
-                    _history = false;
-                    _addingJd = false;
-                    _addingUrl = false;
-                  });
-                  provider.showNewAnalysis();
-                },
-                onHistory: () => setState(() => _history = true),
-              ),
-            Expanded(
+    // 结果页使用独立的「分析结果」标准导航栏（设计稿 a-result）：
+    // 不再叠加旧版的「分析 / 职业分析」标题与新建/历史分段 Tab。
+    // 新建 / 历史仍保留各自的旧页头 —— 本轮只重构结果页。
+    final bool resultVisible =
+        !analyzing &&
+        !_history &&
+        provider.analysisState is AsyncSuccess<AnalysisProject>;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      // 背景渐变由 App 根节点绘制；这里只确保状态栏透明、图标为深色，
+      // 让顶部背景真正直达手机顶部（沉浸式）。
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+      child: CareerlyBackScope(
+        guard: analyzing ? const CareerlyBackGuard.analysisInProgress() : null,
+        child: CareerlyScaffold(
+          showAppBar: false,
+          // 水平 20 由各视图自己给（设计稿 px-5），避免与 Scaffold 的
+          // 默认 16 叠加成 36。
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              if (!analyzing && !resultVisible)
+                _Header(
+                  history: _history,
+                  onNew: () {
+                    setState(() {
+                      _history = false;
+                      _addingJd = false;
+                      _addingUrl = false;
+                    });
+                    provider.showNewAnalysis();
+                  },
+                  onHistory: () => setState(() => _history = true),
+                ),
+              Expanded(
               child: _history
                   ? _HistoryView(
                       state: provider.state,
@@ -136,6 +162,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       addingJd: _addingJd,
                       addingUrl: _addingUrl,
                       jobAdded: _jobAdded,
+                      company: _jobCompany,
+                      importSource: _jobImportSource,
+                      sourceUrl: _jobSourceUrl,
                       onAddJd: () => setState(() => _addingJd = true),
                       onAddUrl: () {
                         // 打开空表单时清掉上一次抓取的失败红字 ——
@@ -163,6 +192,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                             : (firstLine.length > 30
                                   ? firstLine.substring(0, 30)
                                   : firstLine);
+                        _jobCompany = '';
+                        _jobImportSource = 'paste';
+                        _jobSourceUrl = null;
                         setState(() {
                           _jobAdded = true;
                           _addingJd = false;
@@ -198,6 +230,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                             ? '新目标岗位'
                             : title;
                         _jdController.text = parsed.description;
+                        _jobCompany = parsed.company;
+                        _jobImportSource = 'url';
+                        _jobSourceUrl = parsed.url;
                         setState(() {
                           _jobAdded = true;
                           _addingUrl = false;
@@ -220,6 +255,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         // 复用已经存过的 JD 原文，不必让用户重粘一遍。
                         _titleController.text = job.displayName;
                         _jdController.text = job.rawJd;
+                        _jobCompany = job.company;
+                        _jobImportSource = 'history';
+                        _jobSourceUrl = null;
                         setState(() {
                           _jobAdded = true;
                           _addingJd = false;
@@ -227,8 +265,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         });
                       },
                     ),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -400,6 +439,9 @@ class _NewView extends StatelessWidget {
     required this.addingJd,
     required this.addingUrl,
     required this.jobAdded,
+    required this.company,
+    required this.importSource,
+    required this.sourceUrl,
     required this.onAddJd,
     required this.onAddUrl,
     required this.onCancelJd,
@@ -416,6 +458,9 @@ class _NewView extends StatelessWidget {
   final bool addingJd;
   final bool addingUrl;
   final bool jobAdded;
+  final String company;
+  final String importSource;
+  final String? sourceUrl;
   final VoidCallback onAddJd;
   final VoidCallback onAddUrl;
   final VoidCallback onCancelJd;
@@ -457,6 +502,9 @@ class _NewView extends StatelessWidget {
         addingJd: addingJd,
         addingUrl: addingUrl,
         jobAdded: jobAdded,
+        company: company,
+        importSource: importSource,
+        sourceUrl: sourceUrl,
         onAddJd: onAddJd,
         onAddUrl: onAddUrl,
         onCancelJd: onCancelJd,
@@ -482,6 +530,9 @@ class _FormView extends StatelessWidget {
     required this.addingJd,
     required this.jobAdded,
     required this.addingUrl,
+    required this.company,
+    required this.importSource,
+    required this.sourceUrl,
     required this.onAddJd,
     required this.onAddUrl,
     required this.onCancelJd,
@@ -498,6 +549,9 @@ class _FormView extends StatelessWidget {
   final bool addingJd;
   final bool addingUrl;
   final bool jobAdded;
+  final String company;
+  final String importSource;
+  final String? sourceUrl;
   final VoidCallback onAddJd;
   final VoidCallback onAddUrl;
   final VoidCallback onCancelJd;
@@ -556,6 +610,9 @@ class _FormView extends StatelessWidget {
                     await provider.startAnalysis(
                       title: titleController.text,
                       rawJd: jdController.text,
+                      company: company,
+                      importSource: importSource,
+                      sourceUrl: sourceUrl,
                     );
                     if (!context.mounted) return;
                     if (provider.analysisState
@@ -1343,115 +1400,245 @@ class _QuotaBar extends StatelessWidget {
 // 分析结果
 // ---------------------------------------------------------------------------
 
-/// 分析结果页。真值来源：Figma `AnalysisResult`（L2120-2295）。
+/// 分析结果页（设计定稿：`careerly-assets/分析结果页参考.png`）。
 ///
-/// 结构：TopBar（返回 + 标题）→ 元信息行 → Hero 卡（渐变 + 装饰圆 +
-/// 「较上次」徽标 + 磨砂「本次分析为你生成」清单）→ 岗位匹配列表
-/// （#1 渐变卡 + 其余磨砂卡）→ 匹配依据 / 能力 Gap / 成长建议 →
-/// 「更新分析」。
+/// 结构（自上而下）：
 ///
-/// **有意未做**（不编造 / 落点不存在，同 D92 处置）：
-/// 「点击下载」（无导出能力）、「查看最匹配岗位」（a-job 页未建）、
-/// 「更新分析」Sheet（直接落新建分析）、成长空间数值双条
-/// （Mock 只有 Gap 文案，没有 yours/target 数值）。
-class _ResultView extends StatelessWidget {
+/// ```text
+/// 固定顶栏     圆形返回钮 + 居中「分析结果」
+/// 操作区       深色「岗位匹配度」 + 白色「更新分析」
+/// 可滚动内容   基础信息行 → Top 1 主推卡 → #2+ 岗位卡
+///              → 匹配依据 / 能力 Gap / 成长建议
+/// ```
+///
+/// ⚠️ 旧版的「分析 / 职业分析」标题、新建/历史分段 Tab 与
+/// 「‹ 返回」文字顶栏**不在结果页渲染**；新建 / 历史两态仍沿用旧页头。
+class _ResultView extends StatefulWidget {
   const _ResultView({required this.project, required this.onNew});
+
   final AnalysisProject project;
   final VoidCallback onNew;
 
   @override
+  State<_ResultView> createState() => _ResultViewState();
+}
+
+class _ResultViewState extends State<_ResultView> {
+  /// 「岗位匹配度」按钮的滚动锚点（Top 1 主推卡）。
+  final GlobalKey _topMatchKey = GlobalKey();
+
+  Future<void> _scrollToMatches() async {
+    final BuildContext? target = _topMatchKey.currentContext;
+    if (target == null) return;
+    await Scrollable.ensureVisible(
+      target,
+      alignment: 0,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final AnalysisProject project = widget.project;
     final AnalysisResult? result = project.latestResult;
     final AnalysisResult? previous = project.results.length >= 2
         ? project.results[project.results.length - 2]
         : null;
-    final List<JobMatch> matches = (result?.matches ?? const <JobMatch>[])
-      ..sort((JobMatch a, JobMatch b) => a.rank.compareTo(b.rank));
+    final List<JobMatch> matches = List<JobMatch>.of(
+      result?.matches ?? const <JobMatch>[],
+    )..sort((JobMatch a, JobMatch b) => a.rank.compareTo(b.rank));
     final Map<String, int> previousScores = <String, int>{
       for (final JobMatch match in previous?.matches ?? const <JobMatch>[])
         match.jobId: match.score,
     };
+    final Map<String, Job> jobs = <String, Job>{
+      for (final Job job in project.jobs) job.id: job,
+    };
+    final JobMatch? topMatch = matches.isEmpty ? null : matches.first;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 104),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          CareerlyTopBar(title: '分析结果', onBack: onNew),
-          const SizedBox(height: 4),
-          _ResultMetaLine(project: project, result: result),
-          const SizedBox(height: 16),
-          _ResultHero(topDelta: _topDelta(result, previous)),
-          const SizedBox(height: 16),
-          if (matches.isNotEmpty)
-            _MatchList(
-              project: project,
-              matches: matches,
-              previousScores: previousScores,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        // 标准导航栏：浅色半透明圆形返回钮 + 居中标题。
+        CareerlyTopBar(
+          title: '分析结果',
+          onBack: widget.onNew,
+          style: CareerlyTopBarStyle.glassCircle,
+          // 设计稿的标题比「职业资产」小一档。
+          titleStyle: AppTypography.subtitle.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+          child: _ResultActionRow(
+            onShowMatch: _scrollToMatches,
+            onUpdate: widget.onNew,
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 104),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                _ResultMetaLine(project: project, result: result),
+                const SizedBox(height: 12),
+                if (topMatch != null)
+                  KeyedSubtree(
+                    key: _topMatchKey,
+                    child: _TopMatchCard(
+                      match: topMatch,
+                      job: jobs[topMatch.jobId],
+                      snapshot: result?.snapshotFor(topMatch.jobId),
+                      previousScore: previousScores[topMatch.jobId],
+                      onOpenDetail: jobs[topMatch.jobId] == null
+                          ? null
+                          : () => context.push(
+                              AppRoutes.analysisJob(topMatch.jobId),
+                            ),
+                    ),
+                  ),
+                if (matches.length > 1) ...<Widget>[
+                  const SizedBox(height: 12),
+                  _MatchList(
+                    matches: matches.sublist(1),
+                    jobs: jobs,
+                    snapshots: <String, JobSnapshot>{
+                      for (final JobMatch m in matches.sublist(1))
+                        if (result?.snapshotFor(m.jobId) != null)
+                          m.jobId: result!.snapshotFor(m.jobId)!,
+                    },
+                    previousScores: previousScores,
+                  ),
+                ],
+                _ResultSection(
+                  '匹配依据',
+                  result?.top?.reasons ?? const <String>[],
+                ),
+                _ResultSection('能力 Gap', result?.top?.gaps ?? const <String>[]),
+                if (result?.top?.suggestion != null)
+                  _ResultSection('成长建议', <String>[
+                    result!.top!.suggestion!,
+                  ]),
+              ],
             ),
-          _ResultSection('匹配依据', result?.top?.reasons ?? const <String>[]),
-          _ResultSection('能力 Gap', result?.top?.gaps ?? const <String>[]),
-          if (result?.top?.suggestion != null)
-            _ResultSection('成长建议', <String>[result!.top!.suggestion!]),
-          const SizedBox(height: 4),
-          CareerlyButton(label: '更新分析', onPressed: onNew),
-        ],
-      ),
+          ),
+        ),
+      ],
     );
-  }
-
-  /// 最高分相对上一次的变化；无上次结果时为 `null`。
-  static int? _topDelta(AnalysisResult? result, AnalysisResult? previous) {
-    if (result?.top == null || previous?.top == null) return null;
-    return result!.top!.score - previous!.top!.score;
   }
 }
 
-/// 元信息行。Figma L2135：`基于 {简历} · {日期} · N 个目标岗位`，
-/// 12px `#6b7280`。缺数据的段**整段省略**（不编造）。
-class _ResultMetaLine extends StatelessWidget {
-  const _ResultMetaLine({required this.project, required this.result});
+/// 结果页操作区：深色「岗位匹配度」+ 白色「更新分析」。
+class _ResultActionRow extends StatelessWidget {
+  const _ResultActionRow({required this.onShowMatch, required this.onUpdate});
 
-  final AnalysisProject project;
-  final AnalysisResult? result;
+  final VoidCallback onShowMatch;
+  final VoidCallback onUpdate;
 
   @override
   Widget build(BuildContext context) {
-    final ResumeVersion? version = context
-        .watch<ResumeProvider>()
-        .data
-        ?.currentVersion;
-    final List<String> parts = <String>[
-      if (version != null) '基于 ${version.label}',
-      if (result?.createdAt != null) _formatDate(result!.createdAt!),
-      if (project.jobs.isNotEmpty) '${project.jobs.length} 个目标岗位',
-    ];
-    if (parts.isEmpty) return const SizedBox.shrink();
-    return Text(
-      parts.join(' · '),
-      style: AppTypography.bodySmall.copyWith(fontSize: 12),
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: _ResultActionButton(
+            icon: Icons.headphones_rounded,
+            label: '岗位匹配度',
+            filled: true,
+            onTap: onShowMatch,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _ResultActionButton(
+            icon: Icons.refresh_rounded,
+            label: '更新分析',
+            filled: false,
+            onTap: onUpdate,
+          ),
+        ),
+      ],
     );
-  }
-
-  static String _formatDate(DateTime at) {
-    // ⚠️ `toLocal()` 不能省 —— 后端 `createdAt` / `updatedAt` 是 UTC
-    // （`schemas.py` 的 `iso()`），`DateTime.tryParse` 解出来 `isUtc: true`。
-    // 直接读 `.day` 会让 UTC+8 的用户在 08:00 前看到前一天的日期。
-    final DateTime local = at.toLocal();
-    final String month = local.month.toString().padLeft(2, '0');
-    final String day = local.day.toString().padLeft(2, '0');
-    return '${local.year}.$month.$day';
   }
 }
 
-/// Hero 卡。Figma L2138-2172：高 175 · 圆角 24 · `153deg` 品牌渐变 ·
-/// 投影 `0 16px 40px rgba(79,126,245,0.28)` · 右上装饰圆 144（白 0.08）·
-/// 「较上次」徽标（白 0.20 底胶囊）· 磨砂清单面板（白 0.05 底 /
-/// 白 0.29 描边）内 2×2 打勾项。
-class _ResultHero extends StatelessWidget {
-  const _ResultHero({required this.topDelta});
+class _ResultActionButton extends StatelessWidget {
+  const _ResultActionButton({
+    required this.icon,
+    required this.label,
+    required this.filled,
+    required this.onTap,
+  });
 
-  final int? topDelta;
+  final IconData icon;
+  final String label;
+  final bool filled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color ink = filled ? Colors.white : AppColors.textPrimary;
+
+    return CareerlyPressFeedback(
+      onTap: onTap,
+      child: Container(
+        height: _ResultMetrics.actionHeight,
+        decoration: BoxDecoration(
+          color: filled ? AppColors.surfaceDark : AppColors.surface,
+          borderRadius: AppRadius.borderPill,
+          border: filled
+              ? null
+              : Border.all(
+                  color: AppColors.homeTabBorder,
+                  width: _ResultMetrics.actionBorderWidth,
+                ),
+        ),
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(icon, size: _ResultMetrics.actionIconSize, color: ink),
+                const SizedBox(width: _ResultMetrics.actionIconGap),
+                Text(
+                  label,
+                  maxLines: 1,
+                  style: AppTypography.label.copyWith(
+                    fontSize: _ResultMetrics.actionFontSize,
+                    fontWeight: FontWeight.w600,
+                    color: ink,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Top 1 主推岗位卡（深色品牌渐变，设计稿的核心视觉锚点）。
+class _TopMatchCard extends StatelessWidget {
+  const _TopMatchCard({
+    required this.match,
+    required this.job,
+    required this.snapshot,
+    required this.previousScore,
+    this.onOpenDetail,
+  });
+
+  final JobMatch match;
+  final Job? job;
+
+  /// 本次分析记录的岗位原文快照（P1-02）。历史记录可能为缺失态。
+  final JobSnapshot? snapshot;
+
+  final int? previousScore;
+  final VoidCallback? onOpenDetail;
 
   static const List<String> _checkItems = <String>[
     '匹配度报告',
@@ -1460,10 +1647,22 @@ class _ResultHero extends StatelessWidget {
     '成长建议',
   ];
 
+  /// 岗位名优先取**本次分析快照**，历史记录不会因为岗位后来改名而漂移。
+  String get _displayTitle {
+    final JobSnapshot? snap = snapshot;
+    if (snap != null && snap.available && snap.displayName.trim().isNotEmpty) {
+      return snap.displayName;
+    }
+    return job?.displayName ?? '目标岗位';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final int? delta = previousScore == null
+        ? null
+        : match.score - previousScore!;
+
     return Container(
-      height: 175,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: AppColors.resultHeroGradient,
@@ -1479,11 +1678,11 @@ class _ResultHero extends StatelessWidget {
       child: Stack(
         children: <Widget>[
           Positioned(
-            top: -32,
-            right: -7,
+            top: -34,
+            right: -8,
             child: Container(
-              width: 144,
-              height: 144,
+              width: _ResultMetrics.decorationSize,
+              height: _ResultMetrics.decorationSize,
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppColors.resultHeroDecoration,
@@ -1491,75 +1690,134 @@ class _ResultHero extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            padding: const EdgeInsets.all(16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                if (topDelta != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.onBrandSurface,
-                      borderRadius: AppRadius.borderPill,
-                    ),
-                    child: Text.rich(
-                      TextSpan(
-                        children: <InlineSpan>[
-                          const TextSpan(
-                            text: '较上次 ',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          TextSpan(
-                            text: topDelta! > 0 ? '↑ +$topDelta%' : '—',
-                            style: TextStyle(
-                              color: topDelta! > 0
-                                  ? AppColors.resultDeltaGreen
-                                  : Colors.white70,
-                            ),
-                          ),
-                        ],
+                // #1 + 最佳匹配 + 查看详情。
+                Row(
+                  children: <Widget>[
+                    Container(
+                      width: _ResultMetrics.rankBadgeSize,
+                      height: _ResultMetrics.rankBadgeSize,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.onBrandSurface,
+                        borderRadius: AppRadius.borderXs,
                       ),
-                      style: AppTypography.label.copyWith(fontSize: 12),
-                    ),
-                  ),
-                const Spacer(),
-                Container(
-                  height: 94,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.resultPanelFill,
-                    border: Border.all(color: AppColors.resultPanelBorder),
-                    borderRadius: AppRadius.borderXl,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        '本次分析为你生成',
+                      child: Text(
+                        '#${match.rank}',
                         style: AppTypography.label.copyWith(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
                           color: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      // 2×2 打勾项（固定两行，避免 GridView 在小屏溢出）。
-                      Row(
-                        children: <Widget>[
-                          Expanded(child: _CheckItem(label: _checkItems[0])),
-                          const SizedBox(width: 12),
-                          Expanded(child: _CheckItem(label: _checkItems[1])),
-                        ],
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
                       ),
-                      const SizedBox(height: 4),
-                      Row(
+                      decoration: BoxDecoration(
+                        color: AppColors.onBrandSurface,
+                        borderRadius: AppRadius.borderPill,
+                      ),
+                      child: Text(
+                        '最佳匹配',
+                        style: AppTypography.caption.copyWith(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    _DetailButton(onTap: onOpenDetail),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // 岗位标题（设计稿：在 #1 行下方、清单面板上方）。
+                Text(
+                  _displayTitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.title.copyWith(
+                    fontSize: 20,
+                    height: 1.2,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // 浅色透明圆角框：左侧「本次分析为你生成」+ 2×2 清单，
+                // 右侧超大匹配度 + 较上次变化。
+                Container(
+                  key: const ValueKey<String>('analysis-result-checklist'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.resultPanelFill,
+                    border: Border.all(color: AppColors.resultPanelBorder),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: <Widget>[
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              '本次分析为你生成',
+                              style: AppTypography.caption.copyWith(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: _CheckItem(label: _checkItems[0]),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _CheckItem(label: _checkItems[1]),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: _CheckItem(label: _checkItems[2]),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _CheckItem(label: _checkItems[3]),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: <Widget>[
-                          Expanded(child: _CheckItem(label: _checkItems[2])),
-                          const SizedBox(width: 12),
-                          Expanded(child: _CheckItem(label: _checkItems[3])),
+                          Text(
+                            '${match.score}%',
+                            style: AppTypography.analysisResultScore.copyWith(
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          _DeltaPill(delta: delta),
                         ],
                       ),
                     ],
@@ -1574,7 +1832,152 @@ class _ResultHero extends StatelessWidget {
   }
 }
 
-/// 打勾项：白 0.15 圆底 + 白勾 + 12/w500 白字。
+/// 「查看详情」黑色胶囊（设计稿 Top 1 卡右上角）。
+class _DetailButton extends StatelessWidget {
+  const _DetailButton({this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget button = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDark,
+        borderRadius: AppRadius.borderPill,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const Icon(
+            Icons.article_outlined,
+            size: 13,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '查看详情',
+            style: AppTypography.caption.copyWith(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (onTap == null) return button;
+    return CareerlyPressFeedback(onTap: onTap, child: button);
+  }
+}
+
+/// 「较上次 ↑ +N%」胶囊。
+class _DeltaPill extends StatelessWidget {
+  const _DeltaPill({required this.delta});
+
+  final int? delta;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool positive = delta != null && delta! > 0;
+    final String label = positive ? '较上次 ↑ +$delta%' : '较上次 —';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: positive
+            ? AppColors.successSurface
+            : AppColors.onBrandSurface,
+        borderRadius: AppRadius.borderPill,
+      ),
+      child: Text(
+        label,
+        style: AppTypography.caption.copyWith(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: positive ? AppColors.resultDeltaGreen : Colors.white70,
+        ),
+      ),
+    );
+  }
+}
+
+/// 结果页内部几何。
+abstract final class _ResultMetrics {
+  static const double actionHeight = 40;
+  static const double actionBorderWidth = 1;
+  static const double actionIconSize = 16;
+  static const double actionIconGap = 6;
+  static const double actionFontSize = 13;
+  static const double rankBadgeSize = 38;
+  static const double decorationSize = 144;
+}
+
+/// 基础信息行：`基于 {简历} · {日期} · N 个目标岗位`。
+///
+/// 设计稿要求「字号调小、颜色置灰」：11px / [AppColors.textTertiary]。
+/// 缺数据的段**整段省略**（不编造）。
+class _ResultMetaLine extends StatelessWidget {
+  const _ResultMetaLine({required this.project, required this.result});
+
+  final AnalysisProject project;
+  final AnalysisResult? result;
+
+  @override
+  Widget build(BuildContext context) {
+    // P1-01：显示**本次分析实际使用**的简历版本，而不是「当前简历」。
+    // 两者在用户分析期间切换简历后就会不同；读当前简历会让历史结果
+    // 显示成一份它从未使用过的简历。
+    final List<ResumeVersion> versions =
+        context.watch<ResumeProvider>().data?.versions ??
+        const <ResumeVersion>[];
+    final String? boundLabel = _boundResumeLabel(result, versions);
+    final List<String> parts = <String>[
+      if (boundLabel != null) '基于 $boundLabel',
+      if (result?.createdAt != null) _formatDate(result!.createdAt!),
+      if (project.jobs.isNotEmpty) '${project.jobs.length} 个目标岗位',
+    ];
+    if (parts.isEmpty) return const SizedBox.shrink();
+    return Text(
+      parts.join(' · '),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: AppTypography.caption.copyWith(
+        color: AppColors.textTertiary,
+      ),
+    );
+  }
+
+  /// 本次分析绑定的简历版本标签。没有绑定（一次性内联文本）→ `null`，
+  /// 此时整段省略，不拿当前简历凑数。
+  static String? _boundResumeLabel(
+    AnalysisResult? result,
+    List<ResumeVersion> versions,
+  ) {
+    if (result == null) return null;
+    final String? snapshot = result.resumeVersionLabel;
+    if (snapshot != null && snapshot.trim().isNotEmpty) return snapshot;
+    final String? id = result.resumeVersionId;
+    if (id == null) return null;
+    for (final ResumeVersion version in versions) {
+      if (version.id == id) return version.label;
+    }
+    return null;
+  }
+
+  static String _formatDate(DateTime at) {
+    // ⚠️ `toLocal()` 不能省 —— 后端 `createdAt` / `updatedAt` 是 UTC
+    // （`schemas.py` 的 `iso()`），`DateTime.tryParse` 解出来 `isUtc: true`。
+    // 直接读 `.day` 会让 UTC+8 的用户在 08:00 前看到前一天的日期。
+    final DateTime local = at.toLocal();
+    final String month = local.month.toString().padLeft(2, '0');
+    final String day = local.day.toString().padLeft(2, '0');
+    return '${local.year}.$month.$day';
+  }
+}
+
+/// 打勾项：浅色圆底 + 白勾 + 白字。
 class _CheckItem extends StatelessWidget {
   const _CheckItem({required this.label});
 
@@ -1589,7 +1992,7 @@ class _CheckItem extends StatelessWidget {
           height: 13,
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            color: Color(0x26FFFFFF), // rgba(255,255,255,0.15)
+            color: AppColors.onBrandSurface,
           ),
           child: const Icon(Icons.check, size: 9, color: Colors.white),
         ),
@@ -1611,23 +2014,22 @@ class _CheckItem extends StatelessWidget {
   }
 }
 
-/// 岗位匹配列表。#1 渐变卡（L2207-2229），其余磨砂卡（L2232-2256）。
+/// #2 及之后的岗位匹配卡（磨砂玻璃卡）。
 class _MatchList extends StatelessWidget {
   const _MatchList({
-    required this.project,
     required this.matches,
+    required this.jobs,
+    required this.snapshots,
     required this.previousScores,
   });
 
-  final AnalysisProject project;
   final List<JobMatch> matches;
+  final Map<String, Job> jobs;
+  final Map<String, JobSnapshot> snapshots;
   final Map<String, int> previousScores;
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, Job> jobs = <String, Job>{
-      for (final Job job in project.jobs) job.id: job,
-    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -1636,8 +2038,8 @@ class _MatchList extends StatelessWidget {
           _MatchCard(
             match: matches[i],
             job: jobs[matches[i].jobId],
+            snapshot: snapshots[matches[i].jobId],
             previousScore: previousScores[matches[i].jobId],
-            isFirst: i == 0,
           ),
         ],
       ],
@@ -1649,14 +2051,22 @@ class _MatchCard extends StatelessWidget {
   const _MatchCard({
     required this.match,
     required this.job,
+    required this.snapshot,
     required this.previousScore,
-    required this.isFirst,
   });
 
   final JobMatch match;
   final Job? job;
+  final JobSnapshot? snapshot;
   final int? previousScore;
-  final bool isFirst;
+
+  String get _displayTitle {
+    final JobSnapshot? snap = snapshot;
+    if (snap != null && snap.available && snap.displayName.trim().isNotEmpty) {
+      return snap.displayName;
+    }
+    return job?.displayName ?? '目标岗位';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1668,101 +2078,6 @@ class _MatchCard extends StatelessWidget {
     final VoidCallback? openDetail = job == null
         ? null
         : () => context.push(AppRoutes.analysisJob(job!.id));
-    if (isFirst) {
-      return CareerlyPressFeedback(
-        onTap: openDetail,
-        child: Container(
-          height: 87,
-          clipBehavior: Clip.antiAlias,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: AppColors.resultHeroGradient,
-            borderRadius: AppRadius.borderMd,
-          ),
-          child: Row(
-            children: <Widget>[
-              // 排名徽标：40×40 / r12 / 白 0.22。
-              Container(
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: const Color(0x38FFFFFF), // rgba(255,255,255,0.22)
-                  borderRadius: AppRadius.borderXs,
-                ),
-                child: Text(
-                  '#${match.rank}',
-                  style: AppTypography.label.copyWith(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.onBrandSurface,
-                        borderRadius: AppRadius.borderPill,
-                      ),
-                      child: Text(
-                        '最佳匹配',
-                        style: AppTypography.label.copyWith(
-                          fontSize: 10,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      job?.displayName ?? '目标岗位',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.title.copyWith(
-                        fontSize: 16,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: <Widget>[
-                  Text(
-                    '${match.score}%',
-                    style: AppTypography.numeric.copyWith(
-                      fontSize: 26,
-                      letterSpacing: 0,
-                      color: Colors.white,
-                    ),
-                  ),
-                  if (delta != null && delta > 0)
-                    Text(
-                      '↑ +$delta%',
-                      style: AppTypography.caption.copyWith(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white70,
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    // #2+：磨砂玻璃卡。
     return _Card(
       onTap: openDetail,
       child: Row(
@@ -1790,7 +2105,7 @@ class _MatchCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  job?.displayName ?? '目标岗位',
+                  _displayTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.bodyStrong.copyWith(
@@ -1824,30 +2139,29 @@ class _MatchCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (delta != null)
-                Container(
-                  margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: delta > 0
-                        ? AppColors.successSurface
-                        : AppColors.neutralSurface,
-                    borderRadius: AppRadius.borderPill,
-                  ),
-                  child: Text(
-                    delta > 0 ? '↑ +$delta%' : '—',
-                    style: AppTypography.caption.copyWith(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: delta > 0
-                          ? AppColors.success
-                          : AppColors.textSecondary,
-                    ),
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 1,
+                ),
+                decoration: BoxDecoration(
+                  color: delta != null && delta > 0
+                      ? AppColors.successSurface
+                      : AppColors.neutralSurface,
+                  borderRadius: AppRadius.borderPill,
+                ),
+                child: Text(
+                  delta != null && delta > 0 ? '↑ +$delta%' : '—',
+                  style: AppTypography.caption.copyWith(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: delta != null && delta > 0
+                        ? AppColors.success
+                        : AppColors.textSecondary,
                   ),
                 ),
+              ),
             ],
           ),
         ],
@@ -1960,6 +2274,11 @@ class _HistoryCard extends StatelessWidget {
       for (final JobMatch match in result?.matches ?? const <JobMatch>[])
         match.jobId: match,
     };
+    final Map<String, JobSnapshot> snapshots = <String, JobSnapshot>{
+      for (final JobSnapshot snapshot
+          in result?.jobSnapshots ?? const <JobSnapshot>[])
+        if (snapshot.available) snapshot.jobId: snapshot,
+    };
 
     return _Card(
       onTap: onOpen,
@@ -2035,6 +2354,7 @@ class _HistoryCard extends StatelessWidget {
                 child: _HistoryJobRow(
                   job: project.jobs[i],
                   match: matches[project.jobs[i].id],
+                  snapshot: snapshots[project.jobs[i].id],
                 ),
               ),
           ],
@@ -2057,9 +2377,15 @@ class _HistoryCard extends StatelessWidget {
                       break;
                     }
                   }
+                  // P1-01：优先用分析记录里保存的版本标签快照 ——
+                  // 简历版本之后被删除时，历史仍能说明「当时用的是哪一版」。
+                  final String label =
+                      (result?.resumeVersionLabel?.isNotEmpty ?? false)
+                      ? result!.resumeVersionLabel!
+                      : (version?.label ?? '');
                   return Expanded(
                     child: Text(
-                      version?.label ?? '',
+                      label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.caption.copyWith(
@@ -2099,10 +2425,25 @@ class _HistoryCard extends StatelessWidget {
 /// 名称 12/w500 · 轨道 `w-20 h-1.5`（80×6）· 填充 `S.primary` ·
 /// 百分比 12/w700 primaryBlue 右对齐（宽 36）。
 class _HistoryJobRow extends StatelessWidget {
-  const _HistoryJobRow({required this.job, required this.match});
+  const _HistoryJobRow({
+    required this.job,
+    required this.match,
+    required this.snapshot,
+  });
 
   final Job job;
   final JobMatch? match;
+
+  /// 本次历史分析保存的岗位快照；有则用快照里的岗位名。
+  final JobSnapshot? snapshot;
+
+  String get _title {
+    final JobSnapshot? snap = snapshot;
+    if (snap != null && snap.available && snap.displayName.trim().isNotEmpty) {
+      return snap.displayName;
+    }
+    return job.displayName;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2110,7 +2451,7 @@ class _HistoryJobRow extends StatelessWidget {
       children: <Widget>[
         Expanded(
           child: Text(
-            job.displayName,
+            _title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTypography.bodySmall.copyWith(

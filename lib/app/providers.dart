@@ -5,6 +5,7 @@ import 'package:provider/single_child_widget.dart';
 
 import '../core/services/resume_file_picker.dart';
 import '../data/api/api.dart';
+import '../data/local/settings_store.dart';
 import '../data/mock/mock.dart';
 import '../data/repositories/repositories.dart';
 import '../features/analysis/state/analysis_provider.dart';
@@ -16,6 +17,7 @@ import '../features/profile/state/career_assets_provider.dart';
 import '../features/profile/state/growth_celebration_provider.dart';
 import '../features/profile/state/growth_provider.dart';
 import '../features/profile/state/resume_provider.dart';
+import '../features/profile/state/settings_provider.dart';
 import '../features/profile/state/user_profile_provider.dart';
 import 'router/app_router.dart';
 import 'router/app_routes.dart';
@@ -146,6 +148,15 @@ List<SingleChildWidget> careerlyProviders({
     // App 级状态
     // -------------------------------------------------------------------------
     ChangeNotifierProvider<AppProvider>(create: (_) => AppProvider()),
+    // 设置页的本机偏好（开关 / AI 回答风格）。
+    //
+    // 生产环境落 Secure Storage（复用已有本地存储通道，不新增 KV 依赖）；
+    // 测试 / Mock 环境用内存实现，不触发平台通道。
+    ChangeNotifierProvider<SettingsProvider>(
+      create: (_) => SettingsProvider(
+        useApi ? SecureSettingsStore() : InMemorySettingsStore(),
+      ),
+    ),
 
     // -------------------------------------------------------------------------
     // 领域状态

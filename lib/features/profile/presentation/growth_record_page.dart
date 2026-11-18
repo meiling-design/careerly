@@ -1,4 +1,8 @@
+import 'dart:math' as math;
+import 'dart:ui' show PathMetric;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/router/back_navigation.dart';
@@ -6,6 +10,7 @@ import '../../../core/state/async_state.dart';
 import '../../../data/models/models.dart';
 import '../../../design_system/components/components.dart';
 import '../../../design_system/tokens/tokens.dart';
+import '../state/growth_celebration_provider.dart';
 import '../state/growth_provider.dart';
 
 /// 成长记录 —— 「我的」→ 成长足迹 → Detail。
@@ -121,8 +126,8 @@ class _GrowthRecordPageState extends State<GrowthRecordPage> {
   Future<void> _load() async {
     if (!mounted) return;
     final GrowthProvider events = context.read<GrowthProvider>();
-    final GrowthTimelineProvider timeline =
-        context.read<GrowthTimelineProvider>();
+    final GrowthTimelineProvider timeline = context
+        .read<GrowthTimelineProvider>();
     final List<Future<void>> loads = <Future<void>>[];
     if (events.data == null && !events.isLoading) loads.add(events.load());
     if (timeline.data == null && !timeline.isLoading) {
@@ -155,80 +160,513 @@ class _GrowthRecordPageState extends State<GrowthRecordPage> {
   @override
   Widget build(BuildContext context) {
     final GrowthProvider events = context.watch<GrowthProvider>();
-    final GrowthTimelineProvider timeline =
-        context.watch<GrowthTimelineProvider>();
+    final GrowthTimelineProvider timeline = context
+        .watch<GrowthTimelineProvider>();
+    final GrowthCelebrationProvider? celebrations =
+        Provider.of<GrowthCelebrationProvider?>(context);
+    final GrowthCelebration? recordAnimation =
+        celebrations?.nextRecordAnimation;
 
     // 🔴 Phase 8A：日历**不**由事件数据决定是否渲染 ——
     // 事件加载中 / 失败 / 为空，日历都必须完整显示。
-    final List<GrowthEvent> loadedEvents =
-        events.data ?? const <GrowthEvent>[];
+    final List<GrowthEvent> loadedEvents = events.data ?? const <GrowthEvent>[];
 
     return CareerlyScaffold(
       showAppBar: false,
       padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Stack(
         children: <Widget>[
-          _GrowthHeader(onBack: () => careerlyBack(context)),
-          Container(
-            height: _GrowthMetrics.dividerHeight,
-            margin: const EdgeInsets.symmetric(
-              horizontal: _GrowthMetrics.inset,
-            ),
-            color: AppColors.growthPageDivider,
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.only(
-                bottom: _GrowthMetrics.pageBottom,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _GrowthHeader(onBack: () => careerlyBack(context)),
+              Container(
+                height: _GrowthMetrics.dividerHeight,
+                margin: const EdgeInsets.symmetric(
+                  horizontal: _GrowthMetrics.inset,
+                ),
+                color: AppColors.growthPageDivider,
               ),
-              children: <Widget>[
-                const _GrowthWeekStrip(),
-                _GrowthMonthGridCard(
-                  events: loadedEvents,
-                  eventsState: events.state,
-                  displayMonth: _displayMonth,
-                  selectedDate: _selectedDate,
-                  today: _today,
-                  showTodayAction: !_isViewingToday,
-                  onShiftMonth: _shiftMonth,
-                  onSelectDay: (DateTime day) =>
-                      setState(() => _selectedDate = day),
-                  onGoToday: _goToday,
-                  onRetryEvents: events.load,
-                ),
-                // 时间线是独立数据流（Figma 两份源数据，见
-                // GrowthTimelineProvider），四态单独处理，
-                // 不受当天事件区数据状态牵连。
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: _GrowthMetrics.inset,
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.only(
+                    bottom: _GrowthMetrics.pageBottom,
                   ),
-                  child: CareerlySectionHeader(
-                    title: '全部记录',
-                    bottomSpacing: _GrowthMetrics.timelineHeaderBottom,
-                  ),
+                  children: <Widget>[
+                    const _GrowthWeekStrip(),
+                    _GrowthMonthGridCard(
+                      events: loadedEvents,
+                      eventsState: events.state,
+                      displayMonth: _displayMonth,
+                      selectedDate: _selectedDate,
+                      today: _today,
+                      showTodayAction: !_isViewingToday,
+                      onShiftMonth: _shiftMonth,
+                      onSelectDay: (DateTime day) =>
+                          setState(() => _selectedDate = day),
+                      onGoToday: _goToday,
+                      onRetryEvents: events.load,
+                    ),
+                    // 时间线是独立数据流（Figma 两份源数据，见
+                    // GrowthTimelineProvider），四态单独处理，
+                    // 不受当天事件区数据状态牵连。
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: _GrowthMetrics.inset,
+                      ),
+                      child: CareerlySectionHeader(
+                        title: '全部记录',
+                        bottomSpacing: _GrowthMetrics.timelineHeaderBottom,
+                      ),
+                    ),
+                    CareerlyAsyncStateView<List<GrowthEvent>>(
+                      state: timeline.state,
+                      isEmpty: (List<GrowthEvent> t) => t.isEmpty,
+                      onRetry: timeline.load,
+                      compact: true,
+                      loadingMessage: '正在读取成长时间线',
+                      emptyTitle: '暂无成长时间线',
+                      builder:
+                          (
+                            BuildContext context,
+                            List<GrowthEvent> timelineEvents,
+                          ) => _GrowthTimeline(events: timelineEvents),
+                    ),
+                  ],
                 ),
-                CareerlyAsyncStateView<List<GrowthEvent>>(
-                  state: timeline.state,
-                  isEmpty: (List<GrowthEvent> t) => t.isEmpty,
-                  onRetry: timeline.load,
-                  compact: true,
-                  loadingMessage: '正在读取成长时间线',
-                  emptyTitle: '暂无成长时间线',
-                  builder:
-                      (
-                        BuildContext context,
-                        List<GrowthEvent> timelineEvents,
-                      ) => _GrowthTimeline(events: timelineEvents),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+          if (recordAnimation != null)
+            Positioned.fill(
+              child: _GrowthCelebrationOverlay(
+                celebration: recordAnimation,
+                onFinished: (int id) =>
+                    celebrations?.consumeRecordAnimation(id),
+              ),
+            ),
         ],
       ),
     );
   }
+}
+
+class _GrowthCelebrationOverlay extends StatefulWidget {
+  const _GrowthCelebrationOverlay({
+    required this.celebration,
+    required this.onFinished,
+  });
+
+  final GrowthCelebration celebration;
+  final ValueChanged<int> onFinished;
+
+  @override
+  State<_GrowthCelebrationOverlay> createState() =>
+      _GrowthCelebrationOverlayState();
+}
+
+class _GrowthCelebrationOverlayState extends State<_GrowthCelebrationOverlay>
+    with SingleTickerProviderStateMixin {
+  static const Duration _duration = Duration(milliseconds: 5100);
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _duration,
+  )..addStatusListener(_onStatusChanged);
+
+  bool _started = false;
+  int? _completedId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+  }
+
+  @override
+  void didUpdateWidget(covariant _GrowthCelebrationOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.celebration.id != widget.celebration.id) {
+      _started = false;
+      _completedId = null;
+      _controller.reset();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller
+      ..removeStatusListener(_onStatusChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _start() {
+    if (!mounted || _started || _completedId == widget.celebration.id) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _finish(widget.celebration.id);
+      return;
+    }
+    setState(() => _started = true);
+    _controller.forward(from: 0);
+  }
+
+  void _onStatusChanged(AnimationStatus status) {
+    if (status == AnimationStatus.completed) {
+      _finish(widget.celebration.id);
+    }
+  }
+
+  void _finish(int id) {
+    if (_completedId == id) return;
+    setState(() => _completedId = id);
+    widget.onFinished(id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_started || _completedId == widget.celebration.id) {
+      return const SizedBox.shrink();
+    }
+
+    return IgnorePointer(
+      child: Semantics(
+        liveRegion: true,
+        label: '太棒了！又向前一步',
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            return AnimatedBuilder(
+              animation: _controller,
+              builder: (BuildContext context, Widget? child) {
+                final double seconds =
+                    _controller.value * _duration.inMilliseconds / 1000;
+                final double characterProgress = seconds / 3.3;
+                final double characterOpacity =
+                    _fadeIn(characterProgress, 0.0, 0.08) *
+                    (1 - _fadeOut(characterProgress, 0.68, 1));
+                final double characterScale = _characterScale(
+                  characterProgress,
+                );
+                final double messageProgress = seconds / 3.3;
+                final double messageOpacity =
+                    _fadeIn(messageProgress, 0.55, 0.63) *
+                    (1 - _fadeOut(messageProgress, 0.8, 1));
+
+                return Stack(
+                  children: <Widget>[
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _GrowthCelebrationPainter(seconds: seconds),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: constraints.maxHeight / 2 - 94,
+                      child: Opacity(
+                        opacity: characterOpacity.clamp(0.0, 1.0),
+                        child: Transform.translate(
+                          offset: Offset(
+                            0,
+                            -math.sin(characterProgress * math.pi * 3) *
+                                (1 - characterProgress.clamp(0.0, 1.0)) *
+                                9,
+                          ),
+                          child: Transform.scale(
+                            scale: characterScale,
+                            child: Center(
+                              child: SizedBox(
+                                width: 206,
+                                height: 188,
+                                child: SvgPicture.asset(
+                                  'assets/images/home/growth-achievement-ip.svg',
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: constraints.maxHeight / 2 + 106,
+                      child: Opacity(
+                        opacity: messageOpacity.clamp(0.0, 1.0),
+                        child: const Text(
+                          '太棒了！又向前一步 ✨',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0xFF4B4772),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            height: 23 / 15,
+                            shadows: <Shadow>[
+                              Shadow(color: Color(0xD1FFFFFF), blurRadius: 8),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  static double _fadeIn(double value, double begin, double end) =>
+      ((value - begin) / (end - begin)).clamp(0.0, 1.0);
+
+  static double _fadeOut(double value, double begin, double end) =>
+      ((value - begin) / (end - begin)).clamp(0.0, 1.0);
+
+  static double _characterScale(double progress) {
+    if (progress < 0.14) {
+      return 0.75 + 0.33 * Curves.easeOut.transform(progress / 0.14);
+    }
+    if (progress < 0.24) {
+      return 1.08 - 0.08 * Curves.easeOut.transform((progress - 0.14) / 0.10);
+    }
+    return 1 + math.sin(progress * math.pi * 3) * 0.012;
+  }
+}
+
+class _GrowthCelebrationPainter extends CustomPainter {
+  const _GrowthCelebrationPainter({required this.seconds});
+
+  final double seconds;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.translate(size.width / 2 - 170, size.height / 2 - 120);
+    _paintRibbons(canvas);
+    _paintSparkles(canvas);
+    _paintConfetti(canvas);
+    canvas.restore();
+  }
+
+  void _paintRibbons(Canvas canvas) {
+    final double progress = (seconds / 3.4).clamp(0.0, 1.0);
+    final double opacity = math.sin(progress * math.pi).clamp(0.0, 1.0);
+    _drawRibbon(
+      canvas,
+      Path()
+        ..moveTo(112, 142)
+        ..cubicTo(82, 125, 72, 88, 48, 70)
+        ..cubicTo(35, 60, 21, 59, 8, 66),
+      <Color>[
+        const Color(0xFFB9DDF8),
+        const Color(0xFF8FAFE5),
+        const Color(0xFFC7C8F8),
+      ],
+      progress,
+      opacity,
+      8,
+    );
+    _drawRibbon(
+      canvas,
+      Path()
+        ..moveTo(105, 164)
+        ..cubicTo(78, 169, 66, 191, 47, 202)
+        ..cubicTo(37, 208, 27, 208, 18, 204),
+      <Color>[
+        const Color(0xFFE4D8F8),
+        const Color(0xFFB9A9E8),
+        const Color(0xFFCBD3F8),
+      ],
+      progress,
+      opacity,
+      6,
+    );
+    _drawRibbon(
+      canvas,
+      Path()
+        ..moveTo(228, 132)
+        ..cubicTo(257, 112, 267, 79, 291, 65)
+        ..cubicTo(304, 57, 317, 57, 329, 62),
+      <Color>[
+        const Color(0xFFD7D8F6),
+        const Color(0xFFEAD9A8),
+        const Color(0xFFBDD9F3),
+      ],
+      progress,
+      opacity,
+      8,
+    );
+    _drawRibbon(
+      canvas,
+      Path()
+        ..moveTo(235, 168)
+        ..cubicTo(263, 172, 277, 195, 297, 201)
+        ..cubicTo(308, 204, 318, 200, 326, 194),
+      <Color>[
+        const Color(0xFFC7B8EF),
+        const Color(0xFFE8CFE2),
+        const Color(0xFFB8D5EE),
+      ],
+      progress,
+      opacity,
+      6,
+    );
+  }
+
+  void _drawRibbon(
+    Canvas canvas,
+    Path path,
+    List<Color> colors,
+    double progress,
+    double opacity,
+    double width,
+  ) {
+    final PathMetric metric = path.computeMetrics().first;
+    final Path segment = metric.extractPath(0, metric.length * progress);
+    final Paint paint = Paint()
+      ..shader = LinearGradient(
+        colors: colors
+            .map((Color color) => color.withValues(alpha: opacity))
+            .toList(),
+      ).createShader(Rect.fromLTWH(0, 0, 340, 240))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(segment, paint);
+  }
+
+  void _paintSparkles(Canvas canvas) {
+    final double progress = ((seconds - 0.36) / 2.1).clamp(0.0, 1.0);
+    final double opacity = math.sin(progress * math.pi).clamp(0.0, 1.0);
+    _drawStar(
+      canvas,
+      const Offset(36, 45),
+      9,
+      const Color(0xFFD7E8FA),
+      opacity,
+    );
+    _drawStar(
+      canvas,
+      const Offset(284, 32),
+      7,
+      const Color(0xFFE7D9F8),
+      opacity,
+    );
+    final double glint = opacity * 0.9;
+    canvas.drawCircle(
+      const Offset(265, 154),
+      2.5,
+      Paint()..color = const Color(0xFFead9a8).withValues(alpha: glint),
+    );
+  }
+
+  void _drawStar(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color color,
+    double opacity,
+  ) {
+    final Path path = Path();
+    for (int i = 0; i < 8; i++) {
+      final double angle = -math.pi / 2 + i * math.pi / 4;
+      final double pointRadius = i.isEven ? radius : radius * 0.35;
+      final Offset point =
+          center +
+          Offset(math.cos(angle) * pointRadius, math.sin(angle) * pointRadius);
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, Paint()..color = color.withValues(alpha: opacity));
+  }
+
+  void _paintConfetti(Canvas canvas) {
+    const List<
+      ({
+        double x,
+        double y,
+        double delay,
+        Color color,
+        double width,
+        double height,
+      })
+    >
+    pieces =
+        <
+          ({
+            double x,
+            double y,
+            double delay,
+            Color color,
+            double width,
+            double height,
+          })
+        >[
+          (
+            x: 58,
+            y: 3,
+            delay: 0.88,
+            color: Color(0xFFB8D8F0),
+            width: 4,
+            height: 11,
+          ),
+          (
+            x: 230,
+            y: 18,
+            delay: 1.12,
+            color: Color(0xFFD8C8EE),
+            width: 7,
+            height: 7,
+          ),
+          (
+            x: 268,
+            y: 56,
+            delay: 1.30,
+            color: Color(0xFFE7D7A8),
+            width: 4,
+            height: 10,
+          ),
+        ];
+    for (final ({
+          double x,
+          double y,
+          double delay,
+          Color color,
+          double width,
+          double height,
+        })
+        piece
+        in pieces) {
+      final double progress = ((seconds - piece.delay) / 2.1).clamp(0.0, 1.0);
+      if (progress == 0 || progress == 1) continue;
+      final double opacity = progress < 0.24
+          ? progress / 0.24 * 0.82
+          : 0.82 - (progress - 0.24) / 0.76 * 0.1;
+      canvas.save();
+      canvas.translate(piece.x, piece.y - 15 + progress * 76);
+      canvas.rotate(progress * 1.83);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, 0, piece.width, piece.height),
+          Radius.circular(piece.width / 2),
+        ),
+        Paint()..color = piece.color.withValues(alpha: opacity),
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GrowthCelebrationPainter oldDelegate) =>
+      oldDelegate.seconds != seconds;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -347,10 +785,7 @@ class _GrowthHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text('成长记录', style: AppTypography.growthPageTitle),
-              Text(
-                '每一次变化，都是成长的痕迹。',
-                style: AppTypography.growthPageSubtitle,
-              ),
+              Text('每一次变化，都是成长的痕迹。', style: AppTypography.growthPageSubtitle),
             ],
           ),
         ],
@@ -560,7 +995,10 @@ class _GrowthMonthGridCard extends StatelessWidget {
             // 月份标题 + 「今天」快捷定位 + 月份切换（D97：Flutter 侧补充交互）。
             Row(
               children: <Widget>[
-                Text('$year年$month月', style: AppTypography.growthGridMonthTitle),
+                Text(
+                  '$year年$month月',
+                  style: AppTypography.growthGridMonthTitle,
+                ),
                 const Spacer(),
                 if (showTodayAction) ...<Widget>[
                   CareerlyChip(
@@ -719,7 +1157,8 @@ class _SelectedDayEvents extends StatelessWidget {
         final List<GrowthEvent> dayEvents = all
             .where(
               (GrowthEvent e) =>
-                  e.occurredAt != null && _isSameDay(e.occurredAt!, selectedDate),
+                  e.occurredAt != null &&
+                  _isSameDay(e.occurredAt!, selectedDate),
             )
             .toList();
         if (dayEvents.isEmpty) {
@@ -825,7 +1264,10 @@ class _MonthDayCell extends StatelessWidget {
     final bool hasActivity = events.isNotEmpty;
     // Figma：有事件的日期最多显示 2 颗圆点，颜色按事件类型原样取（不去重）。
     final List<Color> dotColors = hasActivity
-        ? events.take(2).map((GrowthEvent e) => _paletteOf(e.type).gridDot).toList()
+        ? events
+              .take(2)
+              .map((GrowthEvent e) => _paletteOf(e.type).gridDot)
+              .toList()
         : const <Color>[];
 
     return GestureDetector(
@@ -1119,7 +1561,9 @@ class _TimelineRow extends StatelessWidget {
                     topLeft: Radius.circular(
                       _GrowthMetrics.timelineCardRadiusSharp,
                     ),
-                    topRight: Radius.circular(_GrowthMetrics.timelineCardRadius),
+                    topRight: Radius.circular(
+                      _GrowthMetrics.timelineCardRadius,
+                    ),
                     bottomLeft: Radius.circular(
                       _GrowthMetrics.timelineCardRadius,
                     ),

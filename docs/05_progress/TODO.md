@@ -1480,6 +1480,41 @@ Figma 里**既没有注册页的同意行，也没有协议页**（`src/App.tsx`
 
 ---
 
+## D126 — 2026-11-17 · 「正在上传简历」遮罩（Figma 无此态）
+
+**分类：【视觉/交互差异】**
+
+**背景**：后端 `POST /api/v1/resume` 在**同一请求内同步**跑简历解析
+（LLM，图片还要 OCR），实测 173–199s（`ApiClient.resumeParseTimeout` 注释）。
+改造前提交期间只是把按钮置灰，用户无法区分「还在上传」和「卡死了」。
+
+**本轮实现**（2026-11-17 用户指令：「页面需要一个正在上传的提示和循环上传图标」）：
+
+```text
+① Onboarding「提交简历」页     lib/features/onboarding/presentation/onboarding_resume_page.dart
+② 「我的简历」导入新简历       lib/features/profile/presentation/resume_history_page.dart
+③ 共用组件                    lib/design_system/components/careerly_uploading_overlay.dart
+```
+
+视觉**全部复用既有 Token**（`sheetScrimOverlay` / `surface` / `borderXl` /
+`brandGradient` / `brand` shadow），**未新增颜色、圆角、阴影**。
+唯一新增 Token 是循环周期 `AppMotion.uploadLoop = 1400ms`（已登记 §3.6）。
+开启「减少动态效果」时不旋转。
+
+**待确认**：
+
+```text
+① 两行文案        「正在上传简历」/「AI 正在解析你的简历，可能需要几分钟，请稍候」
+② 旋转周期        1400ms（约 0.7 圈/秒）
+③ 遮罩是否要连底部导航一起盖住（当前只盖页面内容区）
+```
+
+在裁决前**不得**据本轮实现反推「视觉已定稿」。
+
+**引用**：`docs/05_progress/CHANGELOG.md` Session 026
+
+---
+
 ## D106–D111 — 2026-10-02 · 接通 work_agent 已有能力（① 退出登录 · ② 简历资产入口 · ④ 截图 OCR）
 
 > **D106–D111 来自 Session 018**（② / ④ 的**后端**已交付并自测通过）；

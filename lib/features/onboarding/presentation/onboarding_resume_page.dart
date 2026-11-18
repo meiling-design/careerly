@@ -177,51 +177,60 @@ class _OnboardingResumePageState extends State<OnboardingResumePage> {
     final ResumeProvider provider = context.watch<ResumeProvider>();
     final bool busy = provider.isUploading;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: DecoratedBox(
-        decoration: const BoxDecoration(gradient: AppColors.onboardingGradient),
-        child: SafeArea(
-          child: Column(
-            children: <Widget>[
-              OnboardingProgressHeader(
-                // Figma `OnResume` 写的是 `step: 3, total: 3`，
-                // 而注册页写的是 `1 / 4` —— 两屏的阶梯**对不上**。
-                // 这里**逐位照抄 Figma**，不自行统一；
-                // 分歧登记 **待裁决 · D69**（`TODO.md` §3.1）。
-                step: 3,
-                total: 3,
-                // Figma 的返回目标是 `on-welcome`（用户身份选择）。
-                // 该屏尚未实现（D61），故回退到链路里的上一屏。
-                onBack: () => context.go(AppRoutes.onboardingRegister),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsetsDirectional.fromSTEB(
-                    AppSpacing.lg,
-                    AppSpacing.md,
-                    AppSpacing.lg,
-                    AppSpacing.xl,
+    return Stack(
+      children: <Widget>[
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          body: DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: AppColors.onboardingGradient,
+            ),
+            child: SafeArea(
+              child: Column(
+                children: <Widget>[
+                  OnboardingProgressHeader(
+                    // Figma `OnResume` 写的是 `step: 3, total: 3`，
+                    // 而注册页写的是 `1 / 4` —— 两屏的阶梯**对不上**。
+                    // 这里**逐位照抄 Figma**，不自行统一；
+                    // 分歧登记 **待裁决 · D69**（`TODO.md` §3.1）。
+                    step: 3,
+                    total: 3,
+                    // Figma 的返回目标是 `on-welcome`（用户身份选择）。
+                    // 该屏尚未实现（D61），故回退到链路里的上一屏。
+                    onBack: () => context.go(AppRoutes.onboardingRegister),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const _ResumeTitle(),
-                      _UploadCard(onTap: busy ? null : _onPickFile),
-                      const _ExtractChecklist(),
-                    ],
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        AppSpacing.lg,
+                        AppSpacing.md,
+                        AppSpacing.lg,
+                        AppSpacing.xl,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const _ResumeTitle(),
+                          _UploadCard(onTap: busy ? null : _onPickFile),
+                          const _ExtractChecklist(),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                  _ResumeActions(
+                    // 提交中禁用，避免重复提交。
+                    onPickFile: busy ? null : _onPickFile,
+                    onPasteText: busy ? null : _onPasteText,
+                  ),
+                ],
               ),
-              _ResumeActions(
-                // 提交中禁用，避免重复提交。
-                onPickFile: busy ? null : _onPickFile,
-                onPasteText: busy ? null : _onPasteText,
-              ),
-            ],
+            ),
           ),
         ),
-      ),
+        // 上传 + 后端同步解析可能持续几分钟（见 ApiClient.resumeParseTimeout），
+        // 期间铺一层忙等遮罩，明确「仍在进行」并拦住重复提交。
+        if (busy) const Positioned.fill(child: CareerlyUploadingOverlay()),
+      ],
     );
   }
 }

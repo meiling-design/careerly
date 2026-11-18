@@ -19,11 +19,18 @@ import '../../core/constants/app_constants.dart';
 /// - 进入分析页面 → 不扣
 /// - **只有点击「开始分析」时才扣减**
 /// - 分析失败 → 回滚额度
+///
+/// ## P1-03：`used` 与 `reserved` 分开
+///
+/// 用户点「开始分析」后，这一次额度先进入 [reserved]（预占），
+/// 任务成功才转为 [used]，失败 / 取消 / 服务重启则释放。
+/// 剩余额度 = `total - used - reserved`，并发请求不会同时通过门禁。
 @immutable
 class QuotaState {
   const QuotaState({
     required this.total,
     required this.used,
+    this.reserved = 0,
     this.isMember = false,
   });
 
@@ -36,8 +43,11 @@ class QuotaState {
   /// 总次数。会员场景下为 [unlimited]。
   final int total;
 
-  /// 已使用次数。
+  /// 已确认消耗的次数。
   final int used;
+
+  /// 已被进行中的分析任务预占、尚未确认消耗的次数。
+  final int reserved;
 
   /// 是否为会员。
   ///
@@ -48,8 +58,9 @@ class QuotaState {
   /// 无限额度的哨兵值。
   static const int unlimited = -1;
 
-  /// 剩余次数。会员为 [unlimited]。
-  int get remaining => isMember ? unlimited : (total - used).clamp(0, total);
+  /// 剩余次数（预占中的次数也计入占用）。会员为 [unlimited]。
+  int get remaining =>
+      isMember ? unlimited : (total - used - reserved).clamp(0, total);
 
   /// 是否还能发起分析。
   ///
@@ -59,22 +70,23 @@ class QuotaState {
   /// 是否已耗尽。
   bool get isExhausted => !canAnalyze;
 
-  /// 扣减一次。**仅在真正开始 AI 分析时调用。**
+  /// 预占一次（本地乐观更新）。**仅在真正开始 AI 分析时调用。**
   QuotaState consume([int count = 1]) {
     if (isMember) return this;
-    return copyWith(used: (used + count).clamp(0, total));
+    return copyWith(reserved: (reserved + count).clamp(0, total));
   }
 
-  /// 回滚一次。分析失败时调用。
+  /// 回滚一次预占。分析失败 / 退出时调用。
   QuotaState rollback([int count = 1]) {
     if (isMember) return this;
-    return copyWith(used: (used - count).clamp(0, total));
+    return copyWith(reserved: (reserved - count).clamp(0, total));
   }
 
-  QuotaState copyWith({int? total, int? used, bool? isMember}) {
+  QuotaState copyWith({int? total, int? used, int? reserved, bool? isMember}) {
     return QuotaState(
       total: total ?? this.total,
       used: used ?? this.used,
+      reserved: reserved ?? this.reserved,
       isMember: isMember ?? this.isMember,
     );
   }
@@ -83,6 +95,7 @@ class QuotaState {
     return QuotaState(
       total: json['total'] as int? ?? AppConstants.freeAnalysisQuota,
       used: json['used'] as int? ?? 0,
+      reserved: json['reserved'] as int? ?? 0,
       isMember: json['isMember'] as bool? ?? false,
     );
   }
@@ -90,6 +103,7 @@ class QuotaState {
   Map<String, dynamic> toJson() => <String, dynamic>{
     'total': total,
     'used': used,
+    'reserved': reserved,
     'isMember': isMember,
   };
 
@@ -99,13 +113,14 @@ class QuotaState {
       other is QuotaState &&
           other.total == total &&
           other.used == used &&
+          other.reserved == reserved &&
           other.isMember == isMember;
 
   @override
-  int get hashCode => Object.hash(total, used, isMember);
+  int get hashCode => Object.hash(total, used, reserved, isMember);
 
   @override
   String toString() =>
-      'QuotaState(total: $total, used: $used, '
+      'QuotaState(total: $total, used: $used, reserved: $reserved, '
       'remaining: $remaining, canAnalyze: $canAnalyze)';
 }

@@ -65,6 +65,7 @@ class CareerlyTopBar extends StatelessWidget {
     this.onBack,
     this.trailing,
     this.style = CareerlyTopBarStyle.backLabel,
+    this.titleStyle,
   });
 
   /// 居中标题。
@@ -78,6 +79,11 @@ class CareerlyTopBar extends StatelessWidget {
 
   /// 顶栏形态，默认 [CareerlyTopBarStyle.backLabel]。
   final CareerlyTopBarStyle style;
+
+  /// 标题样式覆盖。为 `null` 时使用各形态的默认字号。
+  ///
+  /// 分析结果页的标题在设计稿里比「职业资产」小一档，因此按页传入。
+  final TextStyle? titleStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -106,7 +112,10 @@ class CareerlyTopBar extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: _BackLabelButton(onTap: onBack!),
             ),
-          Text(title, style: AppTypography.profileTopBarTitle),
+          Text(
+            title,
+            style: titleStyle ?? AppTypography.profileTopBarTitle,
+          ),
           if (trailing != null)
             Align(alignment: Alignment.centerRight, child: trailing),
         ],
@@ -137,7 +146,10 @@ class CareerlyTopBar extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: _GlassBackButton(onTap: onBack!),
               ),
-            Text(title, style: AppTypography.profilePageTitle),
+            Text(
+              title,
+              style: titleStyle ?? AppTypography.profilePageTitle,
+            ),
             if (trailing != null)
               Align(alignment: Alignment.centerRight, child: trailing),
           ],

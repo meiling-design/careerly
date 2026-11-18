@@ -488,6 +488,7 @@ print(f'test/  {tf} files / {tl} lines / {cases} cases')
 | `AppColors.disabled` | `rgba(17,24,39,0.38)` | **Figma 中出现 0 次**（**7 处引用**，影响面最大的一项） | D43 / D16 |
 | `AppColors.info` | `#4F7EF5` | Figma **没有「信息」语义色**（只有 green / orange） | D43 |
 | `AppMotion.stagger` | `40ms` | **落在 motion-spec 规定的 50–80ms 之外**（当前 0 处引用） | D36 |
+| `AppMotion.uploadLoop` | `1400ms` | **Figma 没有「上传中」状态** —— 循环周期由 Flutter 侧取值（2026-11-17 新增） | D126 |
 | `AppMotion.enter` / `exit` / `pageCurve` / `cardCurve` | Material 内建曲线 | spec 只给了文字描述（「ease-out」），**没给 `cubic-bezier`** | D49 |
 | `CareerlyTheme._inputDecorationTheme` | M3 `filled + outline` | **Figma 中没有任何输入框使用这套样式**（当前无业务引用） | D44 |
 | `CareerlyInput` 占位符色 | `textTertiary` | Figma **没有 `::placeholder` 规则**，占位符用的是浏览器默认色 | D46 |

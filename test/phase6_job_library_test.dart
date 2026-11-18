@@ -366,6 +366,9 @@ class StubAnalysisRepository implements AnalysisRepository {
   Future<AnalysisProject> analyze({
     required String title,
     required String rawJd,
+    String company = '',
+    String source = 'paste',
+    String? sourceUrl,
   }) async {
     analyzeCalls++;
     final DateTime now = DateTime(2026, 1, 1);

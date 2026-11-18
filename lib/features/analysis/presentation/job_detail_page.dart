@@ -70,7 +70,10 @@ class _AnalysisJobDetailPageState extends State<AnalysisJobDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           CareerlyTopBar(
-            title: entry?.job.title ?? '岗位详情',
+            // P1-02：标题优先取本次分析的岗位快照，历史记录不随岗位改名漂移。
+            title: entry?.snapshot?.title.isNotEmpty == true
+                ? entry!.snapshot!.title
+                : (entry?.job.title ?? '岗位详情'),
             onBack: () => careerlyBack(context),
           ),
           Expanded(
@@ -114,6 +117,8 @@ class _JobDetailBody extends StatelessWidget {
       ),
       children: <Widget>[
         _JobHero(entry: item),
+        const SizedBox(height: _JobDetailMetrics.gap),
+        _JobDescriptionCard(entry: item),
         const SizedBox(height: _JobDetailMetrics.gap),
         if (match.reasons.isNotEmpty) ...<Widget>[
           _WhyMatchCard(reasons: match.reasons),
@@ -198,7 +203,10 @@ class _JobHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  entry.job.title,
+                  // 快照里的岗位名才是这次分析实际使用的名称。
+                  entry.snapshot?.title.isNotEmpty == true
+                      ? entry.snapshot!.title
+                      : entry.job.title,
                   style: AppTypography.title.copyWith(
                     fontSize: 20,
                     color: Colors.white,
@@ -277,10 +285,10 @@ class _JobHero extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                            if (entry.job.rawJd.isNotEmpty) ...<Widget>[
+                            if (entry.snapshot?.sourceUrl?.isNotEmpty == true) ...<Widget>[
                               const SizedBox(height: 6),
                               Text(
-                                '来自 ${entry.job.rawJd}',
+                                '来自 ${entry.snapshot!.sourceUrl}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTypography.caption.copyWith(
@@ -318,6 +326,127 @@ class _HeroCircle extends StatelessWidget {
         shape: BoxShape.circle,
       ),
     );
+  }
+}
+
+/// 「岗位原文」—— 本次分析实际使用的 JD 快照（P1-02）。
+///
+/// - 默认折叠，只露出前几行；展开 / 收起保留原文段落与换行；
+/// - 来源行说明这份 JD 是粘贴、链接抓取还是历史岗位导入；
+/// - 历史数据没有快照时显示**明确的缺失态**，绝不拿当前岗位的 JD 冒充。
+class _JobDescriptionCard extends StatefulWidget {
+  const _JobDescriptionCard({required this.entry});
+
+  final AnalysisJobEntry entry;
+
+  @override
+  State<_JobDescriptionCard> createState() => _JobDescriptionCardState();
+}
+
+class _JobDescriptionCardState extends State<_JobDescriptionCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final JobSnapshot? snapshot = widget.entry.snapshot;
+    final bool hasText =
+        snapshot != null && snapshot.available && snapshot.rawJd.trim().isNotEmpty;
+
+    return _DetailCard(
+      title: '岗位原文',
+      titleGap: 10,
+      child: !hasText
+          ? Text(
+              '这次分析没有保存岗位原文（历史数据），无法还原当时的 JD。',
+              style: AppTypography.bodySmall.copyWith(
+                fontSize: 13,
+                height: 1.6,
+                color: AppColors.textSecondary,
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                _JobSourceLine(snapshot: snapshot),
+                const SizedBox(height: 10),
+                Text(
+                  snapshot.rawJd,
+                  maxLines: _expanded ? null : 6,
+                  overflow: _expanded ? null : TextOverflow.ellipsis,
+                  style: AppTypography.body.copyWith(
+                    fontSize: 13,
+                    height: 1.7,
+                  ),
+                ),
+                if (_needsToggle(snapshot.rawJd)) ...<Widget>[
+                  const SizedBox(height: 8),
+                  CareerlyPressFeedback(
+                    onTap: () => setState(() => _expanded = !_expanded),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text(
+                          _expanded ? '收起原文' : '展开全文',
+                          style: AppTypography.label.copyWith(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primaryBlue,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+    );
+  }
+
+  static bool _needsToggle(String rawJd) {
+    if (rawJd.length > 180) return true;
+    return '\n'.allMatches(rawJd).length >= 5;
+  }
+}
+
+/// 岗位来源行：导入方式 +（链接导入时的）URL + 快照时间。
+class _JobSourceLine extends StatelessWidget {
+  const _JobSourceLine({required this.snapshot});
+
+  final JobSnapshot? snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final JobSnapshot? snap = snapshot;
+    if (snap == null) return const SizedBox.shrink();
+    final String source = snap.source ?? snap.importMethod ?? '';
+    final String label = switch (source) {
+      'url' => '链接导入',
+      'history' => '历史岗位',
+      'paste' => '粘贴导入',
+      _ => '岗位导入',
+    };
+    final List<String> parts = <String>[
+      '来源：$label',
+      if (snap.sourceUrl?.isNotEmpty == true) snap.sourceUrl!,
+      if (snap.capturedAt != null) '快照于 ${_formatDate(snap.capturedAt!)}',
+    ];
+    return Text(
+      parts.join(' · '),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: AppTypography.caption.copyWith(
+        fontSize: 11,
+        color: AppColors.textTertiary,
+      ),
+    );
+  }
+
+  static String _formatDate(DateTime at) {
+    final DateTime local = at.toLocal();
+    final String month = local.month.toString().padLeft(2, '0');
+    final String day = local.day.toString().padLeft(2, '0');
+    return '${local.year}.$month.$day';
   }
 }
 

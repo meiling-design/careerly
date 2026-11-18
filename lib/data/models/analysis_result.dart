@@ -218,6 +218,82 @@ class JobMatch {
   String toString() => 'JobMatch($jobId, score: $score, rank: $rank)';
 }
 
+/// 一次分析实际使用的岗位原文快照（P1-02）。
+///
+/// ⚠️ **不可变证据**：它记录的是「这次分析当时真正发给引擎的 JD」，
+/// 不是当前 `Job.rawJd`。岗位信息之后被修改、链接被重新解析，都不会
+/// 改写这里。
+///
+/// [available] 为 `false` 表示这是功能上线前的历史记录 ——
+/// 后端明确告知「没有保存原文」，UI 必须显示缺失态，
+/// **不得**回退到当前岗位的 JD 冒充历史原文。
+@immutable
+class JobSnapshot {
+  const JobSnapshot({
+    required this.jobId,
+    this.title = '',
+    this.company = '',
+    this.rawJd = '',
+    this.source,
+    this.sourceUrl,
+    this.importMethod,
+    this.capturedAt,
+    this.available = true,
+  });
+
+  final String jobId;
+  final String title;
+  final String company;
+
+  /// 本次分析使用的 JD 原文。
+  final String rawJd;
+
+  /// 导入方式：`paste` / `url` / `history`。
+  final String? source;
+
+  /// 岗位链接导入时的原始 URL。
+  final String? sourceUrl;
+
+  /// 与 [source] 同义的导入方式字段（后端兼容字段）。
+  final String? importMethod;
+
+  /// 快照创建时间。
+  final DateTime? capturedAt;
+
+  /// 是否真的保存了原文。`false` = 历史数据缺失。
+  final bool available;
+
+  /// 展示用岗位名。
+  String get displayName =>
+      company.isEmpty ? title : '$company · $title';
+
+  factory JobSnapshot.fromJson(Map<String, dynamic> json) => JobSnapshot(
+    jobId: json['jobId'] as String? ?? '',
+    title: json['title'] as String? ?? '',
+    company: json['company'] as String? ?? '',
+    rawJd: json['rawJd'] as String? ?? '',
+    source: json['source'] as String?,
+    sourceUrl: json['sourceUrl'] as String?,
+    importMethod: json['importMethod'] as String?,
+    capturedAt: json['capturedAt'] == null
+        ? null
+        : DateTime.tryParse(json['capturedAt'] as String),
+    available: json['available'] as bool? ?? true,
+  );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'jobId': jobId,
+    'title': title,
+    'company': company,
+    'rawJd': rawJd,
+    'source': source,
+    'sourceUrl': sourceUrl,
+    'importMethod': importMethod,
+    'capturedAt': capturedAt?.toIso8601String(),
+    'available': available,
+  };
+}
+
 /// 一次分析的结果记录（**有版本**）。
 ///
 /// 依据 Baseline §7.4 / PRD §9.7：
@@ -234,7 +310,9 @@ class AnalysisResult {
     required this.version,
     required this.matches,
     this.resumeVersionId,
+    this.resumeVersionLabel,
     this.capabilitySnapshot = const <String, int>{},
+    this.jobSnapshots = const <JobSnapshot>[],
     this.createdAt,
   });
 
@@ -246,9 +324,14 @@ class AnalysisResult {
   /// 版本号，从 1 开始递增。
   final int version;
 
-  /// 本次分析使用的简历版本。
-  /// 为 `null` 表示使用了当时的最新简历。
+  /// 本次分析**实际使用**的简历版本 id。
+  /// 为 `null` 表示使用了一次性内联文本（没有对应的简历版本）。
   final String? resumeVersionId;
+
+  /// 本次分析实际使用的简历版本标签（如 `V3`）的快照。
+  ///
+  /// 版本之后被删除时，历史记录仍能显示「基于哪一版」。
+  final String? resumeVersionLabel;
 
   /// 各岗位的匹配结果（未排序，排序由 UI/Repository 决定）。
   final List<JobMatch> matches;
@@ -257,7 +340,21 @@ class AnalysisResult {
   /// 用于后续计算能力变化。
   final Map<String, int> capabilitySnapshot;
 
+  /// 本次分析实际使用的岗位原文快照（P1-02）。
+  ///
+  /// 每条分析记录独立持有；历史记录没有快照时包含
+  /// `available = false` 的条目，**不要**回退到 [Job.rawJd]。
+  final List<JobSnapshot> jobSnapshots;
+
   final DateTime? createdAt;
+
+  /// 按 jobId 查本次分析保存的岗位快照；没有记录时返回 `null`。
+  JobSnapshot? snapshotFor(String jobId) {
+    for (final JobSnapshot snapshot in jobSnapshots) {
+      if (snapshot.jobId == jobId) return snapshot;
+    }
+    return null;
+  }
 
   /// 按匹配度降序排列的结果。PRD §9.4：多岗位排序。
   List<JobMatch> get ranked {
@@ -275,7 +372,9 @@ class AnalysisResult {
     int? version,
     List<JobMatch>? matches,
     String? resumeVersionId,
+    String? resumeVersionLabel,
     Map<String, int>? capabilitySnapshot,
+    List<JobSnapshot>? jobSnapshots,
     DateTime? createdAt,
   }) {
     return AnalysisResult(
@@ -284,7 +383,9 @@ class AnalysisResult {
       version: version ?? this.version,
       matches: matches ?? this.matches,
       resumeVersionId: resumeVersionId ?? this.resumeVersionId,
+      resumeVersionLabel: resumeVersionLabel ?? this.resumeVersionLabel,
       capabilitySnapshot: capabilitySnapshot ?? this.capabilitySnapshot,
+      jobSnapshots: jobSnapshots ?? this.jobSnapshots,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -295,6 +396,7 @@ class AnalysisResult {
       projectId: json['projectId'] as String? ?? '',
       version: (json['version'] as num?)?.toInt() ?? 1,
       resumeVersionId: json['resumeVersionId'] as String?,
+      resumeVersionLabel: json['resumeVersionLabel'] as String?,
       matches: (json['matches'] as List<dynamic>? ?? <dynamic>[])
           .map((dynamic e) => JobMatch.fromJson(e as Map<String, dynamic>))
           .toList(growable: false),
@@ -305,6 +407,9 @@ class AnalysisResult {
                 (String k, dynamic v) =>
                     MapEntry<String, int>(k, (v as num).round()),
               ),
+      jobSnapshots: (json['jobSnapshots'] as List<dynamic>? ?? <dynamic>[])
+          .map((dynamic e) => JobSnapshot.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
       createdAt: json['createdAt'] == null
           ? null
           : DateTime.tryParse(json['createdAt'] as String),
@@ -316,8 +421,12 @@ class AnalysisResult {
     'projectId': projectId,
     'version': version,
     'resumeVersionId': resumeVersionId,
+    'resumeVersionLabel': resumeVersionLabel,
     'matches': matches.map((JobMatch m) => m.toJson()).toList(growable: false),
     'capabilitySnapshot': capabilitySnapshot,
+    'jobSnapshots': jobSnapshots
+        .map((JobSnapshot s) => s.toJson())
+        .toList(growable: false),
     'createdAt': createdAt?.toIso8601String(),
   };
 

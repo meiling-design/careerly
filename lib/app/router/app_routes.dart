@@ -66,6 +66,26 @@ abstract final class AppRoutes {
       '$settings/$settingsPersonalInfoSegment';
 
   // ---------------------------------------------------------------------------
+  // 帮助 / 反馈 / 关于（2026-11-16）
+  //
+  // 三页都是**设置页的二级页**：`context.push` 进入、Back 回设置页。
+  // 不进 [shellBranches] —— 一级导航永远只有 4 个（PRD §6 / IA §3.1）。
+  // ---------------------------------------------------------------------------
+
+  /// 帮助中心。FAQ 分类 + 手风琴 + 联系邮箱。
+  static const String settingsHelpSegment = 'help';
+  static const String settingsHelp = '$settings/$settingsHelpSegment';
+
+  /// 意见反馈。分类 + 文字描述 + 选填邮箱，走 `mailto:` 真实出口。
+  static const String settingsFeedbackSegment = 'feedback';
+  static const String settingsFeedback =
+      '$settings/$settingsFeedbackSegment';
+
+  /// 关于 Careerly。品牌介绍 + 动态版本号 + 协议入口。
+  static const String settingsAboutSegment = 'about';
+  static const String settingsAbout = '$settings/$settingsAboutSegment';
+
+  // ---------------------------------------------------------------------------
   // 协议页（发布基线 §1.0f · E2 / E3）
   //
   // 依据：注册页的同意勾选必须能真的打开被同意的文档，否则
@@ -336,6 +356,9 @@ abstract final class AppRouteNames {
   static const String settingsDeleteAccount = 'settingsDeleteAccount';
   static const String settingsDeleteCareerData = 'settingsDeleteCareerData';
   static const String settingsPersonalInfo = 'settingsPersonalInfo';
+  static const String settingsHelp = 'settingsHelp';
+  static const String settingsFeedback = 'settingsFeedback';
+  static const String settingsAbout = 'settingsAbout';
   static const String legalTerms = 'legalTerms';
   static const String legalPrivacy = 'legalPrivacy';
   static const String legalAiData = 'legalAiData';

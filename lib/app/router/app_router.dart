@@ -36,6 +36,9 @@ import '../../features/profile/presentation/resume_history_page.dart';
 import '../../features/profile/presentation/skills_page.dart';
 import '../../features/profile/presentation/work_detail_page.dart';
 import '../../features/profile/presentation/work_experience_page.dart';
+import '../../features/support/presentation/about_careerly_page.dart';
+import '../../features/support/presentation/feedback_page.dart';
+import '../../features/support/presentation/help_center_page.dart';
 import '../shell/careerly_shell.dart';
 import 'app_routes.dart';
 import 'back_navigation.dart';
@@ -173,6 +176,22 @@ GoRouter createAppRouter({String initialLocation = AppRoutes.home}) {
             segment: AppRoutes.settingsDeleteCareerDataSegment,
             name: AppRouteNames.settingsDeleteCareerData,
             builder: (_, _) => const DeleteCareerDataPage(),
+          ),
+          // 帮助 / 反馈 / 关于 —— 设置页「帮助与反馈」分组的三个二级页。
+          _subRoute(
+            segment: AppRoutes.settingsHelpSegment,
+            name: AppRouteNames.settingsHelp,
+            builder: (_, _) => const HelpCenterPage(),
+          ),
+          _subRoute(
+            segment: AppRoutes.settingsFeedbackSegment,
+            name: AppRouteNames.settingsFeedback,
+            builder: (_, _) => const FeedbackPage(),
+          ),
+          _subRoute(
+            segment: AppRoutes.settingsAboutSegment,
+            name: AppRouteNames.settingsAbout,
+            builder: (_, _) => const AboutCareerlyPage(),
           ),
         ],
       ),

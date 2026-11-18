@@ -68,11 +68,20 @@ class ApiAnalysisRepository implements AnalysisRepository, AnalysisProgressSourc
   Future<AnalysisProject> analyze({
     required String title,
     required String rawJd,
+    String company = '',
+    String source = 'paste',
+    String? sourceUrl,
   }) async {
     // 同步接口（决策 C2）：实测约 210s，必须用加长超时。
     final dynamic data = await _client.post(
       '/api/v1/analysis',
-      body: <String, dynamic>{'title': title, 'rawJd': rawJd},
+      body: <String, dynamic>{
+        'title': title,
+        'rawJd': rawJd,
+        'company': company,
+        'source': source,
+        'sourceUrl': ?sourceUrl,
+      },
       timeout: ApiClient.analysisTimeout,
     );
     return AnalysisProject.fromJson(data as Map<String, dynamic>);
@@ -82,12 +91,21 @@ class ApiAnalysisRepository implements AnalysisRepository, AnalysisProgressSourc
   Future<AnalysisTask> startAnalysisTask({
     required String title,
     required String rawJd,
+    String company = '',
+    String source = 'paste',
+    String? sourceUrl,
   }) async {
     // 这个请求**立刻**返回 202 + taskId（引擎在后台跑），
     // 所以用普通超时即可，不需要 [ApiClient.analysisTimeout] 那种加长等待。
     final dynamic data = await _client.post(
       '/api/v1/analysis/tasks',
-      body: <String, dynamic>{'title': title, 'rawJd': rawJd},
+      body: <String, dynamic>{
+        'title': title,
+        'rawJd': rawJd,
+        'company': company,
+        'source': source,
+        'sourceUrl': ?sourceUrl,
+      },
     );
     return AnalysisTask.fromJson(data as Map<String, dynamic>);
   }

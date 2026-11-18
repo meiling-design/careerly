@@ -9,11 +9,16 @@ void main() {
 
       provider.record(GrowthMilestone.careerBaselineEstablished);
       final int firstId = provider.nextPending!.id;
+      expect(provider.nextRecordAnimation, isNull);
       provider.record(GrowthMilestone.jobAnalysisCompleted);
 
       expect(
         provider.nextPending!.milestone,
         GrowthMilestone.careerBaselineEstablished,
+      );
+      expect(
+        provider.nextRecordAnimation!.milestone,
+        GrowthMilestone.jobAnalysisCompleted,
       );
 
       provider.consume(firstId);
@@ -21,6 +26,7 @@ void main() {
         provider.nextPending!.milestone,
         GrowthMilestone.jobAnalysisCompleted,
       );
+      expect(provider.nextRecordAnimation!.id, isNot(firstId));
       final int secondId = provider.nextPending!.id;
       expect(secondId, greaterThan(firstId));
 
@@ -29,6 +35,10 @@ void main() {
 
       provider.consume(secondId);
       expect(provider.nextPending, isNull);
+      expect(provider.nextRecordAnimation!.id, secondId);
+
+      provider.consumeRecordAnimation(secondId);
+      expect(provider.nextRecordAnimation, isNull);
     });
 
     test('ignores repeated consumption of an already consumed milestone', () {

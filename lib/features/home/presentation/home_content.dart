@@ -140,7 +140,12 @@ class HomeContent {
     required String userName,
   }) {
     final List<MatchChange> matches = summary.matchChanges;
-    final MatchChange? top = matches.isEmpty ? null : matches.first;
+    final MatchChange? top = matches.isEmpty
+        ? null
+        : matches.reduce(
+            (MatchChange current, MatchChange candidate) =>
+                candidate.score > current.score ? candidate : current,
+          );
 
     return HomeContent(
       hero: _hero(greeting: greeting, userName: userName),

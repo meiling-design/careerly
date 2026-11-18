@@ -184,11 +184,22 @@ class _CareerlyShellState extends State<CareerlyShell>
         // 与 Figma「居中玻璃胶囊 + 条外 AI 球」的结构不符。
         body: Stack(
           children: <Widget>[
-            // 内容区：为浮起的导航预留底部避让（Figma 内容区 `pb-24`）。
+            // 内容区。
+            //
+            // 一级页面根（首页 / 分析 / AI / 我的）**全高滚动**，内容可以从
+            // 悬浮导航下方穿过 —— 与 Figma 根布局一致：导航是绝对定位浮层，
+            // 页面滚动容器自己带 `pb-24`，而不是把视口裁短。
+            // 若在这里裁短视口，卡片顶边会停在裁切线上，看起来像一条横贯
+            // 屏幕的「框架」把内容和导航分开。
+            //
+            // 分支内二级 / 三级页面仍保留 96 底部避让：这些页面在 Figma 里
+            // 本不显示底部导航，当前实现统一显示，至少不能让内容压到导航下面。
             Positioned.fill(
               child: Padding(
-                padding: const EdgeInsets.only(
-                  bottom: AppConstants.navigationBarContentInset,
+                padding: EdgeInsets.only(
+                  bottom: atBranchRoot
+                      ? 0
+                      : AppConstants.navigationBarContentInset,
                 ),
                 child: _TabTransition(
                   controller: _tabController,
