@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:careerly/core/errors/app_error.dart';
+import 'package:careerly/data/models/analysis_job_input.dart';
 import 'package:careerly/data/models/analysis_project.dart';
 import 'package:careerly/data/models/analysis_result.dart';
 import 'package:careerly/data/models/job.dart';
@@ -14,6 +15,7 @@ import 'package:careerly/design_system/components/careerly_button.dart';
 import 'package:careerly/design_system/theme/careerly_theme.dart';
 import 'package:careerly/features/analysis/presentation/analysis_page.dart';
 import 'package:careerly/features/analysis/state/analysis_provider.dart';
+import 'package:careerly/features/profile/state/growth_celebration_provider.dart';
 import 'package:careerly/features/profile/state/resume_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,13 +40,17 @@ import 'package:provider/single_child_widget.dart';
 /// 数据层 `fetchJobLibrary()` 都已存在，但**全仓没有任何调用者** ——
 /// 用户在产品里根本用不到 PRD 明文承诺的能力。
 ///
-/// 因此这里钉的不是「有没有弹层」，而是**选完之后表单里到底是什么**：
+/// 因此这里钉的不是「有没有弹层」，而是**选完之后交给分析引擎的是什么**：
 ///
 /// ```text
-/// ✅ JD 框 = Job.rawJd（上次存下来的原文）   ← 「不必重新粘贴」的全部意义
+/// ✅ 岗位草稿.rawJd = Job.rawJd（上次存下来的原文） ← 「不必重新粘贴」的全部意义
 /// ✅ 岗位名 = Job.displayName（公司 · 岗位）
-/// ❌ JD 框 = 空 / 岗位名 = 空              ← 等于没接上，必须钉死
+/// ❌ 岗位草稿.rawJd = 空 / 岗位名 = 空             ← 等于没接上，必须钉死
 /// ```
+///
+/// 多岗位（2026-11-18）后，选择结果直接追加为岗位草稿；不再回填单岗位
+/// JD 输入框，因此断言落在提交给 `AnalysisRepository.analyze(jobs: …)`
+/// 的草稿上，而不是输入框文本。
 void main() {
   // ---------------------------------------------------------------------------
   // 夹具
@@ -83,6 +89,10 @@ void main() {
           create: (BuildContext context) =>
               ResumeProvider(context.read<ResumeRepository>()),
         ),
+        // 分析成功后会向成长庆祝 Provider 记一笔（生产由 careerlyProviders 注入）。
+        ChangeNotifierProvider<GrowthCelebrationProvider>(
+          create: (BuildContext context) => GrowthCelebrationProvider(),
+        ),
       ],
       child: MaterialApp(
         theme: CareerlyTheme.light(),
@@ -112,21 +122,6 @@ void main() {
     await tester.ensureVisible(find.text('从历史岗位添加'));
     await tester.pump();
     await tester.tap(find.text('从历史岗位添加'));
-  }
-
-  /// 展开「粘贴 JD」表单并读回 JD 框里的文本。
-  ///
-  /// 展开用的是**同一个** `TextEditingController`，所以这既能读回填结果，
-  /// 也正是用户「看得到、改得动」的那条路径。
-  Future<String> jdBoxText(WidgetTester tester) async {
-    await tester.ensureVisible(find.text('粘贴 JD 添加岗位'));
-    await tester.pump();
-    await tester.tap(find.text('粘贴 JD 添加岗位'));
-    await tester.pump();
-    final TextField field = tester.widget<TextField>(
-      find.byType(TextField).first,
-    );
-    return field.controller?.text ?? '';
   }
 
   CareerlyButton analyzeButton(WidgetTester tester) =>
@@ -218,7 +213,7 @@ void main() {
       );
     });
 
-    testWidgets('选中 → 弹层关闭 + 表单回填 + 「开始分析（1 个岗位）」可用', (
+    testWidgets('选中 → 弹层关闭 + 加入岗位草稿 + 「开始分析（1 个岗位）」可用', (
       WidgetTester tester,
     ) async {
       final StubAnalysisRepository repository = StubAnalysisRepository(
@@ -237,19 +232,24 @@ void main() {
       expect(find.text('历史岗位'), findsNothing);
       // 岗位胶囊 + 计数文案都反映了这次选择。
       expect(find.text('$historyCompany · $historyTitle'), findsOneWidget);
-      expect(find.text('已添加 1 个目标岗位'), findsOneWidget);
-
-      // 最关键的一条：JD 框 = 上次存下来的原文（`Job.rawJd`）。
-      expect(
-        await jdBoxText(tester),
-        historyJd,
-        reason: '选历史岗位的意义就是「不必重新粘贴 JD」—— 回填空串等于没接上',
-      );
+      expect(find.text('已添加 1 个目标岗位，可继续添加'), findsOneWidget);
 
       // 岗位加好了 → 「开始分析」可用。
       await tester.ensureVisible(find.text('开始分析（1 个岗位）'));
       await tester.pump();
       expect(analyzeButton(tester).onPressed, isNotNull);
+
+      // 最关键的一条：提交给分析的草稿保留了上次存下来的原文
+      //（`Job.rawJd`）——「不必重新粘贴」的全部意义。
+      await tester.tap(find.text('开始分析（1 个岗位）'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      final AnalysisJobInput submitted = repository.analyzedJobs.single;
+      expect(submitted.rawJd, historyJd);
+      expect(submitted.title, historyTitle);
+      expect(submitted.company, historyCompany);
+      expect(submitted.source, 'history');
     });
 
     testWidgets('取消 → 不添加岗位、表单保持原样', (WidgetTester tester) async {
@@ -266,7 +266,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('历史岗位'), findsNothing);
-      expect(find.text('已添加 1 个目标岗位'), findsNothing);
+      expect(find.textContaining('已添加'), findsNothing);
       expect(find.text('还没有添加目标岗位'), findsOneWidget);
       expect(analyzeButton(tester).onPressed, isNull);
     });
@@ -332,6 +332,9 @@ class StubAnalysisRepository implements AnalysisRepository {
   int jobLibraryCalls = 0;
   int analyzeCalls = 0;
 
+  /// 最近一次提交给分析的全部岗位草稿（多岗位，2026-11-18）。
+  List<AnalysisJobInput> analyzedJobs = <AnalysisJobInput>[];
+
   Completer<List<Job>>? _pendingLibrary;
 
   void completeJobLibrary(List<Job> value) => _pendingLibrary!.complete(value);
@@ -369,8 +372,20 @@ class StubAnalysisRepository implements AnalysisRepository {
     String company = '',
     String source = 'paste',
     String? sourceUrl,
+    List<AnalysisJobInput>? jobs,
   }) async {
     analyzeCalls++;
+    analyzedJobs = jobs == null
+        ? <AnalysisJobInput>[
+            AnalysisJobInput(
+              title: title,
+              rawJd: rawJd,
+              company: company,
+              source: source,
+              sourceUrl: sourceUrl,
+            ),
+          ]
+        : List<AnalysisJobInput>.of(jobs);
     final DateTime now = DateTime(2026, 1, 1);
     final String projectId = 'stub-project-$analyzeCalls';
     final Job job = Job(

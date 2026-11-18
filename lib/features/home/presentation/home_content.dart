@@ -140,12 +140,7 @@ class HomeContent {
     required String userName,
   }) {
     final List<MatchChange> matches = summary.matchChanges;
-    final MatchChange? top = matches.isEmpty
-        ? null
-        : matches.reduce(
-            (MatchChange current, MatchChange candidate) =>
-                candidate.score > current.score ? candidate : current,
-          );
+    final int? topScore = summary.latestTopScore;
 
     return HomeContent(
       hero: _hero(greeting: greeting, userName: userName),
@@ -156,9 +151,9 @@ class HomeContent {
           // 右上角只放短标签；岗位变化条数留在下方列表，
           // 不把长句塞进卡片头部挤掉标题。
           lines: const <String>[],
-          statusBadge: top == null ? null : 'TOP 1',
+          statusBadge: topScore == null ? null : 'TOP 1',
           actionLabel: '查看详情',
-          statusScore: top?.score,
+          statusScore: topScore,
           target: HomeCardTarget.analysis,
         ),
         HomeStilCardData(

@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../../app/router/app_routes.dart';
 import '../../../app/router/back_navigation.dart';
 import '../../../core/state/state.dart';
+import '../../../data/models/analysis_job_input.dart';
 import '../../../data/models/analysis_project.dart';
 import '../../../data/models/analysis_result.dart';
 import '../../../data/models/job.dart';
@@ -54,19 +55,40 @@ class AnalysisPage extends StatefulWidget {
 }
 
 class _AnalysisPageState extends State<AnalysisPage> {
-  final TextEditingController _titleController = TextEditingController();
   final TextEditingController _jdController = TextEditingController();
   final TextEditingController _urlController = TextEditingController();
   bool _history = false;
   bool _addingJd = false;
   bool _addingUrl = false;
-  bool _jobAdded = false;
 
-  /// 本次岗位输入的来源信息 —— 会随分析请求交给后端写成 JD 快照
-  /// （P1-02），历史分析因此能显示「原文从哪来」。
-  String _jobCompany = '';
-  String _jobImportSource = 'paste';
-  String? _jobSourceUrl;
+  /// 本次分析的目标岗位列表（多岗位，2026-11-18）。
+  ///
+  /// 每个岗位都带着自己的 JD 原文与来源信息 —— 开始分析时整组交给
+  /// 后端，后端一次性匹配并在全部岗位之间排名。同一份 JD 不重复添加。
+  final List<AnalysisJobInput> _jobs = <AnalysisJobInput>[];
+
+  /// 追加一个岗位；JD 与已有岗位完全相同则忽略（避免重复分析同一岗位）。
+  void _addJob(AnalysisJobInput job) {
+    final String raw = job.rawJd.trim();
+    if (_jobs.any((AnalysisJobInput j) => j.rawJd.trim() == raw)) {
+      return;
+    }
+    _jobs.add(job);
+  }
+
+  void _removeJobAt(int index) {
+    setState(() => _jobs.removeAt(index));
+  }
+
+  void _resetForm() {
+    _jdController.clear();
+    _urlController.clear();
+    setState(() {
+      _jobs.clear();
+      _addingJd = false;
+      _addingUrl = false;
+    });
+  }
 
   @override
   void initState() {
@@ -90,7 +112,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   @override
   void dispose() {
-    _titleController.dispose();
     _jdController.dispose();
     _urlController.dispose();
     super.dispose();
@@ -135,11 +156,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 _Header(
                   history: _history,
                   onNew: () {
-                    setState(() {
-                      _history = false;
-                      _addingJd = false;
-                      _addingUrl = false;
-                    });
+                    setState(() => _history = false);
+                    _resetForm();
                     provider.showNewAnalysis();
                   },
                   onHistory: () => setState(() => _history = true),
@@ -156,15 +174,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     )
                   : _NewView(
                       provider: provider,
-                      titleController: _titleController,
                       jdController: _jdController,
                       urlController: _urlController,
                       addingJd: _addingJd,
                       addingUrl: _addingUrl,
-                      jobAdded: _jobAdded,
-                      company: _jobCompany,
-                      importSource: _jobImportSource,
-                      sourceUrl: _jobSourceUrl,
+                      jobs: List<AnalysisJobInput>.unmodifiable(_jobs),
+                      onRemoveJob: _removeJobAt,
                       onAddJd: () => setState(() => _addingJd = true),
                       onAddUrl: () {
                         // 打开空表单时清掉上一次抓取的失败红字 ——
@@ -187,16 +202,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         // Figma `handleAddJD`（L1231-1236）：
                         // 岗位名 = JD 首行（截 30 字），空则「新目标岗位」。
                         final String firstLine = jd.split('\n').first.trim();
-                        _titleController.text = firstLine.isEmpty
+                        final String title = firstLine.isEmpty
                             ? '新目标岗位'
                             : (firstLine.length > 30
                                   ? firstLine.substring(0, 30)
                                   : firstLine);
-                        _jobCompany = '';
-                        _jobImportSource = 'paste';
-                        _jobSourceUrl = null;
                         setState(() {
-                          _jobAdded = true;
+                          _addJob(AnalysisJobInput(title: title, rawJd: jd));
+                          _jdController.clear();
                           _addingJd = false;
                         });
                       },
@@ -226,15 +239,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           return;
                         }
                         final String title = parsed.title.trim();
-                        _titleController.text = title.isEmpty
-                            ? '新目标岗位'
-                            : title;
-                        _jdController.text = parsed.description;
-                        _jobCompany = parsed.company;
-                        _jobImportSource = 'url';
-                        _jobSourceUrl = parsed.url;
                         setState(() {
-                          _jobAdded = true;
+                          _addJob(
+                            AnalysisJobInput(
+                              title: title.isEmpty ? '新目标岗位' : title,
+                              rawJd: parsed.description,
+                              company: parsed.company,
+                              source: 'url',
+                              sourceUrl: parsed.url,
+                            ),
+                          );
+                          _urlController.clear();
                           _addingUrl = false;
                         });
                       },
@@ -253,13 +268,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         if (!mounted || job == null) return;
                         // `Job.rawJd` 的存在意义就在这里：选历史岗位 =
                         // 复用已经存过的 JD 原文，不必让用户重粘一遍。
-                        _titleController.text = job.displayName;
-                        _jdController.text = job.rawJd;
-                        _jobCompany = job.company;
-                        _jobImportSource = 'history';
-                        _jobSourceUrl = null;
                         setState(() {
-                          _jobAdded = true;
+                          _addJob(
+                            AnalysisJobInput(
+                              title: job.title.isEmpty
+                                  ? '新目标岗位'
+                                  : job.title,
+                              rawJd: job.rawJd,
+                              company: job.company,
+                              source: 'history',
+                            ),
+                          );
                           _addingJd = false;
                           _addingUrl = false;
                         });
@@ -433,15 +452,12 @@ abstract final class _HeaderMetrics {
 class _NewView extends StatelessWidget {
   const _NewView({
     required this.provider,
-    required this.titleController,
     required this.jdController,
     required this.urlController,
     required this.addingJd,
     required this.addingUrl,
-    required this.jobAdded,
-    required this.company,
-    required this.importSource,
-    required this.sourceUrl,
+    required this.jobs,
+    required this.onRemoveJob,
     required this.onAddJd,
     required this.onAddUrl,
     required this.onCancelJd,
@@ -452,15 +468,14 @@ class _NewView extends StatelessWidget {
   });
 
   final AnalysisProvider provider;
-  final TextEditingController titleController;
   final TextEditingController jdController;
   final TextEditingController urlController;
   final bool addingJd;
   final bool addingUrl;
-  final bool jobAdded;
-  final String company;
-  final String importSource;
-  final String? sourceUrl;
+
+  /// 已添加的目标岗位（多岗位，2026-11-18）。
+  final List<AnalysisJobInput> jobs;
+  final ValueChanged<int> onRemoveJob;
   final VoidCallback onAddJd;
   final VoidCallback onAddUrl;
   final VoidCallback onCancelJd;
@@ -473,13 +488,13 @@ class _NewView extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (provider.analysisState) {
       // 「分析中」复合组件（D28 / Phase 6 补做）。成功后由本分发切到结果页。
-      // Mock 一次只允许 1 个 JD，故胶囊固定「× 1」。
+      // 胶囊里的岗位数取本次真实发起的岗位数（多岗位时不再固定 ×1）。
       //
       // [provider.taskProgress] 非空 = 真实后端在报节点进度，动效由真实
       // 节点驱动；为空 = Mock（背后没有 agent 流程），沿用组件内时钟。
       // 两种模式的判据在组件里 —— 见 `CareerlyAnalysisProgress.progress`。
       AsyncLoading<AnalysisProject>() => CareerlyAnalysisProgress(
-        jobCount: 1,
+        jobCount: provider.runningJobCount,
         onExit: provider.exitAnalysis,
         progress: provider.taskProgress,
       ),
@@ -496,15 +511,12 @@ class _NewView extends StatelessWidget {
       ),
       AsyncInitial<AnalysisProject>() => _FormView(
         provider: provider,
-        titleController: titleController,
         jdController: jdController,
         urlController: urlController,
         addingJd: addingJd,
         addingUrl: addingUrl,
-        jobAdded: jobAdded,
-        company: company,
-        importSource: importSource,
-        sourceUrl: sourceUrl,
+        jobs: jobs,
+        onRemoveJob: onRemoveJob,
         onAddJd: onAddJd,
         onAddUrl: onAddUrl,
         onCancelJd: onCancelJd,
@@ -524,15 +536,12 @@ class _NewView extends StatelessWidget {
 class _FormView extends StatelessWidget {
   const _FormView({
     required this.provider,
-    required this.titleController,
     required this.jdController,
     required this.urlController,
     required this.addingJd,
-    required this.jobAdded,
+    required this.jobs,
     required this.addingUrl,
-    required this.company,
-    required this.importSource,
-    required this.sourceUrl,
+    required this.onRemoveJob,
     required this.onAddJd,
     required this.onAddUrl,
     required this.onCancelJd,
@@ -543,15 +552,12 @@ class _FormView extends StatelessWidget {
   });
 
   final AnalysisProvider provider;
-  final TextEditingController titleController;
   final TextEditingController jdController;
   final TextEditingController urlController;
   final bool addingJd;
   final bool addingUrl;
-  final bool jobAdded;
-  final String company;
-  final String importSource;
-  final String? sourceUrl;
+  final List<AnalysisJobInput> jobs;
+  final ValueChanged<int> onRemoveJob;
   final VoidCallback onAddJd;
   final VoidCallback onAddUrl;
   final VoidCallback onCancelJd;
@@ -580,14 +586,14 @@ class _FormView extends StatelessWidget {
           const _ResumeCard(),
           const SizedBox(height: 16),
           _JobsCard(
-            jobAdded: jobAdded,
+            jobs: jobs,
             addingJd: addingJd,
             addingUrl: addingUrl,
             urlLoading: urlLoading,
             urlError: urlError,
-            titleController: titleController,
             jdController: jdController,
             urlController: urlController,
+            onRemoveJob: onRemoveJob,
             onAddJd: onAddJd,
             onAddUrl: onAddUrl,
             onCancelJd: onCancelJd,
@@ -603,17 +609,13 @@ class _FormView extends StatelessWidget {
           const SizedBox(height: 16),
           CareerlyButton(
             label: provider.canAnalyze
-                ? (jobAdded ? '开始分析（1 个岗位）' : '开始分析')
+                ? (jobs.isEmpty ? '开始分析' : '开始分析（${jobs.length} 个岗位）')
                 : '额度不足，暂不可分析',
-            onPressed: provider.canAnalyze && jobAdded
+            onPressed: provider.canAnalyze && jobs.isNotEmpty
                 ? () async {
-                    await provider.startAnalysis(
-                      title: titleController.text,
-                      rawJd: jdController.text,
-                      company: company,
-                      importSource: importSource,
-                      sourceUrl: sourceUrl,
-                    );
+                    // 一次分析提交**全部**目标岗位（多岗位，2026-11-18）。
+                    // 额度仍按一次分析扣减，不按岗位数扣。
+                    await provider.startAnalysis(jobs: jobs);
                     if (!context.mounted) return;
                     if (provider.analysisState
                         is AsyncSuccess<AnalysisProject>) {
@@ -809,14 +811,14 @@ class _ResumeStat extends StatelessWidget {
 
 class _JobsCard extends StatelessWidget {
   const _JobsCard({
-    required this.jobAdded,
+    required this.jobs,
     required this.addingJd,
     required this.addingUrl,
     required this.urlLoading,
     required this.urlError,
-    required this.titleController,
     required this.jdController,
     required this.urlController,
+    required this.onRemoveJob,
     required this.onAddJd,
     required this.onAddUrl,
     required this.onCancelJd,
@@ -826,7 +828,8 @@ class _JobsCard extends StatelessWidget {
     required this.onAddHistory,
   });
 
-  final bool jobAdded;
+  /// 已添加的目标岗位（多岗位，2026-11-18）。
+  final List<AnalysisJobInput> jobs;
   final bool addingJd;
   final bool addingUrl;
 
@@ -836,9 +839,9 @@ class _JobsCard extends StatelessWidget {
   /// 岗位链接抓取失败的文案；`null` 表示无错误。
   final String? urlError;
 
-  final TextEditingController titleController;
   final TextEditingController jdController;
   final TextEditingController urlController;
+  final ValueChanged<int> onRemoveJob;
   final VoidCallback onAddJd;
   final VoidCallback onAddUrl;
   final VoidCallback onCancelJd;
@@ -856,19 +859,24 @@ class _JobsCard extends StatelessWidget {
           Text('目标岗位', style: AppTypography.bodyStrong.copyWith(fontSize: 14)),
           const SizedBox(height: 2),
           Text(
-            jobAdded ? '已添加 1 个目标岗位' : '还没有添加目标岗位',
+            jobs.isEmpty
+                ? '还没有添加目标岗位'
+                : '已添加 ${jobs.length} 个目标岗位，可继续添加',
             style: AppTypography.caption,
           ),
-          if (jobAdded) ...<Widget>[
+          if (jobs.isNotEmpty) ...<Widget>[
             const SizedBox(height: 12),
             // Figma 岗位 Chip：`rounded-full` 胶囊（L1326）。
+            // 多岗位：每个 Chip 带 ✕，可单独移除；同一份 JD 不会重复添加。
             Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: <Widget>[
-                _Pill(
-                  titleController.text.trim().isEmpty
-                      ? '新目标岗位'
-                      : titleController.text.trim(),
-                ),
+                for (int i = 0; i < jobs.length; i++)
+                  _Pill(
+                    jobs[i].displayName,
+                    onRemove: () => onRemoveJob(i),
+                  ),
               ],
             ),
           ],
@@ -2524,24 +2532,50 @@ class _Card extends StatelessWidget {
 /// 岗位 Chip。Figma L1326：`rounded-full` · `px-3 py-1` ·
 /// 底 `rgba(79,126,245,0.08)` · 12/w500 primaryBlue。
 class _Pill extends StatelessWidget {
-  const _Pill(this.label);
+  const _Pill(this.label, {this.onRemove});
+
   final String label;
+
+  /// 非空时在右侧显示 ✕，用于移除该目标岗位。
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: EdgeInsets.fromLTRB(12, 4, onRemove == null ? 12 : 6, 4),
       decoration: BoxDecoration(
         color: AppColors.primaryBlueSurface,
         borderRadius: AppRadius.borderPill,
       ),
-      child: Text(
-        label,
-        style: AppTypography.label.copyWith(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: AppColors.primaryBlue,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.label.copyWith(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppColors.primaryBlue,
+              ),
+            ),
+          ),
+          if (onRemove != null)
+            GestureDetector(
+              onTap: onRemove,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.close,
+                  size: 13,
+                  color: AppColors.primaryBlue,
+                  semanticLabel: '移除 $label',
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

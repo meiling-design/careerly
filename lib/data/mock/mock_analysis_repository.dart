@@ -1,4 +1,5 @@
 import '../../core/errors/app_error.dart';
+import '../models/analysis_job_input.dart';
 import '../models/analysis_project.dart';
 import '../models/analysis_result.dart';
 import '../models/job.dart';
@@ -88,58 +89,83 @@ class MockAnalysisRepository implements AnalysisRepository {
     String company = '',
     String source = 'paste',
     String? sourceUrl,
+    List<AnalysisJobInput>? jobs,
   }) async {
     await _config.simulate();
     if (_config.demoData) {
       // 演示模式：直接返回 Figma 原型样例（4 岗位 × 2 版本）。
-      // ⚠️ 忽略用户输入的单个岗位 —— 这是「看样例」的演示路径，
+      // ⚠️ 忽略用户输入的岗位 —— 这是「看样例」的演示路径，
       // 不是真实分析行为。
       return DemoAnalysisFixture.demoProject;
     }
     final DateTime now = DateTime.now();
     final String projectId = 'mock-project-${_projects.length + 1}';
-    final Job job = Job(
-      id: '$projectId-job',
-      title: title.trim().isEmpty ? '未命名岗位' : title.trim(),
-      company: company,
-      rawJd: rawJd,
-      source: source,
-      createdAt: now,
-    );
-    final AnalysisResult result = AnalysisResult(
-      id: '$projectId-result-1',
-      projectId: projectId,
-      version: 1,
-      matches: <JobMatch>[
+
+    // 多岗位（2026-11-18）：每个草稿建一个岗位 + 一条匹配。
+    // 未传 jobs 时回退到单岗位字段（旧调用方 / 既有测试）。
+    final List<AnalysisJobInput> inputs = jobs != null && jobs.isNotEmpty
+        ? jobs
+        : <AnalysisJobInput>[
+            AnalysisJobInput(
+              title: title,
+              rawJd: rawJd,
+              company: company,
+              source: source,
+              sourceUrl: sourceUrl,
+            ),
+          ];
+    final List<Job> jobModels = <Job>[];
+    final List<JobMatch> matches = <JobMatch>[];
+    final List<JobSnapshot> snapshots = <JobSnapshot>[];
+    for (int i = 0; i < inputs.length; i++) {
+      final AnalysisJobInput input = inputs[i];
+      final Job job = Job(
+        id: '$projectId-job-${i + 1}',
+        title: input.title.trim().isEmpty ? '未命名岗位' : input.title.trim(),
+        company: input.company,
+        rawJd: input.rawJd,
+        source: input.source,
+        createdAt: now,
+      );
+      jobModels.add(job);
+      matches.add(
         JobMatch(
           jobId: job.id,
           score: 0,
-          rank: 1,
+          rank: i + 1,
           reasons: const <String>['Mock 分析已完成，等待真实能力模型接入'],
           gaps: const <String>['暂未接入真实能力 Gap 计算'],
           suggestion: '补充更多经历后再次分析',
         ),
-      ],
+      );
       // P1-02：Mock 也写快照 —— 页面读取的是**快照**，不是当前岗位。
       // 这样「修改岗位 JD 后旧分析不变」的行为在 Mock 下同样可验证。
-      jobSnapshots: <JobSnapshot>[
+      snapshots.add(
         JobSnapshot(
           jobId: job.id,
           title: job.title,
           company: job.company,
-          rawJd: rawJd,
-          source: source,
-          sourceUrl: sourceUrl,
-          importMethod: source,
+          rawJd: input.rawJd,
+          source: input.source,
+          sourceUrl: input.sourceUrl,
+          importMethod: input.source,
           capturedAt: now,
         ),
-      ],
+      );
+    }
+
+    final AnalysisResult result = AnalysisResult(
+      id: '$projectId-result-1',
+      projectId: projectId,
+      version: 1,
+      matches: matches,
+      jobSnapshots: snapshots,
       createdAt: now,
     );
     final AnalysisProject project = AnalysisProject(
       id: projectId,
-      name: job.title,
-      jobs: <Job>[job],
+      name: jobModels.first.title,
+      jobs: jobModels,
       results: <AnalysisResult>[result],
       createdAt: now,
       updatedAt: now,

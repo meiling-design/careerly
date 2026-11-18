@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:careerly/core/errors/app_error.dart';
+import 'package:careerly/data/models/analysis_job_input.dart';
 import 'package:careerly/data/models/analysis_project.dart';
 import 'package:careerly/data/models/analysis_result.dart';
 import 'package:careerly/data/models/job.dart';
@@ -21,7 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
-/// ③ 岗位 URL —— 「粘贴链接 → 抓取 → 回填 JD 文本框」。
+/// ③ 岗位 URL —— 「粘贴链接 → 抓取 → 加入目标岗位草稿」。
 ///
 /// 依据：
 ///
@@ -29,7 +30,7 @@ import 'package:provider/single_child_widget.dart';
 /// CLAUDE.md §5.2  额度只在点击「开始分析」时扣 —— 抓取不扣
 /// CLAUDE.md §5.5  四态：Loading / Empty / Error / Retry / Disabled
 /// CLAUDE.md §7    Mock 不得编造产品数据（抓不到就报错，不造假 JD）
-/// 产品侧裁决       落点 = 抓取回填 JD 文本框（2026-10-02）
+/// 多岗位 2026-11-18  抓取成功后直接追加一个岗位草稿，不再回填单岗位输入框
 /// ```
 ///
 /// ## 为什么要有这份测试
@@ -38,11 +39,12 @@ import 'package:provider/single_child_widget.dart';
 /// 于是「开始分析」把一条 `https://...` 当招聘描述发给后端解析。
 /// 界面看起来一切正常（岗位胶囊有了、按钮可点），错误只在分析结果里。
 ///
-/// 因此这里钉的不是「有没有回填」，而是**回填进去的到底是什么**：
+/// 多岗位改造后，抓取结果直接追加进 `_jobs` 列表；这里钉的不是
+/// 「JD 框里有什么」，而是**交给分析引擎的到底是什么**：
 ///
 /// ```text
-/// ✅ JD 框 = 抓回来的正文
-/// ❌ JD 框 = 那条链接            ← 旧行为，必须钉死
+/// ✅ 岗位草稿.rawJd = 抓回来的正文
+/// ❌ 岗位草稿.rawJd = 那条链接      ← 旧行为，必须钉死
 /// ```
 void main() {
   // ---------------------------------------------------------------------------
@@ -125,30 +127,15 @@ void main() {
     await tester.pump();
   }
 
-  /// JD 输入框里的文本。表单关闭时读不到 —— 先展开「粘贴 JD」。
-  ///
-  /// 展开 JD 表单用的是**同一个** `TextEditingController`，
-  /// 所以这既能读回填结果，也正是用户「看得到、改得动」的那条路径。
-  Future<String> jdBoxText(WidgetTester tester) async {
-    await tester.ensureVisible(find.text('粘贴 JD 添加岗位'));
-    await tester.pump();
-    await tester.tap(find.text('粘贴 JD 添加岗位'));
-    await tester.pump();
-    final TextField field = tester.widget<TextField>(
-      find.byType(TextField).first,
-    );
-    return field.controller?.text ?? '';
-  }
-
   CareerlyButton analyzeButton(WidgetTester tester) =>
       tester.widget<CareerlyButton>(find.byType(CareerlyButton));
 
   // ---------------------------------------------------------------------------
-  // 一、成功路径：抓回来的正文进 JD 框（不是那条链接）
+  // 一、成功路径：抓回来的正文进入岗位草稿（不是那条链接）
   // ---------------------------------------------------------------------------
 
-  group('抓取回填（成功）', () {
-    testWidgets('JD 框 = 抓回来的正文，**不是**那条链接', (WidgetTester tester) async {
+  group('抓取成功', () {
+    testWidgets('报给分析的 rawJd = 抓回来的正文，**不是**那条链接', (WidgetTester tester) async {
       final StubAnalysisRepository repository = StubAnalysisRepository(
         parseResult: crawled,
       );
@@ -160,14 +147,28 @@ void main() {
 
       // 仓库确实收到了用户粘的那条链接。
       expect(repository.parsedUrls, <String>[url]);
+      // 多岗位：抓取成功直接加入岗位草稿，胶囊可见。
+      expect(find.text('某某科技 · $crawledTitle'), findsOneWidget);
+      expect(find.text('已添加 1 个目标岗位，可继续添加'), findsOneWidget);
 
-      final String jd = await jdBoxText(tester);
-      expect(jd, crawledJd, reason: '回填的必须是抓回来的 JD 正文');
+      await tester.ensureVisible(find.text('开始分析（1 个岗位）'));
+      await tester.pump();
+      await tester.tap(find.text('开始分析（1 个岗位）'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      // 真正发给分析引擎的是岗位草稿，而不是 JD 输入框。
+      final AnalysisJobInput submitted = repository.analyzedJobs.single;
+      expect(submitted.title, crawledTitle);
+      expect(submitted.rawJd, crawledJd, reason: '提交的必须是抓回来的 JD 正文');
       expect(
-        jd.contains('https://'),
+        submitted.rawJd.contains('https://'),
         isFalse,
         reason: '旧行为把链接本身当 JD 发给后端，这里把它钉死',
       );
+      expect(submitted.company, '某某科技');
+      expect(submitted.source, 'url');
+      expect(submitted.sourceUrl, url);
     });
 
     testWidgets('岗位名 = 抓回来的 title（胶囊可见，不用域名凑）', (WidgetTester tester) async {
@@ -180,10 +181,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
       await tester.pump();
 
-      expect(find.text(crawledTitle), findsOneWidget);
+      // 胶囊展示「公司 · 岗位」，岗位名来自抓取结果。
+      expect(find.text('某某科技 · $crawledTitle'), findsOneWidget);
       // 旧行为显示的是「岗位（zhipin.com）」这种域名推导名。
       expect(find.text('岗位（zhipin.com）'), findsNothing);
-      expect(find.text('已添加 1 个目标岗位'), findsOneWidget);
+      expect(find.text('已添加 1 个目标岗位，可继续添加'), findsOneWidget);
     });
 
     testWidgets('抓到的岗位走的是原有分析链路：rawJd 是正文、title 是岗位名', (
@@ -205,8 +207,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
 
       expect(repository.analyzeCalls, 1);
-      expect(repository.analyzedTitle, crawledTitle);
-      expect(repository.analyzedJd, crawledJd);
+      final AnalysisJobInput submitted = repository.analyzedJobs.single;
+      expect(submitted.title, crawledTitle);
+      expect(submitted.rawJd, crawledJd);
     });
 
     testWidgets('抓取**不扣额度**（CLAUDE.md §5.2）', (WidgetTester tester) async {
@@ -221,11 +224,7 @@ void main() {
 
       expect(providerOf(tester).quota, QuotaState.free);
       expect(find.textContaining('剩余 3 / 3 次'), findsOneWidget);
-      expect(
-        repository.analyzeCalls,
-        0,
-        reason: '抓取不是分析 —— 不得建任务、不得扣额度',
-      );
+      expect(repository.analyzeCalls, 0, reason: '抓取不是分析 —— 不得建任务、不得扣额度');
     });
   });
 
@@ -281,10 +280,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
       await tester.pump();
 
-      expect(
-        find.text('未能从该链接抓取到岗位信息。请确认链接可公开访问，或直接粘贴 JD 文本'),
-        findsOneWidget,
-      );
+      expect(find.text('未能从该链接抓取到岗位信息。请确认链接可公开访问，或直接粘贴 JD 文本'), findsOneWidget);
       expect(find.text('重试'), findsOneWidget);
       // 链接还在框里 —— 失败后用户要么改、要么重试，不该被迫重粘一遍。
       final TextField field = tester.widget<TextField>(
@@ -303,7 +299,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
       await tester.pump();
 
-      expect(find.text('已添加 1 个目标岗位'), findsNothing);
+      expect(find.textContaining('已添加'), findsNothing);
       expect(find.text('还没有添加目标岗位'), findsOneWidget);
       expect(
         analyzeButton(tester).onPressed,
@@ -312,7 +308,7 @@ void main() {
       );
     });
 
-    testWidgets('重试 → 再次抓取并成功回填', (WidgetTester tester) async {
+    testWidgets('重试 → 再次抓取并加入岗位草稿', (WidgetTester tester) async {
       final StubAnalysisRepository repository = StubAnalysisRepository(
         parseError: const NetworkError(message: '抓取失败'),
       );
@@ -333,7 +329,7 @@ void main() {
       await tester.pump();
 
       expect(repository.parsedUrls, <String>[url, url]);
-      expect(find.text(crawledTitle), findsOneWidget);
+      expect(find.text('某某科技 · $crawledTitle'), findsOneWidget);
     });
 
     testWidgets('取消后重开：上一次的失败红字被清掉', (WidgetTester tester) async {
@@ -353,11 +349,7 @@ void main() {
       await tester.pump();
 
       await openUrlForm(tester);
-      expect(
-        find.text('抓取失败'),
-        findsNothing,
-        reason: '旧错误留着会被读成「这次输入就错了」',
-      );
+      expect(find.text('抓取失败'), findsNothing, reason: '旧错误留着会被读成「这次输入就错了」');
       expect(providerOf(tester).jobUrlState.isInitial, isTrue);
     });
   });
@@ -367,7 +359,7 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('取消（迟到结果作废）', () {
-    testWidgets('抓取途中取消 → 结果不写进 JD 框、岗位也不添加', (WidgetTester tester) async {
+    testWidgets('抓取途中取消 → 岗位不添加', (WidgetTester tester) async {
       final StubAnalysisRepository repository = StubAnalysisRepository(
         manualParse: true,
       );
@@ -386,7 +378,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('已添加 1 个目标岗位'), findsNothing);
+      expect(find.textContaining('已添加'), findsNothing);
       expect(find.text('粘贴岗位 URL'), findsOneWidget, reason: '表单已关闭且未重开');
       expect(analyzeButton(tester).onPressed, isNull);
     });
@@ -424,6 +416,9 @@ class StubAnalysisRepository implements AnalysisRepository {
   int analyzeCalls = 0;
   String? analyzedTitle;
   String? analyzedJd;
+
+  /// 最近一次提交给分析的全部岗位草稿（多岗位，2026-11-18）。
+  List<AnalysisJobInput> analyzedJobs = <AnalysisJobInput>[];
 
   Completer<ParsedJob>? _pending;
 
@@ -463,10 +458,22 @@ class StubAnalysisRepository implements AnalysisRepository {
     String company = '',
     String source = 'paste',
     String? sourceUrl,
+    List<AnalysisJobInput>? jobs,
   }) async {
     analyzeCalls++;
     analyzedTitle = title;
     analyzedJd = rawJd;
+    analyzedJobs = jobs == null
+        ? <AnalysisJobInput>[
+            AnalysisJobInput(
+              title: title,
+              rawJd: rawJd,
+              company: company,
+              source: source,
+              sourceUrl: sourceUrl,
+            ),
+          ]
+        : List<AnalysisJobInput>.of(jobs);
     final DateTime now = DateTime(2026, 1, 1);
     final String projectId = 'stub-project-$analyzeCalls';
     final Job job = Job(

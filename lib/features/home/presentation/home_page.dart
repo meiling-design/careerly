@@ -49,6 +49,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   GoRouter? _router;
+  bool? _wasHomeVisible;
   final GlobalKey _matchChangesKey = GlobalKey();
 
   @override
@@ -75,6 +76,7 @@ class _HomePageState extends State<HomePage> {
     if (identical(router, _router)) return;
     _router?.routeInformationProvider.removeListener(_onRouteChanged);
     _router = router;
+    _wasHomeVisible = _isHomeVisible;
     _router?.routeInformationProvider.addListener(_onRouteChanged);
   }
 
@@ -85,8 +87,18 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onRouteChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final bool isHomeVisible = _isHomeVisible;
+    if (isHomeVisible && _wasHomeVisible == false) {
+      context.read<HomeProvider>().load();
+    }
+    _wasHomeVisible = isHomeVisible;
+    setState(() {});
   }
+
+  bool get _isHomeVisible =>
+      _router == null ||
+      _router!.routeInformationProvider.value.uri.path == AppRoutes.home;
 
   @override
   Widget build(BuildContext context) {
@@ -98,9 +110,7 @@ class _HomePageState extends State<HomePage> {
     );
     final String greeting = homeGreetingFor(DateTime.now());
     final String userName = profile?.data?.displayName ?? '';
-    final bool isHomeVisible =
-        _router == null ||
-        _router!.routeInformationProvider.value.uri.path == AppRoutes.home;
+    final bool isHomeVisible = _isHomeVisible;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(

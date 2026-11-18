@@ -87,6 +87,7 @@ void main() {
         payload: <String, dynamic>{
           'headline': '当前匹配 84 分',
           'subheadline': '比上次 +6 分',
+          'latestTopScore': 84,
           'suggestions': <dynamic>['补充 Kubernetes 生产经验'],
           'matchChanges': <dynamic>[
             <String, dynamic>{
@@ -109,6 +110,7 @@ void main() {
       final HomeSummary summary = await repo.fetchSummary();
 
       expect(summary.headline, '当前匹配 84 分');
+      expect(summary.latestTopScore, 84);
       expect(summary.hasBaseline, isTrue);
       expect(summary.suggestions, <String>['补充 Kubernetes 生产经验']);
       expect(summary.matchChanges, hasLength(1));
@@ -155,7 +157,7 @@ void main() {
 /// 假后端：记录请求路径，返回可编排的 envelope 响应。
 class _FakeBackend extends http.BaseClient {
   _FakeBackend({Map<String, dynamic>? payload})
-      : _data = payload ?? <String, dynamic>{};
+    : _data = payload ?? <String, dynamic>{};
 
   final dynamic _data;
   String? lastPath;
@@ -170,7 +172,9 @@ class _FakeBackend extends http.BaseClient {
       'error': null,
     };
     return http.StreamedResponse(
-      Stream<List<int>>.fromIterable(<List<int>>[utf8.encode(jsonEncode(body))]),
+      Stream<List<int>>.fromIterable(<List<int>>[
+        utf8.encode(jsonEncode(body)),
+      ]),
       200,
       request: request is http.Request ? request : null,
       headers: const <String, String>{

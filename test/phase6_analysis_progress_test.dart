@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:careerly/core/state/state.dart';
+import 'package:careerly/data/models/analysis_job_input.dart';
 import 'package:careerly/data/models/analysis_project.dart';
 import 'package:careerly/data/models/analysis_result.dart';
 import 'package:careerly/data/models/job.dart';
@@ -87,6 +88,7 @@ class StubAnalysisRepository implements AnalysisRepository {
     String company = '',
     String source = 'paste',
     String? sourceUrl,
+    List<AnalysisJobInput>? jobs,
   }) {
     analyzeCalls++;
     // P1-03：任务开始时后端预占一次额度；桩模拟服务端读数。

@@ -160,6 +160,7 @@ void main() {
     hasBaseline: true,
     headline: '当前与目标岗位的匹配度 61 分',
     subheadline: '最需要补上的是「测试能力」',
+    latestTopScore: 61,
     suggestions: <String>['建议甲', '建议乙'],
     recentGrowth: <String>['成长甲', '成长乙'],
     matchChanges: <MatchChange>[
@@ -360,6 +361,98 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('Phase 5 · 首页 State 03（已有岗位分析）', () {
+    testWidgets('切回首页时重新读取最新分析摘要', (WidgetTester tester) async {
+      final _MutableHomeRepository repository = _MutableHomeRepository(
+        const HomeSummary(
+          hasBaseline: true,
+          headline: '当前与目标岗位的匹配度 51 分',
+          latestTopScore: 51,
+        ),
+      );
+      final GoRouter router = GoRouter(
+        initialLocation: AppRoutes.home,
+        routes: <RouteBase>[
+          StatefulShellRoute.indexedStack(
+            builder:
+                (
+                  BuildContext context,
+                  GoRouterState state,
+                  StatefulNavigationShell navigationShell,
+                ) {
+                  return Scaffold(
+                    body: navigationShell,
+                    bottomNavigationBar: Row(
+                      children: <Widget>[
+                        TextButton(
+                          onPressed: () => navigationShell.goBranch(0),
+                          child: const Text('首页'),
+                        ),
+                        TextButton(
+                          onPressed: () => navigationShell.goBranch(1),
+                          child: const Text('分析Tab'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+            branches: <StatefulShellBranch>[
+              StatefulShellBranch(
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: AppRoutes.home,
+                    builder: (_, _) => const HomePage(),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: AppRoutes.analysis,
+                    builder: (_, _) => const Scaffold(body: Text('分析页')),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: <SingleChildWidget>[
+            Provider<HomeRepository>.value(value: repository),
+            ChangeNotifierProvider<HomeProvider>(
+              create: (BuildContext context) =>
+                  HomeProvider(context.read<HomeRepository>()),
+            ),
+          ],
+          child: MaterialApp.router(
+            routerConfig: router,
+            theme: CareerlyTheme.light(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(homeText('51%'), findsOneWidget);
+
+      repository.summary = const HomeSummary(
+        hasBaseline: true,
+        headline: '当前与目标岗位的匹配度 83 分',
+        latestTopScore: 83,
+      );
+      await tester.tap(find.text('分析Tab'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('首页'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(homeText('83%'), findsOneWidget);
+      expect(homeText('暂无数据'), findsNothing);
+    });
+
     testWidgets('Hero 与空态同构：问候 + 品牌短句 + 新建分析', (WidgetTester tester) async {
       await pumpStub(tester, analyzed);
 
@@ -419,11 +512,13 @@ void main() {
       expect(homeText('成长乙'), findsOneWidget);
     });
 
-    testWidgets('当前状态圆环显示最新摘要中的最高匹配分', (WidgetTester tester) async {
+    testWidgets('圆环独立展示最新分析最高分，不依赖匹配变化列表', (WidgetTester tester) async {
       await pumpStub(
         tester,
         const HomeSummary(
           hasBaseline: true,
+          headline: '当前与目标岗位的匹配度 73 分',
+          latestTopScore: 73,
           matchChanges: <MatchChange>[
             MatchChange(jobId: 'j1', jobTitle: '测试岗位 A', score: 42),
             MatchChange(jobId: 'j2', jobTitle: '测试岗位 B', score: 61),
@@ -431,9 +526,10 @@ void main() {
         ),
       );
 
-      // 61% 同时出现在圆环和岗位列表中，42% 只出现在列表。
-      expect(homeText('61%'), findsNWidgets(2));
+      expect(homeText('73%'), findsOneWidget);
+      expect(homeText('61%'), findsOneWidget);
       expect(homeText('42%'), findsOneWidget);
+      expect(homeText('暂无数据'), findsNothing);
     });
 
     testWidgets('delta 缺失（`null`）同样显示破折号，不显示 `+0%`', (
@@ -443,6 +539,7 @@ void main() {
         tester,
         const HomeSummary(
           hasBaseline: true,
+          latestTopScore: 61,
           matchChanges: <MatchChange>[
             MatchChange(jobId: 'j1', jobTitle: '测试岗位 A', score: 61),
           ],
@@ -459,6 +556,7 @@ void main() {
         tester,
         const HomeSummary(
           hasBaseline: true,
+          latestTopScore: 61,
           matchChanges: <MatchChange>[
             MatchChange(jobId: 'j1', jobTitle: '测试岗位 A', score: 61),
           ],
@@ -679,4 +777,13 @@ class _FailingHomeRepository implements HomeRepository {
   @override
   Future<HomeSummary> fetchSummary() async =>
       throw Exception('stub failure (test only)');
+}
+
+class _MutableHomeRepository implements HomeRepository {
+  _MutableHomeRepository(this.summary);
+
+  HomeSummary summary;
+
+  @override
+  Future<HomeSummary> fetchSummary() async => summary;
 }

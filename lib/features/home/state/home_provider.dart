@@ -72,6 +72,7 @@ class HomeProvider extends AsyncStateNotifier<HomeSummary> {
     final HomeSummary? summary = data;
     if (summary == null || !summary.hasBaseline) return HomeStage.firstUse;
     final bool hasAnalysis =
+        summary.latestTopScore != null ||
         summary.matchChanges.isNotEmpty ||
         summary.suggestions.isNotEmpty ||
         // 首次分析或分数未变化时，后端不会产生 matchChanges。

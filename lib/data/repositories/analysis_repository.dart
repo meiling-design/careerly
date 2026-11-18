@@ -1,3 +1,4 @@
+import '../models/analysis_job_input.dart';
 import '../models/analysis_project.dart';
 import '../models/analysis_task.dart';
 import '../models/job.dart';
@@ -34,7 +35,11 @@ abstract interface class AnalysisRepository {
   /// 不得静默返回空 —— 用户正盯着一个空表单等结果。
   Future<ParsedJob> parseJobUrl(String url);
 
-  /// 使用一条 JD 创建并执行一次单岗位分析。
+  /// 创建并执行一次分析。
+  ///
+  /// 多岗位（2026-11-18）：传入 [jobs] 时一次性分析全部目标岗位，
+  /// 结果按匹配度跨岗位排名。未传时回退到单岗位 [title] / [rawJd]
+  /// （向后兼容，Mock 与既有测试仍可只给一条）。
   ///
   /// [company] / [source] / [sourceUrl] 会被后端写进本次分析的
   /// **JD 原文快照**（P1-02）；缺省值保持旧行为（粘贴 JD、无公司名）。
@@ -46,6 +51,7 @@ abstract interface class AnalysisRepository {
     String company = '',
     String source = 'paste',
     String? sourceUrl,
+    List<AnalysisJobInput>? jobs,
   });
 
   /// 读取分析额度状态。
@@ -79,6 +85,7 @@ abstract interface class AnalysisProgressSource {
   /// 发起一次分析，**立刻**返回任务句柄（不等引擎跑完）。
   ///
   /// 对应 `POST /api/v1/analysis/tasks`（202）。
+  /// 多岗位时传 [jobs]；未传则用单岗位 [title] / [rawJd]。
   /// 额度扣减由 Provider 在调用前负责；前置拒绝（额度耗尽 / 无基线）
   /// 由后端抛成 `AppError`，与同步端点同码。
   Future<AnalysisTask> startAnalysisTask({
@@ -87,6 +94,7 @@ abstract interface class AnalysisProgressSource {
     String company = '',
     String source = 'paste',
     String? sourceUrl,
+    List<AnalysisJobInput>? jobs,
   });
 
   /// 读取任务最新状态（含真实节点进度）。

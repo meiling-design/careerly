@@ -71,6 +71,7 @@ class HomeSummary {
   const HomeSummary({
     this.headline = '',
     this.subheadline = '',
+    this.latestTopScore,
     this.suggestions = const <String>[],
     this.matchChanges = const <MatchChange>[],
     this.recentGrowth = const <String>[],
@@ -86,6 +87,9 @@ class HomeSummary {
 
   /// 状态补充说明。
   final String subheadline;
+
+  /// 最新一次分析中的最高匹配分；无分析结果时为 `null`。
+  final int? latestTopScore;
 
   /// 行动建议摘要。
   final List<String> suggestions;
@@ -108,6 +112,7 @@ class HomeSummary {
   /// 「职业基线已建立 → 查看职业能力 → 开始第一次岗位分析」。
   bool get isEmpty =>
       headline.isEmpty &&
+      latestTopScore == null &&
       suggestions.isEmpty &&
       matchChanges.isEmpty &&
       recentGrowth.isEmpty;
@@ -115,6 +120,7 @@ class HomeSummary {
   HomeSummary copyWith({
     String? headline,
     String? subheadline,
+    int? latestTopScore,
     List<String>? suggestions,
     List<MatchChange>? matchChanges,
     List<String>? recentGrowth,
@@ -124,6 +130,7 @@ class HomeSummary {
     return HomeSummary(
       headline: headline ?? this.headline,
       subheadline: subheadline ?? this.subheadline,
+      latestTopScore: latestTopScore ?? this.latestTopScore,
       suggestions: suggestions ?? this.suggestions,
       matchChanges: matchChanges ?? this.matchChanges,
       recentGrowth: recentGrowth ?? this.recentGrowth,
@@ -136,6 +143,7 @@ class HomeSummary {
     return HomeSummary(
       headline: json['headline'] as String? ?? '',
       subheadline: json['subheadline'] as String? ?? '',
+      latestTopScore: (json['latestTopScore'] as num?)?.round(),
       suggestions: _stringList(json['suggestions']),
       matchChanges: (json['matchChanges'] as List<dynamic>? ?? <dynamic>[])
           .map((dynamic e) => MatchChange.fromJson(e as Map<String, dynamic>))
@@ -149,6 +157,7 @@ class HomeSummary {
   Map<String, dynamic> toJson() => <String, dynamic>{
     'headline': headline,
     'subheadline': subheadline,
+    'latestTopScore': latestTopScore,
     'suggestions': suggestions,
     'matchChanges': matchChanges
         .map((MatchChange m) => m.toJson())

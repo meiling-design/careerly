@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:careerly/data/api/analysis_task_store.dart';
+import 'package:careerly/data/models/analysis_job_input.dart';
 import 'package:careerly/data/models/analysis_project.dart';
 import 'package:careerly/data/models/analysis_result.dart';
 import 'package:careerly/data/models/analysis_task.dart';
@@ -116,6 +117,7 @@ class _P1Repository implements AnalysisRepository {
     String company = '',
     String source = 'paste',
     String? sourceUrl,
+    List<AnalysisJobInput>? jobs,
   }) async {
     analyzeCalls++;
     return projects.first;
@@ -158,6 +160,7 @@ class _P1ProgressRepository implements AnalysisRepository, AnalysisProgressSourc
     String company = '',
     String source = 'paste',
     String? sourceUrl,
+    List<AnalysisJobInput>? jobs,
   }) async => project;
 
   @override
@@ -167,6 +170,7 @@ class _P1ProgressRepository implements AnalysisRepository, AnalysisProgressSourc
     String company = '',
     String source = 'paste',
     String? sourceUrl,
+    List<AnalysisJobInput>? jobs,
   }) async {
     quota = quota.copyWith(reserved: 1);
     return task;

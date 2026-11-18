@@ -1,4 +1,5 @@
 import '../../core/errors/app_error.dart';
+import '../models/analysis_job_input.dart';
 import '../models/analysis_project.dart';
 import '../models/analysis_task.dart';
 import '../models/job.dart';
@@ -71,17 +72,19 @@ class ApiAnalysisRepository implements AnalysisRepository, AnalysisProgressSourc
     String company = '',
     String source = 'paste',
     String? sourceUrl,
+    List<AnalysisJobInput>? jobs,
   }) async {
     // 同步接口（决策 C2）：实测约 210s，必须用加长超时。
     final dynamic data = await _client.post(
       '/api/v1/analysis',
-      body: <String, dynamic>{
-        'title': title,
-        'rawJd': rawJd,
-        'company': company,
-        'source': source,
-        'sourceUrl': ?sourceUrl,
-      },
+      body: _analysisBody(
+        title: title,
+        rawJd: rawJd,
+        company: company,
+        source: source,
+        sourceUrl: sourceUrl,
+        jobs: jobs,
+      ),
       timeout: ApiClient.analysisTimeout,
     );
     return AnalysisProject.fromJson(data as Map<String, dynamic>);
@@ -94,20 +97,45 @@ class ApiAnalysisRepository implements AnalysisRepository, AnalysisProgressSourc
     String company = '',
     String source = 'paste',
     String? sourceUrl,
+    List<AnalysisJobInput>? jobs,
   }) async {
     // 这个请求**立刻**返回 202 + taskId（引擎在后台跑），
     // 所以用普通超时即可，不需要 [ApiClient.analysisTimeout] 那种加长等待。
     final dynamic data = await _client.post(
       '/api/v1/analysis/tasks',
-      body: <String, dynamic>{
-        'title': title,
-        'rawJd': rawJd,
-        'company': company,
-        'source': source,
-        'sourceUrl': ?sourceUrl,
-      },
+      body: _analysisBody(
+        title: title,
+        rawJd: rawJd,
+        company: company,
+        source: source,
+        sourceUrl: sourceUrl,
+        jobs: jobs,
+      ),
     );
     return AnalysisTask.fromJson(data as Map<String, dynamic>);
+  }
+
+  /// 分析请求体。多岗位时优先发 `jobs`；同时保留首个岗位的旧字段，
+  /// 让尚未升级的后端仍能完成一次单岗位分析（不会 422）。
+  static Map<String, dynamic> _analysisBody({
+    required String title,
+    required String rawJd,
+    required String company,
+    required String source,
+    required String? sourceUrl,
+    required List<AnalysisJobInput>? jobs,
+  }) {
+    final AnalysisJobInput? first =
+        jobs == null || jobs.isEmpty ? null : jobs.first;
+    return <String, dynamic>{
+      'title': first?.title ?? title,
+      'rawJd': first?.rawJd ?? rawJd,
+      'company': first?.company ?? company,
+      'source': first?.source ?? source,
+      'sourceUrl': ?(first?.sourceUrl ?? sourceUrl),
+      if (jobs != null && jobs.isNotEmpty)
+        'jobs': jobs.map((AnalysisJobInput j) => j.toJson()).toList(),
+    };
   }
 
   @override

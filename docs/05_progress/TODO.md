@@ -4,9 +4,15 @@
 >
 > 现状 → `CURRENT_STATUS.md` ｜ 为什么这么决定 → `CHANGELOG.md` ｜ 怎么做 → `DEVELOPMENT_WORKFLOW.md`
 >
-> 最后更新：**2026-10-07**（**D120 部分裁决** —— 运营主体 / 联系邮箱落进三份协议）
-> ｜ 上一版：**2026-10-07**（发布就绪度摸底 —— 新增 §1.0g；只读，未改任何代码）
+> 最后更新：**2026-11-19**（多岗位分析收尾 —— 登记 **K25–K27**，见 §2.2）
+> ｜ 上一版：**2026-10-07**（**D120 部分裁决** —— 运营主体 / 联系邮箱落进三份协议）
+> ｜ 再上一版：**2026-10-07**（发布就绪度摸底 —— 新增 §1.0g；只读，未改任何代码）
 > ｜ 再上一版：**2026-10-07**（Session 024 —— 修 §4.6 · C8，只改测试文件）
+>
+> 📌 **2026-11-19 多岗位分析（1 份简历 × N 个目标岗位）已交付代码与测试**：
+> 后端 `AnalysisProject.jobs` / 跨岗位 `rank` / 多 JD 快照，前端岗位草稿列表、
+> `POST /analysis` 与 `/analysis/tasks` 的 `jobs` 入参均已接通。
+> 遗留问题 **K25–K27** 记录在 §2.2，**其中 K25 需产品侧裁决**。
 >
 > 📌 **D120 部分裁决（2026-10-07 产品侧）**：运营主体 = **LingDesign（个人开发）**、
 > 联系邮箱 = **l1350900062@163.com**、隐私联系人 = **与运营主体合并** ——
@@ -1131,6 +1137,9 @@ Phase 10  Android QA
 | **K23** | 🟠 **崩溃 / 错误监控零实现（前后端皆是）** —— Flutter 侧仅一处占位注释（`lib/core/errors/error_handler.dart:76`「Phase 1 不接入上报 SDK」），`pubspec.yaml` 无 crash / analytics 依赖。后端 `work_agent` grep `sentry\|arms\|bugsnag\|rollbar\|datadog\|opentelemetry` **无匹配**。✅ **但两侧的接入点都已预留**：Flutter 侧 `AppError` 已六分类（Network / Parse / Auth / Quota / AI / Unknown）且全部经 `ErrorHandler.guard()`；后端已有三套全局异常处理器（`app/api/server.py:92` / `:109` / `:123`）。**不必满仓库埋点，单点接线即可同时覆盖 Crash / API Error / AI Error 三类** | **上线后的问题定位能力** —— 当前线上出问题是「用户报修 → 无从复现」 | Flutter 侧 + 后端（需先立项） |
 | **K24** | 🟠 **后端安全基线为开发态**（`work_agent`）—— ✅ 已有 `Dockerfile` / `render.yaml` / `railway.toml` / `HOW_TO_DEPLOY.md`；✅ DEV 直登模式有 fail-fast（`ENV=production` + `AUTH_MODE=dev` → **拒绝启动**，`app/api/server.py:35`）。❌ **无 nginx / 无 TLS 配置**，HTTPS 完全依赖 Railway / Render 边缘终止；⚠️ **CORS 默认 `allow_origins=["*"]`**（`server.py:57-58`，`CORS_ALLOW_ORIGINS` 未启用）；⚠️ **JWT 密钥有硬编码 fallback `"dev-insecure-change-me"`，只告警不报错**（`app/core/security.py:36-41`）；⚠️ `.env` 内 DashScope API Key 为本机明文（已 gitignore，未进 git）。📌 **修正一处旧判**：`.backend_run.log` 里的 `AUTH MODE = DEV` 曾被列为「暗雷上生产」，实际有 fail-fast 兜底 —— 性质是**拦路虎**（部署时必硬失败），不是暗雷，风险等级下调 | **发版前必须处理** | 后端 |
 | **K12** | **`CareerlyBottomSheet` 成为第三处 Glass 组合** —— 因 `GlassSurface` 的圆角参数是单个 `double`，**表达不了非均匀圆角**，而 Figma 的 BottomSheet 正是 `S.glass` + 仅顶部圆角 | **Phase 2 批 3**，与 K10 一并处理；是否扩展 `GlassSurface` 见 **D30** |
+| **K25** | 🟠 **多岗位分析的「能力 Gap / 优势能力」仍共用一份评分** —— `work_agent/app/careerly/engine.py:395-398` 把多份 JD 合并成一次能力评分；`:265-279` 再把同一组 `gapDetails` / `strengthScores` 写进**每一条** `JobMatch`。结果：各岗位的 `score` / `reasons` / `gaps` 是独立计算的，但岗位详情页的「能力 Gap / 岗位要求」在所有岗位间**完全相同**。PRD §9.4「对本次全部岗位统一执行匹配并输出……能力 Gap」是否要求**逐岗位 Gap**，需产品侧确认 | **多岗位分析的完整验收**（若要求逐岗位 Gap，需要把能力评分从「合并 JD 一次」改为「逐岗位目标集」） | **产品侧裁决**（是否可接受共用一份能力 Gap），再由后端实现 |
+| **K26** | 🟡 **多岗位任务恢复后岗位数回退为 1** —— `analysis_provider.dart:66` 的 `_runningJobCount` 默认 1，`restoreActiveTask()`（`:436-503`）只恢复任务进度，不恢复本次分析的岗位数；杀进程/重进后「正在分析」页会显示「1 份简历 × 1 个目标岗位」 | **多岗位分析的进度页显示正确性**（不影响实际分析结果） | Flutter 侧：任务快照补 `jobCount`，或从 `jobSnapshots.length` 推导 |
+| **K27** | 🟡 **多岗位分析未写入交付记录** —— `docs/05_progress/CURRENT_STATUS.md` / `CHANGELOG.md` 尚未登记本轮「多岗位分析」交付；后端契约已在 `work_agent/docs/careerly/BACKEND_API_CONTRACT.md` §2.1 / §2.1b 同步 | **验收证据链** —— 按 K17 的教训，交付必须有「承诺了什么、明确没做什么」的记录 | AI 侧补记；不确定的裁决仍走 §3.1 |
 
 > **K10 详述**：批 1 把导航栏里的私有 `_GlassEdgePainter` / `_GlassFilters`
 > **泛化**成了公开的 `GlassEdgePainter` / `GlassFilters`
@@ -1160,6 +1169,17 @@ Phase 10  Android QA
 > ⚠️ **批 2 没有改 `GlassSurface` / `GlassEdgePainter` 的既有代码**
 > （那属批 1，未验收），因此 `GlassEdgePainter` 里那句错误的前提**仍在源码中**。
 > 处理方式待 **D30** 裁决。
+
+> **K25 详述（2026-11-19 新增）**：多岗位分析的**匹配排序**已按岗位独立计算：
+> 每条 `JobMatch` 的 `score` / `reasons` / `gaps` 来自各自的 JD。
+> 但 C4 能力评分只有**一次 LLM 调用**，输入是 `_capability_jd_text(job_texts)`
+> 合并后的 JD 文本；随后 `_apply_capabilities()` 把同一组 `gapDetails` /
+> `strengthScores` 复制到所有岗位。因此岗位详情页的「能力 Gap」数值与等级
+> 不随岗位变化。
+>
+> **待确认**：这是有意的「以人为主的通用能力画像」，还是多岗位场景下的
+> 实现收窄？若 PRD 要求逐岗位 Gap，应把能力评分改为逐岗位调用（成本 = N 次
+> LLM 调用），或让模型一次返回「岗位 × 能力」矩阵。**在裁决前不要擅自改。**
 
 ---
 

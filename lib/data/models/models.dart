@@ -1,6 +1,7 @@
 /// Careerly 数据模型 barrel。
 library;
 
+export 'analysis_job_input.dart';
 export 'analysis_project.dart';
 export 'analysis_result.dart';
 export 'analysis_task.dart';

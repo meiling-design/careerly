@@ -7,6 +7,7 @@ import '../../../core/errors/app_error.dart';
 import '../../../core/state/state.dart';
 import '../../../data/api/analysis_task_store.dart';
 import '../../../data/api/api_client.dart';
+import '../../../data/models/analysis_job_input.dart';
 import '../../../data/models/analysis_project.dart';
 import '../../../data/models/analysis_task.dart';
 import '../../../data/models/job.dart';
@@ -53,11 +54,16 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   QuotaState? _quota;
   AsyncState<AnalysisProject> _analysisState =
       const AsyncState<AnalysisProject>.initial();
-  String _lastTitle = '';
-  String _lastJd = '';
-  String _lastCompany = '';
-  String _lastImportSource = 'paste';
-  String? _lastSourceUrl;
+
+  /// 最近一次发起分析的岗位集合（重试用）。
+  ///
+  /// 多岗位（2026-11-18）：一次分析可以带 N 个目标岗位；重试必须把
+  /// **同一组岗位**原样再发一次，而不是只重发第一个。
+  List<AnalysisJobInput> _lastJobs = const <AnalysisJobInput>[];
+
+  /// 当前（或最近一次）分析的岗位数 —— 「正在分析」页的
+  /// 「1 份简历 × N 个目标岗位」读它。
+  int _runningJobCount = 1;
 
   /// 本次分析运行的代际号。
   ///
@@ -94,9 +100,12 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
 
   AnalysisProject? get latestProject => _analysisState.dataOrNull;
 
-  String get lastTitle => _lastTitle;
+  String get lastTitle => _lastJobs.isEmpty ? '' : _lastJobs.first.title;
 
-  String get lastJd => _lastJd;
+  String get lastJd => _lastJobs.isEmpty ? '' : _lastJobs.first.rawJd;
+
+  /// 本次（或最近一次）分析的岗位数。
+  int get runningJobCount => _runningJobCount;
 
   /// 岗位链接抓取的状态（③ 岗位 URL）。
   ///
@@ -233,19 +242,31 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   /// 实测引擎单是 `routing` 一个节点就可能跑 100 秒以上，而组件内时钟
   /// 固定 7.3 秒就定形「分析完成」—— 那是一个真实的行为缺陷。
   Future<void> startAnalysis({
-    required String title,
-    required String rawJd,
+    String? title,
+    String? rawJd,
     String company = '',
     String importSource = 'paste',
     String? sourceUrl,
+    List<AnalysisJobInput>? jobs,
   }) async {
-    _lastTitle = title;
-    _lastJd = rawJd;
-    _lastCompany = company;
-    _lastImportSource = importSource;
-    _lastSourceUrl = sourceUrl;
+    // 多岗位（2026-11-18）：`jobs` 优先；只给 title/rawJd 的旧调用方
+    // 自动归一成一个岗位，行为与改造前逐字一致。
+    final List<AnalysisJobInput> effective =
+        jobs != null && jobs.isNotEmpty
+        ? List<AnalysisJobInput>.unmodifiable(jobs)
+        : <AnalysisJobInput>[
+            AnalysisJobInput(
+              title: title ?? '',
+              rawJd: rawJd ?? '',
+              company: company,
+              source: importSource,
+              sourceUrl: sourceUrl,
+            ),
+          ];
+    _lastJobs = effective;
+    _runningJobCount = effective.length;
 
-    if (rawJd.trim().isEmpty) {
+    if (effective.any((AnalysisJobInput job) => job.rawJd.trim().isEmpty)) {
       _setAnalysisFailure(
         const ParseError(message: '岗位 JD 不能为空，请粘贴岗位描述后重试', source: 'jd'),
       );
@@ -266,23 +287,8 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
     final AnalysisProgressSource? source = _progressSource;
     try {
       final AnalysisProject? project = source != null
-          ? await _runWithRealProgress(
-              source,
-              run: run,
-              title: title,
-              rawJd: rawJd,
-              company: company,
-              importSource: importSource,
-              sourceUrl: sourceUrl,
-            )
-          : await _runWithLocalClock(
-              run: run,
-              title: title,
-              rawJd: rawJd,
-              company: company,
-              importSource: importSource,
-              sourceUrl: sourceUrl,
-            );
+          ? await _runWithRealProgress(source, run: run, jobs: effective)
+          : await _runWithLocalClock(run: run, jobs: effective);
       if (project == null) {
         // 用户已离开当前页面：结果作废。但**不**回滚额度 ——
         // 后端任务仍在跑，预占仍然有效（P1-05）。
@@ -313,18 +319,16 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   Future<AnalysisProject?> _runWithRealProgress(
     AnalysisProgressSource source, {
     required int run,
-    required String title,
-    required String rawJd,
-    required String company,
-    required String importSource,
-    required String? sourceUrl,
+    required List<AnalysisJobInput> jobs,
   }) async {
+    final AnalysisJobInput first = jobs.first;
     AnalysisTask task = await source.startAnalysisTask(
-      title: title,
-      rawJd: rawJd,
-      company: company,
-      source: importSource,
-      sourceUrl: sourceUrl,
+      title: first.title,
+      rawJd: first.rawJd,
+      company: first.company,
+      source: first.source,
+      sourceUrl: first.sourceUrl,
+      jobs: jobs,
     );
     if (run != _runId) return null;
     // 句柄必须先落盘：进程此刻被杀，下次进入仍能恢复同一条任务。
@@ -378,19 +382,17 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   /// 同步等待期间的状态标记）。
   Future<AnalysisProject?> _runWithLocalClock({
     required int run,
-    required String title,
-    required String rawJd,
-    required String company,
-    required String importSource,
-    required String? sourceUrl,
+    required List<AnalysisJobInput> jobs,
   }) async {
     _setAnalysisLoading(progress: 0.45, message: '理解岗位要求');
+    final AnalysisJobInput first = jobs.first;
     final AnalysisProject project = await _repository.analyze(
-      title: title,
-      rawJd: rawJd,
-      company: company,
-      source: importSource,
-      sourceUrl: sourceUrl,
+      title: first.title,
+      rawJd: first.rawJd,
+      company: first.company,
+      source: first.source,
+      sourceUrl: first.sourceUrl,
+      jobs: jobs,
     );
     if (run != _runId) return null;
     _setAnalysisLoading(progress: 0.8, message: '建立能力匹配');
@@ -500,13 +502,7 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
     notifyListeners();
   }
 
-  Future<void> retryAnalysis() => startAnalysis(
-    title: _lastTitle,
-    rawJd: _lastJd,
-    company: _lastCompany,
-    importSource: _lastImportSource,
-    sourceUrl: _lastSourceUrl,
-  );
+  Future<void> retryAnalysis() => startAnalysis(jobs: _lastJobs);
 
   /// 退出进行中的分析（进度页退出确认 Sheet 的「退出」）。
   ///
