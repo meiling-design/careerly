@@ -104,8 +104,7 @@ class _P1Repository implements AnalysisRepository {
   Future<List<Job>> fetchJobLibrary() async => const <Job>[];
 
   @override
-  Future<ParsedJob> parseJobUrl(String url) async =>
-      throw UnimplementedError();
+  Future<ParsedJob> parseJobUrl(String url) async => throw UnimplementedError();
 
   @override
   Future<QuotaState> fetchQuota() async => quota;
@@ -125,7 +124,8 @@ class _P1Repository implements AnalysisRepository {
 }
 
 /// 同时实现 [AnalysisProgressSource]，用于验证 P1-05 的退出 / 恢复语义。
-class _P1ProgressRepository implements AnalysisRepository, AnalysisProgressSource {
+class _P1ProgressRepository
+    implements AnalysisRepository, AnalysisProgressSource {
   _P1ProgressRepository({required this.project});
 
   AnalysisProject project;
@@ -138,7 +138,9 @@ class _P1ProgressRepository implements AnalysisRepository, AnalysisProgressSourc
   int fetchTaskCalls = 0;
 
   @override
-  Future<List<AnalysisProject>> fetchProjects() async => <AnalysisProject>[project];
+  Future<List<AnalysisProject>> fetchProjects() async => <AnalysisProject>[
+    project,
+  ];
 
   @override
   Future<AnalysisProject?> fetchProject(String projectId) async => project;
@@ -147,8 +149,7 @@ class _P1ProgressRepository implements AnalysisRepository, AnalysisProgressSourc
   Future<List<Job>> fetchJobLibrary() async => const <Job>[];
 
   @override
-  Future<ParsedJob> parseJobUrl(String url) async =>
-      throw UnimplementedError();
+  Future<ParsedJob> parseJobUrl(String url) async => throw UnimplementedError();
 
   @override
   Future<QuotaState> fetchQuota() async => quota;
@@ -171,6 +172,8 @@ class _P1ProgressRepository implements AnalysisRepository, AnalysisProgressSourc
     String source = 'paste',
     String? sourceUrl,
     List<AnalysisJobInput>? jobs,
+    String? projectId,
+    String? resumeVersionId,
   }) async {
     quota = quota.copyWith(reserved: 1);
     return task;
@@ -213,7 +216,10 @@ void main() {
       expect(find.text('岗位原文'), findsOneWidget);
       expect(find.textContaining('负责 AI 产品规划'), findsOneWidget);
       expect(find.textContaining('链接导入'), findsOneWidget);
-      expect(find.textContaining('CURRENT JD SHOULD NOT BE SHOWN'), findsNothing);
+      expect(
+        find.textContaining('CURRENT JD SHOULD NOT BE SHOWN'),
+        findsNothing,
+      );
       // 标题也来自快照（历史记录不随岗位改名漂移）。
       expect(find.text('原始岗位名'), findsWidgets);
     });
@@ -260,7 +266,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('没有保存岗位原文'), findsOneWidget);
-      expect(find.textContaining('CURRENT JD SHOULD NOT BE SHOWN'), findsNothing);
+      expect(
+        find.textContaining('CURRENT JD SHOULD NOT BE SHOWN'),
+        findsNothing,
+      );
     });
 
     test('模型解析 jobSnapshots 与缺失标记', () {

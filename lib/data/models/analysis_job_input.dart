@@ -16,6 +16,7 @@ class AnalysisJobInput {
   const AnalysisJobInput({
     required this.title,
     required this.rawJd,
+    this.jobId,
     this.company = '',
     this.source = 'paste',
     this.sourceUrl,
@@ -26,6 +27,9 @@ class AnalysisJobInput {
 
   /// JD 原文。会随请求交给后端写入 P1-02 的 JD 快照。
   final String rawJd;
+
+  /// 更新已有项目时保留的稳定岗位 ID；新建分析时为 null。
+  final String? jobId;
 
   /// 公司名。粘贴 JD 时为空。
   final String company;
@@ -39,6 +43,7 @@ class AnalysisJobInput {
   Map<String, dynamic> toJson() => <String, dynamic>{
     'title': title,
     'rawJd': rawJd,
+    if (jobId != null) 'jobId': jobId,
     'company': company,
     'source': source,
     if (sourceUrl != null) 'sourceUrl': sourceUrl,
@@ -52,12 +57,14 @@ class AnalysisJobInput {
       other is AnalysisJobInput &&
       other.title == title &&
       other.rawJd == rawJd &&
+      other.jobId == jobId &&
       other.company == company &&
       other.source == source &&
       other.sourceUrl == sourceUrl;
 
   @override
-  int get hashCode => Object.hash(title, rawJd, company, source, sourceUrl);
+  int get hashCode =>
+      Object.hash(title, rawJd, jobId, company, source, sourceUrl);
 
   @override
   String toString() => 'AnalysisJobInput($title)';

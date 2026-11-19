@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:careerly/core/errors/app_error.dart';
 import 'package:careerly/data/api/api_analysis_repository.dart';
 import 'package:careerly/data/api/api_client.dart';
+import 'package:careerly/data/models/analysis_job_input.dart';
 import 'package:careerly/data/models/parsed_job.dart';
 
 /// ③ 岗位 URL —— `POST /api/v1/analysis/jobs/parse-url` 的契约钉住测试。
@@ -132,6 +133,40 @@ void main() {
         ),
       );
     });
+  });
+
+  test('update task sends project, resume version, and stable job id', () async {
+    final _FakeBackend backend = _FakeBackend(
+      payload: <String, dynamic>{'taskId': 'task-1', 'status': 'processing'},
+      statusCode: 202,
+    );
+
+    await repoWith(backend).startAnalysisTask(
+      title: '工程师',
+      rawJd: '负责服务端开发',
+      projectId: 'project-1',
+      resumeVersionId: 'resume-v2',
+      jobs: const <AnalysisJobInput>[
+        AnalysisJobInput(
+          jobId: 'job-1',
+          title: '工程师',
+          rawJd: '负责服务端开发',
+        ),
+      ],
+    );
+
+    expect(backend.lastPath, '/api/v1/analysis/tasks');
+    expect(backend.lastBody?['projectId'], 'project-1');
+    expect(backend.lastBody?['resumeVersionId'], 'resume-v2');
+    expect(backend.lastBody?['jobs'], <Map<String, dynamic>>[
+      <String, dynamic>{
+        'title': '工程师',
+        'rawJd': '负责服务端开发',
+        'jobId': 'job-1',
+        'company': '',
+        'source': 'paste',
+      },
+    ]);
   });
 }
 

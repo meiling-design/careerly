@@ -23,6 +23,7 @@ import '../../profile/state/growth_celebration_provider.dart';
 import '../state/analysis_provider.dart';
 import 'widgets/careerly_analysis_progress.dart';
 import 'widgets/job_library_sheet.dart';
+import 'widgets/update_analysis_sheet.dart';
 
 /// 分析 Tab（Phase 6）。
 ///
@@ -163,127 +164,125 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   onHistory: () => setState(() => _history = true),
                 ),
               Expanded(
-              child: _history
-                  ? _HistoryView(
-                      state: provider.state,
-                      onRetry: provider.load,
-                      onOpen: (AnalysisProject project) {
-                        provider.showHistoryProject(project);
-                        setState(() => _history = false);
-                      },
-                    )
-                  : _NewView(
-                      provider: provider,
-                      jdController: _jdController,
-                      urlController: _urlController,
-                      addingJd: _addingJd,
-                      addingUrl: _addingUrl,
-                      jobs: List<AnalysisJobInput>.unmodifiable(_jobs),
-                      onRemoveJob: _removeJobAt,
-                      onAddJd: () => setState(() => _addingJd = true),
-                      onAddUrl: () {
-                        // 打开空表单时清掉上一次抓取的失败红字 ——
-                        // 否则会被读成「这次输入就错了」。
-                        provider.clearJobUrlState();
-                        setState(() => _addingUrl = true);
-                      },
-                      onCancelJd: () {
-                        _jdController.clear();
-                        setState(() => _addingJd = false);
-                      },
-                      onCancelUrl: () {
-                        provider.clearJobUrlState();
-                        _urlController.clear();
-                        setState(() => _addingUrl = false);
-                      },
-                      onConfirmJd: () {
-                        final String jd = _jdController.text.trim();
-                        if (jd.isEmpty) return;
-                        // Figma `handleAddJD`（L1231-1236）：
-                        // 岗位名 = JD 首行（截 30 字），空则「新目标岗位」。
-                        final String firstLine = jd.split('\n').first.trim();
-                        final String title = firstLine.isEmpty
-                            ? '新目标岗位'
-                            : (firstLine.length > 30
-                                  ? firstLine.substring(0, 30)
-                                  : firstLine);
-                        setState(() {
-                          _addJob(AnalysisJobInput(title: title, rawJd: jd));
+                child: _history
+                    ? _HistoryView(
+                        state: provider.state,
+                        onRetry: provider.load,
+                        onOpen: (AnalysisProject project) {
+                          provider.showHistoryProject(project);
+                          setState(() => _history = false);
+                        },
+                      )
+                    : _NewView(
+                        provider: provider,
+                        jdController: _jdController,
+                        urlController: _urlController,
+                        addingJd: _addingJd,
+                        addingUrl: _addingUrl,
+                        jobs: List<AnalysisJobInput>.unmodifiable(_jobs),
+                        onRemoveJob: _removeJobAt,
+                        onAddJd: () => setState(() => _addingJd = true),
+                        onAddUrl: () {
+                          // 打开空表单时清掉上一次抓取的失败红字 ——
+                          // 否则会被读成「这次输入就错了」。
+                          provider.clearJobUrlState();
+                          setState(() => _addingUrl = true);
+                        },
+                        onCancelJd: () {
                           _jdController.clear();
-                          _addingJd = false;
-                        });
-                      },
-                      onConfirmUrl: () async {
-                        final String value = _urlController.text.trim();
-                        if (value.isEmpty) return;
-                        // ③ 岗位 URL：抓取 → 回填 JD 文本框。
-                        //
-                        // ⚠️ 这条路径曾经是坏的：它把 URL **原样塞进 JD 框**，
-                        // 再当 `rawJd` 发给 `/analysis` —— 等于把一条网址当
-                        // 招聘描述去解析。现在改为先把链接交给后端的抓取端点
-                        // （复用 work_agent 已有的爬虫），拿到真实 JD 正文再回填。
-                        //
-                        // 本地不再预判链接合法性（旧代码在非 http 开头时**静默
-                        // return**，用户得不到任何反馈）。后端能补协议头
-                        // （`zhipin.com/job/x` → `https://…`）、也能给出可执行的
-                        // 中文提示，判断交给它一处做。
-                        final ParsedJob? parsed = await provider.parseJobUrl(
-                          value,
-                        );
-                        // 抓取途中用户可能点了取消、或切到了历史分析 ——
-                        // 那时不能把结果偷偷写进一个已经关掉的表单。
-                        if (!mounted || !_addingUrl) return;
-                        if (parsed == null) {
-                          // 失败：留在表单里显示原因 + 可重试
-                          //（`AnalysisProvider.jobUrlState` 供 UI 读错误）。
-                          return;
-                        }
-                        final String title = parsed.title.trim();
-                        setState(() {
-                          _addJob(
-                            AnalysisJobInput(
-                              title: title.isEmpty ? '新目标岗位' : title,
-                              rawJd: parsed.description,
-                              company: parsed.company,
-                              source: 'url',
-                              sourceUrl: parsed.url,
-                            ),
-                          );
+                          setState(() => _addingJd = false);
+                        },
+                        onCancelUrl: () {
+                          provider.clearJobUrlState();
                           _urlController.clear();
-                          _addingUrl = false;
-                        });
-                      },
-                      onAddHistory: () async {
-                        // PRD §9.3「从历史岗位中添加」。
-                        //
-                        // 先取数再开弹层：弹层打开时状态已是 Loading，
-                        // 不会先闪一下空列表（§5.5 四态）。
-                        final AnalysisProvider provider = context
-                            .read<AnalysisProvider>();
-                        provider.loadJobLibrary();
-                        final Job? job = await showJobLibrarySheet(context);
-                        // 取数途中用户可能关掉弹层、或切到了历史分析 ——
-                        // 那时不能把结果偷偷写进一个已经不在屏幕上的表单
-                        //（同 `onConfirmUrl` 的 `_addingUrl` 复核）。
-                        if (!mounted || job == null) return;
-                        // `Job.rawJd` 的存在意义就在这里：选历史岗位 =
-                        // 复用已经存过的 JD 原文，不必让用户重粘一遍。
-                        setState(() {
-                          _addJob(
-                            AnalysisJobInput(
-                              title: job.title.isEmpty
-                                  ? '新目标岗位'
-                                  : job.title,
-                              rawJd: job.rawJd,
-                              company: job.company,
-                              source: 'history',
-                            ),
+                          setState(() => _addingUrl = false);
+                        },
+                        onConfirmJd: () {
+                          final String jd = _jdController.text.trim();
+                          if (jd.isEmpty) return;
+                          // Figma `handleAddJD`（L1231-1236）：
+                          // 岗位名 = JD 首行（截 30 字），空则「新目标岗位」。
+                          final String firstLine = jd.split('\n').first.trim();
+                          final String title = firstLine.isEmpty
+                              ? '新目标岗位'
+                              : (firstLine.length > 30
+                                    ? firstLine.substring(0, 30)
+                                    : firstLine);
+                          setState(() {
+                            _addJob(AnalysisJobInput(title: title, rawJd: jd));
+                            _jdController.clear();
+                            _addingJd = false;
+                          });
+                        },
+                        onConfirmUrl: () async {
+                          final String value = _urlController.text.trim();
+                          if (value.isEmpty) return;
+                          // ③ 岗位 URL：抓取 → 回填 JD 文本框。
+                          //
+                          // ⚠️ 这条路径曾经是坏的：它把 URL **原样塞进 JD 框**，
+                          // 再当 `rawJd` 发给 `/analysis` —— 等于把一条网址当
+                          // 招聘描述去解析。现在改为先把链接交给后端的抓取端点
+                          // （复用 work_agent 已有的爬虫），拿到真实 JD 正文再回填。
+                          //
+                          // 本地不再预判链接合法性（旧代码在非 http 开头时**静默
+                          // return**，用户得不到任何反馈）。后端能补协议头
+                          // （`zhipin.com/job/x` → `https://…`）、也能给出可执行的
+                          // 中文提示，判断交给它一处做。
+                          final ParsedJob? parsed = await provider.parseJobUrl(
+                            value,
                           );
-                          _addingJd = false;
-                          _addingUrl = false;
-                        });
-                      },
-                    ),
+                          // 抓取途中用户可能点了取消、或切到了历史分析 ——
+                          // 那时不能把结果偷偷写进一个已经关掉的表单。
+                          if (!mounted || !_addingUrl) return;
+                          if (parsed == null) {
+                            // 失败：留在表单里显示原因 + 可重试
+                            //（`AnalysisProvider.jobUrlState` 供 UI 读错误）。
+                            return;
+                          }
+                          final String title = parsed.title.trim();
+                          setState(() {
+                            _addJob(
+                              AnalysisJobInput(
+                                title: title.isEmpty ? '新目标岗位' : title,
+                                rawJd: parsed.description,
+                                company: parsed.company,
+                                source: 'url',
+                                sourceUrl: parsed.url,
+                              ),
+                            );
+                            _urlController.clear();
+                            _addingUrl = false;
+                          });
+                        },
+                        onAddHistory: () async {
+                          // PRD §9.3「从历史岗位中添加」。
+                          //
+                          // 先取数再开弹层：弹层打开时状态已是 Loading，
+                          // 不会先闪一下空列表（§5.5 四态）。
+                          final AnalysisProvider provider = context
+                              .read<AnalysisProvider>();
+                          provider.loadJobLibrary();
+                          final Job? job = await showJobLibrarySheet(context);
+                          // 取数途中用户可能关掉弹层、或切到了历史分析 ——
+                          // 那时不能把结果偷偷写进一个已经不在屏幕上的表单
+                          //（同 `onConfirmUrl` 的 `_addingUrl` 复核）。
+                          if (!mounted || job == null) return;
+                          // `Job.rawJd` 的存在意义就在这里：选历史岗位 =
+                          // 复用已经存过的 JD 原文，不必让用户重粘一遍。
+                          setState(() {
+                            _addJob(
+                              AnalysisJobInput(
+                                title: job.title.isEmpty ? '新目标岗位' : job.title,
+                                rawJd: job.rawJd,
+                                company: job.company,
+                                source: 'history',
+                              ),
+                            );
+                            _addingJd = false;
+                            _addingUrl = false;
+                          });
+                        },
+                      ),
               ),
             ],
           ),
@@ -508,6 +507,22 @@ class _NewView extends StatelessWidget {
       AsyncSuccess<AnalysisProject>(:final AnalysisProject data) => _ResultView(
         project: data,
         onNew: provider.showNewAnalysis,
+        onUpdate: () async {
+          final ResumeProfile resume =
+              context.read<ResumeProvider>().data ?? ResumeProfile.empty;
+          final UpdateAnalysisSelection? selection =
+              await showUpdateAnalysisSheet(
+                context,
+                project: data,
+                resume: resume,
+              );
+          if (selection == null || !context.mounted) return;
+          await provider.startAnalysis(
+            jobs: selection.jobs,
+            projectId: data.id,
+            resumeVersionId: selection.resumeVersionId,
+          );
+        },
       ),
       AsyncInitial<AnalysisProject>() => _FormView(
         provider: provider,
@@ -572,8 +587,7 @@ class _FormView extends StatelessWidget {
     // 岗位链接抓取的 Loading / Error 两态（四态见 `CLAUDE.md` §5.5）：
     // 抓取是**表单内**的异步动作，所以状态就渲染在 URL 表单里 ——
     // 不遮全页、不弹 Sheet（用户还要看着自己粘的那条链接）。
-    final bool urlLoading =
-        provider.jobUrlState is AsyncLoading<ParsedJob>;
+    final bool urlLoading = provider.jobUrlState is AsyncLoading<ParsedJob>;
     final String? urlError = provider.jobUrlState.errorOrNull?.message;
     // Figma：`px-5 space-y-4`（横向 20 / 块距 16）+ `pb 104`。
     return SingleChildScrollView(
@@ -859,9 +873,7 @@ class _JobsCard extends StatelessWidget {
           Text('目标岗位', style: AppTypography.bodyStrong.copyWith(fontSize: 14)),
           const SizedBox(height: 2),
           Text(
-            jobs.isEmpty
-                ? '还没有添加目标岗位'
-                : '已添加 ${jobs.length} 个目标岗位，可继续添加',
+            jobs.isEmpty ? '还没有添加目标岗位' : '已添加 ${jobs.length} 个目标岗位，可继续添加',
             style: AppTypography.caption,
           ),
           if (jobs.isNotEmpty) ...<Widget>[
@@ -873,10 +885,7 @@ class _JobsCard extends StatelessWidget {
               runSpacing: 8,
               children: <Widget>[
                 for (int i = 0; i < jobs.length; i++)
-                  _Pill(
-                    jobs[i].displayName,
-                    onRemove: () => onRemoveJob(i),
-                  ),
+                  _Pill(jobs[i].displayName, onRemove: () => onRemoveJob(i)),
               ],
             ),
           ],
@@ -912,8 +921,7 @@ class _JobsCard extends StatelessWidget {
                 errorText: urlError,
                 onCancel: onCancelUrl,
                 onConfirm: onConfirmUrl,
-                canConfirm:
-                    !urlLoading && urlController.text.trim().isNotEmpty,
+                canConfirm: !urlLoading && urlController.text.trim().isNotEmpty,
               ),
             )
           else
@@ -1422,10 +1430,15 @@ class _QuotaBar extends StatelessWidget {
 /// ⚠️ 旧版的「分析 / 职业分析」标题、新建/历史分段 Tab 与
 /// 「‹ 返回」文字顶栏**不在结果页渲染**；新建 / 历史两态仍沿用旧页头。
 class _ResultView extends StatefulWidget {
-  const _ResultView({required this.project, required this.onNew});
+  const _ResultView({
+    required this.project,
+    required this.onNew,
+    required this.onUpdate,
+  });
 
   final AnalysisProject project;
   final VoidCallback onNew;
+  final VoidCallback onUpdate;
 
   @override
   State<_ResultView> createState() => _ResultViewState();
@@ -1482,7 +1495,7 @@ class _ResultViewState extends State<_ResultView> {
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
           child: _ResultActionRow(
             onShowMatch: _scrollToMatches,
-            onUpdate: widget.onNew,
+            onUpdate: widget.onUpdate,
           ),
         ),
         Expanded(
@@ -1527,9 +1540,7 @@ class _ResultViewState extends State<_ResultView> {
                 ),
                 _ResultSection('能力 Gap', result?.top?.gaps ?? const <String>[]),
                 if (result?.top?.suggestion != null)
-                  _ResultSection('成长建议', <String>[
-                    result!.top!.suggestion!,
-                  ]),
+                  _ResultSection('成长建议', <String>[result!.top!.suggestion!]),
               ],
             ),
           ),
@@ -1857,11 +1868,7 @@ class _DetailButton extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          const Icon(
-            Icons.article_outlined,
-            size: 13,
-            color: Colors.white,
-          ),
+          const Icon(Icons.article_outlined, size: 13, color: Colors.white),
           const SizedBox(width: 4),
           Text(
             '查看详情',
@@ -1894,9 +1901,7 @@ class _DeltaPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: positive
-            ? AppColors.successSurface
-            : AppColors.onBrandSurface,
+        color: positive ? AppColors.successSurface : AppColors.onBrandSurface,
         borderRadius: AppRadius.borderPill,
       ),
       child: Text(
@@ -1951,9 +1956,7 @@ class _ResultMetaLine extends StatelessWidget {
       parts.join(' · '),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: AppTypography.caption.copyWith(
-        color: AppColors.textTertiary,
-      ),
+      style: AppTypography.caption.copyWith(color: AppColors.textTertiary),
     );
   }
 
@@ -2149,10 +2152,7 @@ class _MatchCard extends StatelessWidget {
               ),
               Container(
                 margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 1,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
                 decoration: BoxDecoration(
                   color: delta != null && delta > 0
                       ? AppColors.successSurface

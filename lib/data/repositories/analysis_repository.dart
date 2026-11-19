@@ -95,6 +95,8 @@ abstract interface class AnalysisProgressSource {
     String source = 'paste',
     String? sourceUrl,
     List<AnalysisJobInput>? jobs,
+    String? projectId,
+    String? resumeVersionId,
   });
 
   /// 读取任务最新状态（含真实节点进度）。

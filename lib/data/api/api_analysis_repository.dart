@@ -15,7 +15,8 @@ import 'api_client.dart';
 ///
 /// 同时实现 [AnalysisProgressSource]：只有真实后端有节点可报告
 /// （理由见该接口的文档）。
-class ApiAnalysisRepository implements AnalysisRepository, AnalysisProgressSource {
+class ApiAnalysisRepository
+    implements AnalysisRepository, AnalysisProgressSource {
   ApiAnalysisRepository(this._client);
 
   final ApiClient _client;
@@ -24,16 +25,16 @@ class ApiAnalysisRepository implements AnalysisRepository, AnalysisProgressSourc
   Future<List<AnalysisProject>> fetchProjects() async {
     final dynamic data = await _client.get('/api/v1/analysis/projects');
     return (data as List<dynamic>)
-        .map((dynamic e) =>
-            AnalysisProject.fromJson(e as Map<String, dynamic>))
+        .map((dynamic e) => AnalysisProject.fromJson(e as Map<String, dynamic>))
         .toList(growable: false);
   }
 
   @override
   Future<AnalysisProject?> fetchProject(String projectId) async {
     try {
-      final dynamic data =
-          await _client.get('/api/v1/analysis/projects/$projectId');
+      final dynamic data = await _client.get(
+        '/api/v1/analysis/projects/$projectId',
+      );
       return AnalysisProject.fromJson(data as Map<String, dynamic>);
     } on NetworkError catch (e) {
       // 404（PROJECT_NOT_FOUND）→ null：「项目不存在」是合法状态，不是错误。
@@ -98,6 +99,8 @@ class ApiAnalysisRepository implements AnalysisRepository, AnalysisProgressSourc
     String source = 'paste',
     String? sourceUrl,
     List<AnalysisJobInput>? jobs,
+    String? projectId,
+    String? resumeVersionId,
   }) async {
     // 这个请求**立刻**返回 202 + taskId（引擎在后台跑），
     // 所以用普通超时即可，不需要 [ApiClient.analysisTimeout] 那种加长等待。
@@ -110,6 +113,8 @@ class ApiAnalysisRepository implements AnalysisRepository, AnalysisProgressSourc
         source: source,
         sourceUrl: sourceUrl,
         jobs: jobs,
+        projectId: projectId,
+        resumeVersionId: resumeVersionId,
       ),
     );
     return AnalysisTask.fromJson(data as Map<String, dynamic>);
@@ -124,15 +129,20 @@ class ApiAnalysisRepository implements AnalysisRepository, AnalysisProgressSourc
     required String source,
     required String? sourceUrl,
     required List<AnalysisJobInput>? jobs,
+    String? projectId,
+    String? resumeVersionId,
   }) {
-    final AnalysisJobInput? first =
-        jobs == null || jobs.isEmpty ? null : jobs.first;
+    final AnalysisJobInput? first = jobs == null || jobs.isEmpty
+        ? null
+        : jobs.first;
     return <String, dynamic>{
       'title': first?.title ?? title,
       'rawJd': first?.rawJd ?? rawJd,
       'company': first?.company ?? company,
       'source': first?.source ?? source,
       'sourceUrl': ?(first?.sourceUrl ?? sourceUrl),
+      'projectId': ?projectId,
+      'resumeVersionId': ?resumeVersionId,
       if (jobs != null && jobs.isNotEmpty)
         'jobs': jobs.map((AnalysisJobInput j) => j.toJson()).toList(),
     };
@@ -147,8 +157,9 @@ class ApiAnalysisRepository implements AnalysisRepository, AnalysisProgressSourc
 
   @override
   Future<AnalysisTask> cancelAnalysisTask(String taskId) async {
-    final dynamic data =
-        await _client.post('/api/v1/analysis/tasks/$taskId/cancel');
+    final dynamic data = await _client.post(
+      '/api/v1/analysis/tasks/$taskId/cancel',
+    );
     return AnalysisTask.fromJson(data as Map<String, dynamic>);
   }
 

@@ -28,10 +28,8 @@ import '../../../data/repositories/analysis_repository.dart';
 /// - 退出分析页 → **不**回滚、**不**取消服务器任务，只停止本页轮询；
 /// - 重新进入 → [restoreActiveTask] 查询真实任务状态，完成后刷新结果与额度。
 class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
-  AnalysisProvider(
-    this._repository, {
-    ActiveAnalysisTaskStore? taskStore,
-  }) : _taskStore = taskStore ?? InMemoryActiveAnalysisTaskStore();
+  AnalysisProvider(this._repository, {ActiveAnalysisTaskStore? taskStore})
+    : _taskStore = taskStore ?? InMemoryActiveAnalysisTaskStore();
 
   final AnalysisRepository _repository;
 
@@ -60,6 +58,8 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   /// 多岗位（2026-11-18）：一次分析可以带 N 个目标岗位；重试必须把
   /// **同一组岗位**原样再发一次，而不是只重发第一个。
   List<AnalysisJobInput> _lastJobs = const <AnalysisJobInput>[];
+  String? _lastProjectId;
+  String? _lastResumeVersionId;
 
   /// 当前（或最近一次）分析的岗位数 —— 「正在分析」页的
   /// 「1 份简历 × N 个目标岗位」读它。
@@ -248,11 +248,12 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
     String importSource = 'paste',
     String? sourceUrl,
     List<AnalysisJobInput>? jobs,
+    String? projectId,
+    String? resumeVersionId,
   }) async {
     // 多岗位（2026-11-18）：`jobs` 优先；只给 title/rawJd 的旧调用方
     // 自动归一成一个岗位，行为与改造前逐字一致。
-    final List<AnalysisJobInput> effective =
-        jobs != null && jobs.isNotEmpty
+    final List<AnalysisJobInput> effective = jobs != null && jobs.isNotEmpty
         ? List<AnalysisJobInput>.unmodifiable(jobs)
         : <AnalysisJobInput>[
             AnalysisJobInput(
@@ -264,6 +265,8 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
             ),
           ];
     _lastJobs = effective;
+    _lastProjectId = projectId;
+    _lastResumeVersionId = resumeVersionId;
     _runningJobCount = effective.length;
 
     if (effective.any((AnalysisJobInput job) => job.rawJd.trim().isEmpty)) {
@@ -287,7 +290,13 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
     final AnalysisProgressSource? source = _progressSource;
     try {
       final AnalysisProject? project = source != null
-          ? await _runWithRealProgress(source, run: run, jobs: effective)
+          ? await _runWithRealProgress(
+              source,
+              run: run,
+              jobs: effective,
+              projectId: projectId,
+              resumeVersionId: resumeVersionId,
+            )
           : await _runWithLocalClock(run: run, jobs: effective);
       if (project == null) {
         // 用户已离开当前页面：结果作废。但**不**回滚额度 ——
@@ -320,6 +329,8 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
     AnalysisProgressSource source, {
     required int run,
     required List<AnalysisJobInput> jobs,
+    String? projectId,
+    String? resumeVersionId,
   }) async {
     final AnalysisJobInput first = jobs.first;
     AnalysisTask task = await source.startAnalysisTask(
@@ -329,6 +340,8 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
       source: first.source,
       sourceUrl: first.sourceUrl,
       jobs: jobs,
+      projectId: projectId,
+      resumeVersionId: resumeVersionId,
     );
     if (run != _runId) return null;
     // 句柄必须先落盘：进程此刻被杀，下次进入仍能恢复同一条任务。
@@ -360,14 +373,16 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
       );
     }
 
-    final String? projectId = task.projectId;
-    if (projectId == null) {
+    final String? resolvedProjectId = task.projectId;
+    if (resolvedProjectId == null) {
       throw const UnknownError(
         message: '分析已完成，但没有返回结果',
         detail: 'AnalysisTask.projectId == null',
       );
     }
-    final AnalysisProject? project = await _repository.fetchProject(projectId);
+    final AnalysisProject? project = await _repository.fetchProject(
+      resolvedProjectId,
+    );
     if (run != _runId) return null;
     if (project == null) {
       throw const UnknownError(
@@ -411,11 +426,12 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
     // 这仍是**后端状态**的换算，不是前端计时器。
     final int fallback = task.progress == null
         ? 0
-        : ((task.progress!.steps.where((AnalysisStepProgress s) => s.isCompleted)
-                        .length) /
-                    (task.progress!.totalSteps ?? 5) *
-                    100)
-            .round();
+        : ((task.progress!.steps
+                      .where((AnalysisStepProgress s) => s.isCompleted)
+                      .length) /
+                  (task.progress!.totalSteps ?? 5) *
+                  100)
+              .round();
     final int value = reported ?? fallback;
     // 完成前封顶 99：只有后端确认 5 步全部 SUCCEEDED 才允许 100。
     final int capped = task.isCompleted ? value : value.clamp(0, 99);
@@ -472,23 +488,28 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
       _taskProgress = null;
 
       if (task.isCompleted && task.projectId != null) {
-        final AnalysisProject? project =
-            await _repository.fetchProject(task.projectId!);
+        final AnalysisProject? project = await _repository.fetchProject(
+          task.projectId!,
+        );
         if (run != _runId) return;
         if (project != null) {
           _analysisState = AsyncState<AnalysisProject>.success(project);
           _replaceProjects(<AnalysisProject>[project, ..._projects]);
         } else {
-          _setAnalysisFailure(const UnknownError(
-            message: '分析结果读取失败，请稍后重试',
-            detail: 'restore: fetchProject returned null',
-          ));
+          _setAnalysisFailure(
+            const UnknownError(
+              message: '分析结果读取失败，请稍后重试',
+              detail: 'restore: fetchProject returned null',
+            ),
+          );
         }
       } else if (task.isFailed) {
-        _setAnalysisFailure(UnknownError(
-          message: task.errorMessage ?? '分析失败，请稍后重试',
-          detail: task.errorCode ?? 'ANALYSIS_FAILED',
-        ));
+        _setAnalysisFailure(
+          UnknownError(
+            message: task.errorMessage ?? '分析失败，请稍后重试',
+            detail: task.errorCode ?? 'ANALYSIS_FAILED',
+          ),
+        );
       } else if (task.isCancelled) {
         _analysisState = const AsyncState<AnalysisProject>.initial();
       }
@@ -502,7 +523,11 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
     notifyListeners();
   }
 
-  Future<void> retryAnalysis() => startAnalysis(jobs: _lastJobs);
+  Future<void> retryAnalysis() => startAnalysis(
+    jobs: _lastJobs,
+    projectId: _lastProjectId,
+    resumeVersionId: _lastResumeVersionId,
+  );
 
   /// 退出进行中的分析（进度页退出确认 Sheet 的「退出」）。
   ///
