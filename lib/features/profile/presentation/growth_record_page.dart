@@ -128,9 +128,13 @@ class _GrowthRecordPageState extends State<GrowthRecordPage> {
     final GrowthProvider events = context.read<GrowthProvider>();
     final GrowthTimelineProvider timeline = context
         .read<GrowthTimelineProvider>();
+    // 每次进入本页都重新拉取 —— 成长事件由分析 / 简历等操作在**别处**写入，
+    // Provider 又活在 App 生命周期内。若只在 `data == null` 时加载，用户会
+    // 一直看到进入 App 那一刻的旧快照（2026-11-19 真机复现：新分析产生的
+    // 「匹配度变化」必须重启 App 才出现）。
     final List<Future<void>> loads = <Future<void>>[];
-    if (events.data == null && !events.isLoading) loads.add(events.load());
-    if (timeline.data == null && !timeline.isLoading) {
+    if (!events.isLoading) loads.add(events.load());
+    if (!timeline.isLoading) {
       loads.add(timeline.load());
     }
     await Future.wait(loads);
@@ -968,7 +972,10 @@ class _GrowthMonthGridCard extends StatelessWidget {
     // 当月事件按「日」分组（模型带完整日期，无需近似）。
     final Map<int, List<GrowthEvent>> byDay = <int, List<GrowthEvent>>{};
     for (final GrowthEvent event in events) {
-      final DateTime? at = event.occurredAt;
+      // ⚠️ 必须 `toLocal()`：`occurredAt` 来自后端 UTC 时间戳。
+      // 直接读 `.day` 会把凌晨（UTC 前一天）的事件画到前一格，
+      // 与时间线（已 `toLocal()`）口径不一致。
+      final DateTime? at = event.occurredAt?.toLocal();
       if (at == null || at.year != year || at.month != month) continue;
       byDay.putIfAbsent(at.day, () => <GrowthEvent>[]).add(event);
     }
@@ -1158,7 +1165,8 @@ class _SelectedDayEvents extends StatelessWidget {
             .where(
               (GrowthEvent e) =>
                   e.occurredAt != null &&
-                  _isSameDay(e.occurredAt!, selectedDate),
+                  // 同日比较同样按本地时区，理由见月网格的 `toLocal()`。
+                  _isSameDay(e.occurredAt!.toLocal(), selectedDate),
             )
             .toList();
         if (dayEvents.isEmpty) {

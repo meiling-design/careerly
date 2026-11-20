@@ -76,6 +76,14 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
 
+  /// 本页当前是否处于可见（当前路由）状态。
+  ///
+  /// Shell 的 IndexedStack 会在 App 启动时把各分支页面都建起来，
+  /// `initState` 里的加载因此可能发生在业务数据写入**之前**；
+  /// 之后切回「我的」不会再次 `initState`，成长条数等就会一直是旧快照。
+  /// 这里按「重新可见」补一次刷新（2026-11-19 真机复现）。
+  bool _visible = false;
+
   /// 卡片的当前顺序。第一张即被选中 Tab 对应的卡片。
   final List<_ProfileSection> _sections = <_ProfileSection>[
     _ProfileSection.assets,
@@ -123,6 +131,20 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    // 「重新可见」时刷新成长记录与额度（理由见 [_visible]）。
+    // 只在不可见 → 可见的那一刻触发，避免每次 rebuild 都打接口。
+    final bool visible = ModalRoute.of(context)?.isCurrent ?? true;
+    if (visible && !_visible) {
+      _visible = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<GrowthProvider>().load();
+        context.read<AnalysisProvider>().loadQuota();
+      });
+    } else if (!visible) {
+      _visible = false;
+    }
+
     return CareerlyScaffold(
       showAppBar: false,
       padding: EdgeInsets.zero,

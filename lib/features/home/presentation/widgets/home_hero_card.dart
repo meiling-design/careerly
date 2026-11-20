@@ -706,7 +706,7 @@ abstract final class _HeroMetrics {
   static const double imageRight = 4;
   static const double imageTop = 67;
 
-  static const double contentLeft = 40;
+  static const double contentLeft = 32;
   static const double contentTop = 79;
   static const double contentWidth = 180;
   static const double labelFontSize = 13;
