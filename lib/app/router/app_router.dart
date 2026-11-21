@@ -148,6 +148,7 @@ GoRouter createAppRouter({String initialLocation = AppRoutes.home}) {
         location: AppRoutes.onboardingSplash,
         name: AppRouteNames.onboardingSplash,
         page: const OnboardingSplashPage(),
+        // 流程起点：栈底 Back 只退后台。
       ),
       GoRoute(
         path: AppRoutes.settings,
@@ -229,6 +230,8 @@ GoRouter createAppRouter({String initialLocation = AppRoutes.home}) {
         location: AppRoutes.onboardingRegister,
         name: AppRouteNames.onboardingRegister,
         page: const OnboardingRegisterPage(),
+        // 栈底（深链直达）不设流程落点：登录前栈底 Back 只退后台
+        // （CLAUDE.md §5.6），不能借 Back 从注册页绕回开屏。
       ),
       // 登录页 —— 2026-10-04 起是**独立路由**。
       //
@@ -241,6 +244,7 @@ GoRouter createAppRouter({String initialLocation = AppRoutes.home}) {
         location: AppRoutes.onboardingLogin,
         name: AppRouteNames.onboardingLogin,
         page: const OnboardingLoginPage(),
+        // 同注册页：深链直达时栈底 Back 只退后台。
       ),
       // 重置密码 —— 登录页的二级页面（`context.push` 进入，Back 回登录页）。
       // 不是一级页面，也没有底部导航。
@@ -248,21 +252,27 @@ GoRouter createAppRouter({String initialLocation = AppRoutes.home}) {
         location: AppRoutes.onboardingResetPassword,
         name: AppRouteNames.onboardingResetPassword,
         page: const OnboardingResetPasswordPage(),
+        fallbackLocation: AppRoutes.onboardingLogin,
       ),
       _onboardingRoute(
         location: AppRoutes.onboardingResume,
         name: AppRouteNames.onboardingResume,
         page: const OnboardingResumePage(),
+        fallbackLocation: AppRoutes.onboardingRegister,
       ),
       _onboardingRoute(
         location: AppRoutes.onboardingParsing,
         name: AppRouteNames.onboardingParsing,
         page: const OnboardingParsingPage(),
+        fallbackLocation: AppRoutes.onboardingResume,
       ),
       _onboardingRoute(
         location: AppRoutes.onboardingConfirm,
         name: AppRouteNames.onboardingConfirm,
         page: const OnboardingConfirmPage(),
+        // 解析页用 pushReplacement 进入本页，正常栈里上一页就是「提交简历」；
+        // 深链直达时也落到同一屏。
+        fallbackLocation: AppRoutes.onboardingResume,
       ),
     ],
     errorBuilder: (BuildContext context, GoRouterState state) =>
@@ -275,6 +285,7 @@ GoRoute _onboardingRoute({
   required String location,
   required String name,
   required Widget page,
+  String? fallbackLocation,
 }) {
   return GoRoute(
     path: location,
@@ -283,9 +294,12 @@ GoRoute _onboardingRoute({
         CareerlyPageTransitions.onboarding<void>(
           key: ValueKey<String>(name),
           name: name,
-          // 登录前没有「首页」：栈底 Back 只退后台，不补首页、不 finish。
+          // 登录前没有「首页」：栈底 Back 不补首页、不 finish。
+          // 线性流程的「上一屏」由 [fallbackLocation] 表达
+          // （深链直达 / 栈里没有上一页时仍能回到流程上一步）。
           child: CareerlyRootBackScope(
             fallbackToHome: false,
+            fallbackLocation: fallbackLocation,
             child: page,
           ),
         ),
@@ -374,6 +388,10 @@ StatefulShellBranch _analysisBranch() {
                 AnalysisJobDetailPage(
                   jobId:
                       state.pathParameters[AppRoutes.analysisJobIdParam] ?? '',
+                  projectId: state.uri.queryParameters[
+                      AppRoutes.analysisProjectIdParam],
+                  resultId:
+                      state.uri.queryParameters[AppRoutes.analysisResultIdParam],
                 ),
           ),
           _subRoute(
@@ -384,6 +402,10 @@ StatefulShellBranch _analysisBranch() {
                 AnalysisGapPage(
                   jobId:
                       state.pathParameters[AppRoutes.analysisGapIdParam] ?? '',
+                  projectId: state.uri.queryParameters[
+                      AppRoutes.analysisProjectIdParam],
+                  resultId:
+                      state.uri.queryParameters[AppRoutes.analysisResultIdParam],
                 ),
           ),
           _subRoute(
@@ -537,7 +559,8 @@ Page<void> _subRoutePage({
   return CareerlyPageTransitions.slide<void>(
     key: ValueKey<String>(state.uri.toString()),
     name: name,
-    child: child,
+    // 路由层统一处理「键盘优先」：二级 / 三级页面不再各写一层 PopScope。
+    child: CareerlyKeyboardBackScope(child: child),
   );
 }
 

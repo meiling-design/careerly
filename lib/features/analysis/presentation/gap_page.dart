@@ -37,10 +37,21 @@ import 'analysis_loader.dart';
 /// `demo_analysis_fixture.dart` 类顶）。已裁决：以 Gap 页这份为唯一
 /// 数据源，本页渲染其完整内容，不补齐缺失的第 3 项。
 class AnalysisGapPage extends StatefulWidget {
-  const AnalysisGapPage({super.key, required this.jobId});
+  const AnalysisGapPage({
+    super.key,
+    required this.jobId,
+    this.projectId,
+    this.resultId,
+  });
 
   /// 路由参数里的岗位 id（`/analysis/gap/:jobId`）。
   final String jobId;
+
+  /// 来源分析项目 / 结果 id（与岗位详情页同一套来源上下文）。
+  ///
+  /// Gap 页必须读「打开它的那一次分析结果」，不能读最新一次。
+  final String? projectId;
+  final String? resultId;
 
   @override
   State<AnalysisGapPage> createState() => _AnalysisGapPageState();
@@ -61,6 +72,8 @@ class _AnalysisGapPageState extends State<AnalysisGapPage> {
     final AnalysisJobEntry? entry = findAnalysisJobEntry(
       provider.data ?? const <AnalysisProject>[],
       widget.jobId,
+      projectId: widget.projectId,
+      resultId: widget.resultId,
     );
 
     return CareerlyScaffold(

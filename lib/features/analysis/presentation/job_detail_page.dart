@@ -37,10 +37,24 @@ import 'analysis_loader.dart';
 /// 走 Empty 态，文案是「找不到这个岗位」——深链 id 失效与
 /// 「还没有岗位」是两件事，不共用一句话（同工作详情页处置）。
 class AnalysisJobDetailPage extends StatefulWidget {
-  const AnalysisJobDetailPage({super.key, required this.jobId});
+  const AnalysisJobDetailPage({
+    super.key,
+    required this.jobId,
+    this.projectId,
+    this.resultId,
+  });
 
   /// 路由参数里的岗位 id（`/analysis/job/:jobId`）。
   final String jobId;
+
+  /// 来源分析项目 id（可选，来自结果页的 `?projectId=`）。
+  ///
+  /// 同一岗位可以出现在多个项目里，只有它 + [resultId] 才能保证
+  /// 详情页展示的是**用户点进来的那一次分析**，而不是最新一次。
+  final String? projectId;
+
+  /// 来源分析结果 id（可选，来自结果页的 `?resultId=`）。
+  final String? resultId;
 
   @override
   State<AnalysisJobDetailPage> createState() => _AnalysisJobDetailPageState();
@@ -61,6 +75,8 @@ class _AnalysisJobDetailPageState extends State<AnalysisJobDetailPage> {
     final AnalysisJobEntry? entry = findAnalysisJobEntry(
       provider.data ?? const <AnalysisProject>[],
       widget.jobId,
+      projectId: widget.projectId,
+      resultId: widget.resultId,
     );
 
     return CareerlyScaffold(
@@ -137,8 +153,13 @@ class _JobDetailBody extends StatelessWidget {
             Expanded(
               child: CareerlyButton(
                 label: '查看 Gap →',
-                onPressed: () =>
-                    context.push(AppRoutes.analysisGap(item.job.id)),
+                onPressed: () => context.push(
+                  AppRoutes.analysisGap(
+                    item.job.id,
+                    projectId: item.project.id,
+                    resultId: item.result.id,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: _JobDetailMetrics.buttonGap),

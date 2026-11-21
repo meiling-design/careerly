@@ -113,6 +113,7 @@ class JobMatch {
     required this.jobId,
     required this.score,
     required this.rank,
+    this.previousScore,
     this.strengths = const <String>[],
     this.gaps = const <String>[],
     this.reasons = const <String>[],
@@ -129,6 +130,21 @@ class JobMatch {
 
   /// 本次分析中的排名（从 1 开始）。
   final int rank;
+
+  /// 后端确认**可比**的上一次匹配分（P1-01）。
+  ///
+  /// 只有「同一目标岗位（jobKey）+ 同一 JD（jdHash）+ 不同简历
+  /// （resumeFingerprint）+ 同一评分口径（scoringVersion）」四条同时成立，
+  /// 后端才会填这个值；否则为 `null`。
+  ///
+  /// ⚠️ **不得**用「同一项目上一条结果里相同 jobId 的分数」自行推断 ——
+  /// 岗位可能改名、JD 可能改版、评分口径可能升级，那些分数不能相减。
+  /// 比较规则只属于后端（`growth.annotate_match_previous_scores`）。
+  final int? previousScore;
+
+  /// 相比上一次**可比**分析的变化量；不可比时为 `null`。
+  int? get scoreDelta =>
+      previousScore == null ? null : score - previousScore!;
 
   /// 优势能力。
   final List<String> strengths;
@@ -158,6 +174,7 @@ class JobMatch {
     String? jobId,
     int? score,
     int? rank,
+    int? previousScore,
     List<String>? strengths,
     List<String>? gaps,
     List<String>? reasons,
@@ -169,6 +186,7 @@ class JobMatch {
       jobId: jobId ?? this.jobId,
       score: score ?? this.score,
       rank: rank ?? this.rank,
+      previousScore: previousScore ?? this.previousScore,
       strengths: strengths ?? this.strengths,
       gaps: gaps ?? this.gaps,
       reasons: reasons ?? this.reasons,
@@ -183,6 +201,7 @@ class JobMatch {
       jobId: json['jobId'] as String,
       score: (json['score'] as num?)?.round() ?? 0,
       rank: (json['rank'] as num?)?.toInt() ?? 0,
+      previousScore: (json['previousScore'] as num?)?.round(),
       strengths: _stringList(json['strengths']),
       gaps: _stringList(json['gaps']),
       reasons: _stringList(json['reasons']),
@@ -202,6 +221,7 @@ class JobMatch {
     'jobId': jobId,
     'score': score,
     'rank': rank,
+    'previousScore': previousScore,
     'strengths': strengths,
     'gaps': gaps,
     'reasons': reasons,

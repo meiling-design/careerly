@@ -2,10 +2,9 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../../app/router/app_routes.dart';
+import '../../../app/router/back_navigation.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/state/state.dart';
 import '../../../data/models/ai_chat.dart';
@@ -55,8 +54,6 @@ class _AIPageState extends State<AIPage> {
     await context.read<AIProvider>().sendMessage(message);
   }
 
-  void _goHome() => context.go(AppRoutes.home);
-
   void _openHistory() => setState(() => _historyOpen = true);
 
   void _closeHistory() => setState(() => _historyOpen = false);
@@ -83,7 +80,12 @@ class _AIPageState extends State<AIPage> {
     final bool hasConversation =
         provider.messages.isNotEmpty || provider.streamingMessage != null;
 
-    return CareerlyScaffold(
+    return CareerlyBackScope(
+      // 优先级 2：聊天记录侧栏是**页面内部状态**，不是路由。
+      // 侧栏打开时先消费 Back 关侧栏，不交给 Shell / 路由层；
+      // 关闭只改 _historyOpen，不清会话、不清滚动位置。
+      onFlowBack: _historyOpen ? _closeHistory : null,
+      child: CareerlyScaffold(
       showAppBar: false,
       padding: EdgeInsets.zero,
       child: Padding(
@@ -150,7 +152,9 @@ class _AIPageState extends State<AIPage> {
                           right: 0,
                           child: _AIHeader(
                             welcome: true,
-                            onBack: _goHome,
+                            // 与系统 Back 同一条 Back Action：一级页面根
+                            // 由 Shell 执行「回首页 / 退后台」策略。
+                            onBack: () => careerlyBack(context),
                             onHistory: _openHistory,
                           ),
                         ),
@@ -182,6 +186,7 @@ class _AIPageState extends State<AIPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -884,6 +889,7 @@ class _AIHistoryDrawer extends StatelessWidget {
       children: <Widget>[
         Positioned.fill(
           child: IgnorePointer(
+            key: const ValueKey<String>('ai-history-scrim'),
             ignoring: !isOpen,
             child: AnimatedOpacity(
               opacity: isOpen ? 1 : 0,

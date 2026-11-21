@@ -272,12 +272,11 @@ class _OnboardingLoginPageState extends State<OnboardingLoginPage> {
               top: _LoginMetrics.backInsetTop,
               child: BackPill(
                 fill: AppColors.authGlassFill,
-                // ⚠️ 状态：Onboarding 全流程（6 屏）都是**平铺的一级路由**，
-                // 页面之间用 `context.go` 切换，导航栈里没有上一层，
-                // 因此这里**不能**用 `careerlyBack`（`Navigator.maybePop`
-                // 会找不到可 pop 的页面，返回键变成静默死键）。
-                // 本次沿用本流程既有做法（`go` 到上一屏），
-                // 未擅自改动整条流程的导航结构 —— 已作为发现项上报。
+                // ⚠️ 已知差异（待产品侧裁决）：顶部返回固定回开屏，
+                // 而深链直达时**系统 Back** 在栈底只退后台（§5.6）。
+                // 之所以没有统一成 `careerlyBack`：深链场景下栈底
+                // 没有可 pop 的页面，会让顶部按钮变成静默死键
+                // （`phase4_onboarding_test` 钉的正是这一行为）。
                 onTap: () => context.go(AppRoutes.onboardingSplash),
               ),
             ),

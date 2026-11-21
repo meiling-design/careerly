@@ -440,7 +440,8 @@ class _SplashPrimaryAction extends StatelessWidget {
           // ⚠️ `authPrimary`（172.01deg / 投影 0 8px 12px），
           // 不是默认的 `primary`（135deg / 0 8px 24px）—— 见枚举文档。
           variant: CareerlyButtonVariant.authPrimary,
-          onPressed: () => context.go(AppRoutes.onboardingRegister),
+          // 流程推进用 push：系统 Back / 顶部返回都能沿真实页面栈回到上一屏。
+          onPressed: () => context.push(AppRoutes.onboardingRegister),
         ),
       ),
     );
@@ -465,7 +466,7 @@ class _SplashFooter extends StatelessWidget {
         CareerlyTextLink(
           label: '点击登录',
           style: AppTypography.splashFooterLink,
-          onPressed: () => context.go(AppRoutes.onboardingLogin),
+          onPressed: () => context.push(AppRoutes.onboardingLogin),
           // 「点击登录」在别处也可能出现，读屏器需要能区分上下文。
           semanticsLabel: '已经有账户了，点击登录',
         ),

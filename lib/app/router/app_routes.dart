@@ -133,16 +133,74 @@ abstract final class AppRoutes {
   // ---------------------------------------------------------------------------
 
   /// 岗位详情。形如 `/analysis/job/:jobId`。
+  ///
+  /// ## 为什么额外带 `projectId` / `resultId`
+  ///
+  /// `jobId` **不是全局唯一**：同一岗位实体可以出现在多个分析项目 /
+  /// 多次分析结果里。只按 `jobId` 查找会在历史 / 多项目场景下命中
+  /// 「最新的那一条」，从而把用户带进**另一次分析**的上下文。
+  ///
+  /// 因此从分析结果进入详情时必须带上来源：
+  ///
+  /// ```text
+  /// /analysis/job/demo-job-1?projectId=demo-project&resultId=demo-result-2
+  /// ```
+  ///
+  /// 两个参数都是**可选**的：深链 / 旧链接只有 `jobId` 时仍按原有
+  /// 「全部项目里找」的兜底逻辑工作。
   static const String analysisJobSegment = 'job';
   static const String analysisJobIdParam = 'jobId';
-  static String analysisJob(String jobId) =>
-      '$analysis/$analysisJobSegment/$jobId';
+  static const String analysisProjectIdParam = 'projectId';
+  static const String analysisResultIdParam = 'resultId';
+
+  static String analysisJob(
+    String jobId, {
+    String? projectId,
+    String? resultId,
+  }) {
+    final String path = '$analysis/$analysisJobSegment/$jobId';
+    return _withAnalysisContext(
+      path,
+      projectId: projectId,
+      resultId: resultId,
+    );
+  }
 
   /// 成长空间（Gap）详情。形如 `/analysis/gap/:jobId`。
+  ///
+  /// 与 [analysisJob] 一样携带来源分析上下文，保证 Gap 页读取的是
+  /// 「打开它的那一次分析结果」。
   static const String analysisGapSegment = 'gap';
   static const String analysisGapIdParam = 'jobId';
-  static String analysisGap(String jobId) =>
-      '$analysis/$analysisGapSegment/$jobId';
+
+  static String analysisGap(
+    String jobId, {
+    String? projectId,
+    String? resultId,
+  }) {
+    final String path = '$analysis/$analysisGapSegment/$jobId';
+    return _withAnalysisContext(
+      path,
+      projectId: projectId,
+      resultId: resultId,
+    );
+  }
+
+  /// 给分析二级页的路径追加来源参数；没有参数时返回原路径。
+  static String _withAnalysisContext(
+    String path, {
+    String? projectId,
+    String? resultId,
+  }) {
+    final Map<String, String> query = <String, String>{
+      if (projectId != null && projectId.isNotEmpty)
+        analysisProjectIdParam: projectId,
+      if (resultId != null && resultId.isNotEmpty)
+        analysisResultIdParam: resultId,
+    };
+    if (query.isEmpty) return path;
+    return Uri(path: path, queryParameters: query).toString();
+  }
 
   /// 目标岗位列表。
   static const String analysisTargetsSegment = 'targets';

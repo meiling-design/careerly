@@ -74,6 +74,27 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   /// 这里不再重复处理。
   int _runId = 0;
 
+  /// 「发起分析」的代际号（P1-02）。
+  ///
+  /// [exitAnalysis] 也会 `_runId++`，但它**不是**新的分析任务 —— 退出后
+  /// 服务器任务仍在跑，句柄**必须**落盘。因此判定「旧任务不得覆盖新任务
+  /// 句柄」不能用 `_runId`，只用这个每发起一次分析就 +1 的编号：
+  /// 代际号不等于当前值的任务，说明已被更新的分析取代。
+  int _taskGeneration = 0;
+
+  /// 落盘失败时的进程内兜底句柄（P1-02）。
+  ///
+  /// Secure Storage 写失败（钥匙串异常 / 平台通道错误）时不能让任务
+  /// 「没有本地句柄」：本次进程内仍能 [restoreActiveTask] 接上它。
+  /// 同时通过 [FlutterError.reportError] 上报，**不静默吞掉**。
+  String? _memoryTaskId;
+
+  /// 当前是否持有一个未能落盘的任务句柄（诊断用）。
+  bool get hasUnpersistedTaskHandle =>
+      _memoryTaskId != null && _taskHandlePersistFailed;
+
+  bool _taskHandlePersistFailed = false;
+
   /// 引擎实时节点进度。见 [taskProgress]。
   ///
   /// 每次发起分析清零，终态（成功 / 失败 / 退出）也清零 —— 否则它会在
@@ -282,6 +303,7 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
 
     _quota = _quota!.consume();
     final int run = ++_runId;
+    final int generation = ++_taskGeneration;
     _taskProgress = null;
     _maxOverallProgress = 0;
     _setAnalysisLoading(progress: 0.0, message: '准备岗位信息');
@@ -293,6 +315,7 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
           ? await _runWithRealProgress(
               source,
               run: run,
+              generation: generation,
               jobs: effective,
               projectId: projectId,
               resumeVersionId: resumeVersionId,
@@ -312,7 +335,7 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
       if (run != _runId) return; // 已退出：失败也作废
       _quota = _quota!.rollback();
       _taskProgress = null;
-      unawaited(_taskStore.clear());
+      unawaited(_clearTaskHandle());
       _setAnalysisFailure(AppError.from(error, stackTrace));
       // 后端失败时会释放预占；重新读一次避免本地与后端漂移。
       await loadQuota();
@@ -328,6 +351,7 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
   Future<AnalysisProject?> _runWithRealProgress(
     AnalysisProgressSource source, {
     required int run,
+    required int generation,
     required List<AnalysisJobInput> jobs,
     String? projectId,
     String? resumeVersionId,
@@ -343,9 +367,14 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
       projectId: projectId,
       resumeVersionId: resumeVersionId,
     );
+    // P1-02：任务一创建就**先持久化句柄**，再判断本次运行是否还有效。
+    //
+    // 旧顺序是先 `if (run != _runId) return null;` 再写盘 —— 用户在
+    // `POST /analysis/tasks` 返回后、写盘前退出，句柄就永远不会保存，
+    // 而服务器任务继续跑，重新进入时无从恢复（任务丢失）。
+    // 退出不撤销服务器任务，所以这里必须落盘。
+    await _persistTaskHandle(task.taskId, generation: generation);
     if (run != _runId) return null;
-    // 句柄必须先落盘：进程此刻被杀，下次进入仍能恢复同一条任务。
-    await _taskStore.write(task.taskId);
     _applyTaskProgress(task);
 
     while (!task.isTerminal) {
@@ -356,7 +385,7 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
       _applyTaskProgress(task);
     }
 
-    await _taskStore.clear();
+    await _clearTaskHandle();
 
     if (task.isFailed) {
       // 后端的 errorMessage 已是给用户看的中文（P1-2 归一化过），原样上屏。
@@ -391,6 +420,56 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
       );
     }
     return project;
+  }
+
+  /// 把刚创建的任务句柄落盘（P1-02）。
+  ///
+  /// 三条不变式：
+  ///
+  /// 1. **旧任务不得覆盖新任务**：代际号早于当前值的任务说明用户已经
+  ///    发起了更新的分析，丢弃它的句柄（新任务的句柄才是要恢复的）。
+  /// 2. **落盘失败不丢失任务**：写异常时保留进程内句柄，并上报错误；
+  ///    本次运行内 [restoreActiveTask] 仍能接上同一条任务。
+  /// 3. 退出（[exitAnalysis]）不改变代际号，所以退出之后到达的句柄
+  ///    仍会落盘 —— 服务器任务还在跑，必须能恢复。
+  Future<void> _persistTaskHandle(String taskId, {required int generation}) async {
+    if (generation < _taskGeneration) return;
+    _memoryTaskId = taskId;
+    try {
+      await _taskStore.write(taskId);
+      _taskHandlePersistFailed = false;
+    } catch (error, stackTrace) {
+      _taskHandlePersistFailed = true;
+      // 不静默：上报给错误处理（debug 下看得到，Release 由平台收集）。
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'careerly.analysis',
+          context: ErrorDescription(
+            '分析任务句柄写入本地存储失败；本次进程内仍保留恢复句柄',
+          ),
+        ),
+      );
+    }
+  }
+
+  /// 清除任务句柄（磁盘 + 进程内）。
+  Future<void> _clearTaskHandle() async {
+    _memoryTaskId = null;
+    _taskHandlePersistFailed = false;
+    try {
+      await _taskStore.clear();
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'careerly.analysis',
+          context: ErrorDescription('清除分析任务句柄失败'),
+        ),
+      );
+    }
   }
 
   /// Mock 路径：原行为逐字保留（进度由组件内时钟驱动，这里只是
@@ -453,15 +532,18 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
     if (_analysisState is AsyncLoading<AnalysisProject>) return;
     final AnalysisProgressSource? source = _progressSource;
     if (source == null) {
-      await _taskStore.clear();
+      await _clearTaskHandle();
       return;
     }
 
-    String? taskId;
-    try {
-      taskId = await _taskStore.read();
-    } catch (_) {
-      return;
+    // P1-02：进程内兜底句柄优先 —— 落盘失败时，这次会话仍能恢复任务。
+    String? taskId = _memoryTaskId;
+    if (taskId == null || taskId.isEmpty) {
+      try {
+        taskId = await _taskStore.read();
+      } catch (_) {
+        return;
+      }
     }
     if (taskId == null || taskId.isEmpty) return;
 
@@ -484,7 +566,7 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
         }
       }
 
-      await _taskStore.clear();
+      await _clearTaskHandle();
       _taskProgress = null;
 
       if (task.isCompleted && task.projectId != null) {
@@ -516,7 +598,7 @@ class AnalysisProvider extends AsyncStateNotifier<List<AnalysisProject>> {
       unawaited(loadQuota());
     } catch (_) {
       // 恢复失败不弹错：回到表单，用户仍可重新发起。
-      await _taskStore.clear();
+      await _clearTaskHandle();
       _taskProgress = null;
       _analysisState = const AsyncState<AnalysisProject>.initial();
     }

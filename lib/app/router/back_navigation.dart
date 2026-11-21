@@ -94,16 +94,36 @@ bool dismissSoftKeyboardIfVisible(BuildContext context) {
 ///
 /// **所有**「返回」入口（顶部按钮、系统 Back、边缘右滑）最终都落在这里。
 ///
-/// 用 [NavigatorState.maybePop] 而不是 [NavigatorState.pop]：
-/// `maybePop` 会先询问当前路由的 `popDisposition`（即 `PopScope`），
-/// 使 [CareerlyBackScope] 的离开确认对**顶部按钮**同样生效。
+/// 执行顺序与系统 Back 完全一致：
 ///
-/// 返回 `true` 表示本次返回已被处理（真的 pop 了，或被守卫拦下等待确认）。
-/// 返回 `false` 表示当前已经是导航栈底 —— 首页根页面就是这个情形，
-/// 由 Shell 的 [PopScope] 消费并调用 `moveTaskToBack(true)`。
-/// 非首页的一级页面由 Shell 先行拦截并切回首页，因此走不到这里。
-Future<bool> careerlyBack(BuildContext context, [Object? result]) {
-  return Navigator.of(context).maybePop(result);
+/// ```text
+/// 1. 软键盘可见        → 只收键盘，本次返回已被消费
+/// 2. 当前 Navigator pop → pop 二级 / 三级页面（经过 PopScope 守卫）
+/// 3. 分支栈底          → 交给 GoRouter 的 popRoute()
+///                        → 分支根页面由 Shell 决定「回首页 / 退后台」
+/// ```
+///
+/// 第 3 步不能省略：一级页面（`/analysis`、`/ai`、`/profile`）位于
+/// `StatefulShellRoute` 的分支 Navigator 栈底，`Navigator.maybePop()`
+/// 只会返回 `false`，不会触达 Shell 的 [PopScope]。若顶部按钮停在这里，
+/// 它在分支根页面上就会变成一颗「静默死键」—— 与系统 Back 语义分叉。
+/// 走 [GoRouterDelegate.popRoute] 后，两个入口共用同一条查找顺序
+/// （分支 Navigator → 根 Navigator），行为一致。
+///
+/// 返回 `true` 表示本次返回已被处理（真的 pop 了、收起了键盘、
+/// 或弹出了离开确认）。返回 `false` 表示没有任何层消费这次返回。
+Future<bool> careerlyBack(BuildContext context, [Object? result]) async {
+  // 优先级 1：软键盘。顶部按钮与系统 Back 都必须先收键盘。
+  if (dismissSoftKeyboardIfVisible(context)) return true;
+
+  // 优先级 2：当前 Navigator 的 pop（路由 / 守卫 / 页面内部流程）。
+  final NavigatorState navigator = Navigator.of(context);
+  final GoRouter? router = GoRouter.maybeOf(context);
+  if (await navigator.maybePop(result)) return true;
+
+  // 优先级 3：分支栈底交给 GoRouter，由 Shell 执行根页面回退策略。
+  if (router == null) return false;
+  return router.routerDelegate.popRoute();
 }
 
 /// 「离开前先确认」的守卫描述。
@@ -272,6 +292,7 @@ class CareerlyRootBackScope extends StatelessWidget {
     super.key,
     required this.child,
     this.fallbackToHome = true,
+    this.fallbackLocation,
   });
 
   final Widget child;
@@ -283,26 +304,41 @@ class CareerlyRootBackScope extends StatelessWidget {
   ///   栈底 Back 只退后台，**不能**借机进入需要登录的主界面。
   final bool fallbackToHome;
 
+  /// 栈底且没有上一页时的**流程落点**（优先级高于 [fallbackToHome]）。
+  ///
+  /// Onboarding 的步骤是一条线性流程：深链 / 调试直接落到「提交简历」时，
+  /// 栈里没有「注册」这一页，但语义上的上一屏仍然是注册页。此时
+  /// Back 应 go 到 [fallbackLocation]，而不是直接退后台。
+  ///
+  /// `null` 表示没有流程落点，继续走 [fallbackToHome] / 退后台。
+  final String? fallbackLocation;
+
   @override
   Widget build(BuildContext context) {
     return PopScope<Object?>(
-      // 始终自己处理，才能先收键盘、再决定 pop / go(home) / 退后台。
+      // 始终自己处理，才能先收键盘、再决定 pop / go(fallback) / 退后台。
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) {
         if (didPop) return;
         if (dismissSoftKeyboardIfVisible(context)) return;
-        _leaveToRoot(context, result, fallbackToHome: fallbackToHome);
+        _leaveToRoot(
+          context,
+          result,
+          fallbackToHome: fallbackToHome,
+          fallbackLocation: fallbackLocation,
+        );
       },
       child: child,
     );
   }
 }
 
-/// 栈底离开动作：有上一页就 pop；否则回首页；首页才退后台。
+/// 栈底离开动作：有上一页就 pop；否则走流程落点 / 首页；最后才退后台。
 void _leaveToRoot(
   BuildContext context,
   Object? result, {
   bool fallbackToHome = true,
+  String? fallbackLocation,
 }) {
   final NavigatorState navigator = Navigator.of(context);
   if (navigator.canPop()) {
@@ -311,15 +347,55 @@ void _leaveToRoot(
   }
 
   final GoRouter? router = GoRouter.maybeOf(context);
-  if (router != null && fallbackToHome) {
+  if (router != null) {
     final String location = router.routeInformationProvider.value.uri.path;
-    if (location.isNotEmpty && location != AppRoutes.home) {
+
+    // 流程落点优先：Onboarding 的「上一步」是业务语义，不是首页。
+    if (fallbackLocation != null && fallbackLocation != location) {
+      router.go(fallbackLocation);
+      return;
+    }
+
+    if (fallbackToHome && location.isNotEmpty && location != AppRoutes.home) {
       router.go(AppRoutes.home);
       return;
     }
   }
 
   AppBackPlatform.moveTaskToBack();
+}
+
+/// 只负责**优先级 1（软键盘）**的路由级包装。
+///
+/// 包在 `app_router.dart` 的每一条二级 / 三级路由上，而不是让每个页面
+/// 各写一层 `PopScope`：
+///
+/// ```text
+/// 键盘可见 → canPop = false → Back 只收键盘
+/// 键盘隐藏 → canPop = true  → 保持原有 pop 行为（完全透明）
+/// ```
+///
+/// 分支根页面不需要它 —— Shell 自己的 [PopScope] 已先收键盘；
+/// Shell 之外的顶级路由由 [CareerlyRootBackScope] 收键盘。
+class CareerlyKeyboardBackScope extends StatelessWidget {
+  const CareerlyKeyboardBackScope({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool keyboardVisible =
+        (MediaQuery.maybeViewInsetsOf(context)?.bottom ?? 0) > 0;
+
+    return PopScope<Object?>(
+      canPop: !keyboardVisible,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop || !keyboardVisible) return;
+        dismissSoftKeyboardIfVisible(context);
+      },
+      child: child,
+    );
+  }
 }
 
 /// 给一棵子树装上「Back 守卫」。
@@ -362,13 +438,33 @@ void _leaveToRoot(
 /// 守卫只负责「离开界面」，任务是否继续由任务自己的状态决定
 /// （分析任务活在 `AnalysisProvider` 里，不随页面销毁）。
 class CareerlyBackScope extends StatefulWidget {
-  const CareerlyBackScope({super.key, required this.child, this.guard});
+  const CareerlyBackScope({
+    super.key,
+    required this.child,
+    this.guard,
+    this.onFlowBack,
+  });
 
   /// 被守卫的子树（通常是一整页）。
   final Widget child;
 
-  /// 离开守卫。为 `null` 表示本页可以直接返回。
+  /// 离开守卫。为 `null` 表示本页没有「离开前确认」。
   final CareerlyBackGuard? guard;
+
+  /// 页面内部的**流程回退**（优先级 2 / 3），例如：
+  ///
+  /// ```text
+  /// 分析结果      → 回到新建分析 / 历史列表
+  /// 历史分析列表  → 回到新建分析
+  /// 展开的 JD 表单 → 关闭表单
+  /// AI 聊天记录   → 关闭侧栏
+  /// ```
+  ///
+  /// 非 `null` 时本层会拦截 Back（`canPop: false`），回调执行后
+  /// **本次返回即被消费**，不会再交给 Shell / 路由层。
+  ///
+  /// 为 `null` 时本层完全透明：与没有这层包裹时一致。
+  final VoidCallback? onFlowBack;
 
   @override
   State<CareerlyBackScope> createState() => _CareerlyBackScopeState();
@@ -379,7 +475,7 @@ class _CareerlyBackScopeState extends State<CareerlyBackScope> {
   bool _confirming = false;
 
   Future<void> _onPopInvoked(bool didPop, Object? result) async {
-    // 已经 pop 掉了（无守卫的正常返回）—— 什么都不用做。
+    // 已经 pop 掉了（无守卫 / 无流程回退的正常返回）—— 什么都不用做。
     if (didPop) return;
 
     // 第一优先：软键盘。收起键盘算「已消费本次返回」，不 pop 页面。
@@ -387,8 +483,15 @@ class _CareerlyBackScopeState extends State<CareerlyBackScope> {
 
     final CareerlyBackGuard? guard = widget.guard;
     if (guard == null) {
-      // `canPop` 为 true 时 didPop 必为 true，这里只是防御性分支。
-      _leave(result);
+      final VoidCallback? onFlowBack = widget.onFlowBack;
+      if (onFlowBack != null) {
+        onFlowBack();
+        return;
+      }
+
+      // 本层的 `canPop` 为 true。收到 `didPop == false` 只可能是
+      // 同一路由上的**另一个** PopScope 拦截了这次返回 —— 此时必须
+      // 保持静默，否则同一次 Back 会被消费两次（叠出两个 pop / 跳转）。
       return;
     }
     if (_confirming) return;
@@ -412,12 +515,14 @@ class _CareerlyBackScopeState extends State<CareerlyBackScope> {
 
   @override
   Widget build(BuildContext context) {
-    final bool guarded = widget.guard != null;
+    // 有守卫 / 有流程回退 → 本层消费 Back；否则完全透明。
+    final bool handledHere =
+        widget.guard != null || widget.onFlowBack != null;
 
     return PopScope<Object?>(
-      // 有守卫 → 先不许 pop，等 `_onPopInvoked` 问完再说。
-      // 无守卫 → 直接放行，与没有本组件时完全一致。
-      canPop: !guarded,
+      // 需要本层处理时先不许 pop，等 `_onPopInvoked` 决定。
+      // 否则直接放行，与没有本组件时完全一致。
+      canPop: !handledHere,
       onPopInvokedWithResult: _onPopInvoked,
       child: widget.child,
     );

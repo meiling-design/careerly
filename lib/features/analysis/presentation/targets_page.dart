@@ -154,7 +154,13 @@ class _TargetsBody extends StatelessWidget {
             previousScore: previousScores[matches[i].jobId],
             onTap: jobs[matches[i].jobId] == null
                 ? null
-                : () => context.push(AppRoutes.analysisJob(matches[i].jobId)),
+                : () => context.push(
+                    AppRoutes.analysisJob(
+                      matches[i].jobId,
+                      projectId: project.id,
+                      resultId: latest?.id,
+                    ),
+                  ),
           ),
         ],
         const SizedBox(height: _TargetsMetrics.gap),

@@ -62,7 +62,10 @@ class AnalysisJobEntry {
   /// 页面必须显示缺失态，**不得**读 [job].rawJd 冒充。
   final JobSnapshot? snapshot;
 
-  /// 上一次分析中该岗位的匹配分；首次分析时为 `null`。
+  /// 上一次**可比**分析的匹配分；由后端下发（[JobMatch.previousScore]）。
+  ///
+  /// 为 `null` 表示不可比较（首次分析 / 换岗位 / 换 JD / 换评分口径 /
+  /// 简历没换）。**不是**「暂未计算」—— 前端不推断，见 [delta]。
   final int? previousScore;
 
   /// 当前 Gap 值（`100 - 匹配度`）。
@@ -70,57 +73,106 @@ class AnalysisJobEntry {
   /// 与 Figma `JOBS.gap`（L38-43）逐位一致：86→14、82→18、74→26、68→32。
   int get gapPercent => 100 - match.score;
 
-  /// 较上次变化；无上次结果时为 `null`。
-  int? get delta => previousScore == null ? null : match.score - previousScore!;
+  /// 较上次变化；不可比较时为 `null`（不展示增长数值）。
+  int? get delta => match.scoreDelta;
 }
 
 /// 在项目列表中按 [jobId] 查找岗位视图；找不到返回 `null`。
 ///
-/// 查找范围是**全部**项目（不是只看最新一个）——岗位可能在历史项目里，
-/// 而「删除岗位只代表本次分析不比较，不删除其历史岗位记录」（PRD §9.7）。
+/// ## 来源上下文（`projectId` / `resultId`）
+///
+/// `jobId` 只保证「在一个项目内」唯一。同一个岗位实体可以出现在多个
+/// 分析项目、多次分析结果里；只按 `jobId` 遍历全部项目会命中列表里
+/// 最先遇到的那一条（通常是**最新分析**），从而把用户从「某条历史
+/// 分析」带进另一次分析的详情。
+///
+/// 因此详情页从结果页进入时会携带来源：
+///
+/// ```text
+/// projectId 给定 → 只在该项目内查找；项目不存在则返回 null
+///                  （**不**回退到其它项目 —— 那会显示错的数据）
+/// resultId 给定  → 只在该条结果内查找；结果不存在则返回 null
+/// 两者都缺省     → 维持旧的「全部项目、最新结果」兜底（深链 / 旧链接）
+/// ```
 AnalysisJobEntry? findAnalysisJobEntry(
   List<AnalysisProject> projects,
-  String jobId,
-) {
-  for (final AnalysisProject project in projects) {
-    for (final Job job in project.jobs) {
-      if (job.id != jobId) continue;
-      // 从最新结果往前找：岗位可能在历史版本里，而「原文」必须取
-      // **提供这次匹配结果的那条记录**的快照（P1-02）。
-      for (int i = project.results.length - 1; i >= 0; i--) {
-        final AnalysisResult result = project.results[i];
-        JobMatch? match;
-        for (final JobMatch m in result.matches) {
-          if (m.jobId == jobId) {
-            match = m;
-            break;
-          }
-        }
-        if (match == null) continue;
-        return AnalysisJobEntry(
-          project: project,
-          result: result,
-          job: job,
-          match: match,
-          snapshot: result.snapshotFor(jobId),
-          previousScore: _previousScore(project, jobId, beforeIndex: i),
-        );
-      }
+  String jobId, {
+  String? projectId,
+  String? resultId,
+}) {
+  final Iterable<AnalysisProject> candidates = projectId == null
+      ? projects
+      : projects.where((AnalysisProject p) => p.id == projectId);
+
+  // 显式给了 projectId 却找不到 → 直接 Empty，不拿别的项目冒充。
+  if (projectId != null && candidates.isEmpty) return null;
+
+  for (final AnalysisProject project in candidates) {
+    final Job? job = _jobById(project, jobId);
+    if (job == null) continue;
+
+    final AnalysisResult? result = _resultFor(
+      project,
+      jobId,
+      resultId: resultId,
+    );
+    if (result == null) {
+      // 给了 resultId 却找不到对应匹配 → Empty；没给 resultId 时
+      // 说明项目里有岗位、但没有任何结果能提供匹配（同样是 Empty）。
       return null;
     }
+
+    final JobMatch match = result.matches.firstWhere(
+      (JobMatch m) => m.jobId == jobId,
+    );
+    return AnalysisJobEntry(
+      project: project,
+      result: result,
+      job: job,
+      match: match,
+      snapshot: result.snapshotFor(jobId),
+      // P1-01：只认后端确认可比的值。**不要**在这里遍历相邻结果
+      // 取同 jobId 的分数 —— 岗位改名 / JD 改版 / 评分口径升级后，
+      // 那些数字不能相减。
+      previousScore: match.previousScore,
+    );
   }
   return null;
 }
 
-/// [beforeIndex] 之前最近一次包含该岗位的匹配分。
-int? _previousScore(
+Job? _jobById(AnalysisProject project, String jobId) {
+  for (final Job job in project.jobs) {
+    if (job.id == jobId) return job;
+  }
+  return null;
+}
+
+/// 选出「提供这次匹配结果」的那条分析记录。
+///
+/// 优先级：
+/// 1. 显式 [resultId] —— 必须是该结果且包含 [jobId]；
+/// 2. 否则从最新结果往前找第一条包含 [jobId] 的结果。
+AnalysisResult? _resultFor(
   AnalysisProject project,
   String jobId, {
-  required int beforeIndex,
+  String? resultId,
 }) {
-  for (int i = beforeIndex - 1; i >= 0; i--) {
-    for (final JobMatch m in project.results[i].matches) {
-      if (m.jobId == jobId) return m.score;
+  if (resultId != null) {
+    for (final AnalysisResult result in project.results) {
+      if (result.id != resultId) continue;
+      return result.matches.any((JobMatch m) => m.jobId == jobId)
+          ? result
+          : null;
+    }
+    return null;
+  }
+
+  // 从最新结果往前找：岗位可能在历史版本里，而「原文」必须取
+  // **提供这次匹配结果的那条记录**的快照（P1-02）。
+  for (int i = project.results.length - 1; i >= 0; i--) {
+    final AnalysisResult result = project.results[i];
+    if (result.matches.any((JobMatch m) => m.jobId == jobId)) {
+      return result;
     }
   }
   return null;

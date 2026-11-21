@@ -62,6 +62,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
   bool _addingJd = false;
   bool _addingUrl = false;
 
+  /// 当前展示的结果是否由「历史分析」打开。
+  ///
+  /// 结果页与新建 / 历史共用同一个 `/analysis` 路由，不是独立的页面栈
+  /// 层级。没有这个标记时，结果页返回只能默认回到「新建分析」，
+  /// 从历史列表点进来的结果就回不到历史列表（P0-1）。
+  bool _openedFromHistory = false;
+
   /// 本次分析的目标岗位列表（多岗位，2026-11-18）。
   ///
   /// 每个岗位都带着自己的 JD 原文与来源信息 —— 开始分析时整组交给
@@ -89,6 +96,45 @@ class _AnalysisPageState extends State<AnalysisPage> {
       _addingJd = false;
       _addingUrl = false;
     });
+  }
+
+  /// 关闭「粘贴 JD」表单（顶部返回 / 系统 Back 共用）。
+  void _cancelJdForm() {
+    _jdController.clear();
+    setState(() => _addingJd = false);
+  }
+
+  /// 关闭「粘贴岗位 URL」表单（顶部返回 / 系统 Back 共用）。
+  void _cancelUrlForm() {
+    context.read<AnalysisProvider>().clearJobUrlState();
+    _urlController.clear();
+    setState(() => _addingUrl = false);
+  }
+
+  /// 结果页的局部回退（优先级 2）：
+  ///
+  /// ```text
+  /// 从历史列表打开 → 回到历史列表（保留当前结果，用户还能再点开）
+  /// 新建分析产出   → 回到新建分析表单
+  /// ```
+  void _handleResultBack() {
+    if (_openedFromHistory) {
+      setState(() => _history = true);
+      return;
+    }
+    context.read<AnalysisProvider>().showNewAnalysis();
+  }
+
+  /// 历史列表的局部回退（优先级 2）：回到新建分析表单。
+  ///
+  /// 必须同时 [AnalysisProvider.showNewAnalysis] —— 否则 Provider 里
+  /// 仍是刚才从历史打开的成功结果，表单区会立刻又渲染成结果页。
+  void _handleHistoryBack() {
+    setState(() {
+      _history = false;
+      _openedFromHistory = false;
+    });
+    context.read<AnalysisProvider>().showNewAnalysis();
   }
 
   @override
@@ -135,6 +181,31 @@ class _AnalysisPageState extends State<AnalysisPage> {
         !_history &&
         provider.analysisState is AsyncSuccess<AnalysisProject>;
 
+    // 页面内部的回退优先级（一次 Back 只消费一层）：
+    //
+    // ```text
+    // 分析中      → 交给 guard（离开确认），不在这里抢
+    // 结果页      → 回来源（新建 / 历史）
+    // 历史列表    → 回新建分析
+    // JD / URL 表单 → 关闭表单
+    // 其余        → 交给 Shell（回到一级页面策略）
+    // ```
+    //
+    // 结果 / 历史必须先于表单判断：切到历史时表单状态可能仍保留，
+    // 但用户看到的是历史列表，Back 应该回新建分析，而不是关一个
+    // 屏幕上看不见的表单。
+    final VoidCallback? flowBack = analyzing
+        ? null
+        : resultVisible
+        ? _handleResultBack
+        : _history
+        ? _handleHistoryBack
+        : _addingUrl
+        ? _cancelUrlForm
+        : _addingJd
+        ? _cancelJdForm
+        : null;
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       // 背景渐变由 App 根节点绘制；这里只确保状态栏透明、图标为深色，
       // 让顶部背景真正直达手机顶部（沉浸式）。
@@ -145,6 +216,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
       child: CareerlyBackScope(
         guard: analyzing ? const CareerlyBackGuard.analysisInProgress() : null,
+        onFlowBack: flowBack,
         child: CareerlyScaffold(
           showAppBar: false,
           // 水平 20 由各视图自己给（设计稿 px-5），避免与 Scaffold 的
@@ -157,7 +229,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 _Header(
                   history: _history,
                   onNew: () {
-                    setState(() => _history = false);
+                    setState(() {
+                      _history = false;
+                      _openedFromHistory = false;
+                    });
                     _resetForm();
                     provider.showNewAnalysis();
                   },
@@ -170,7 +245,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         onRetry: provider.load,
                         onOpen: (AnalysisProject project) {
                           provider.showHistoryProject(project);
-                          setState(() => _history = false);
+                          setState(() {
+                            _history = false;
+                            _openedFromHistory = true;
+                          });
                         },
                       )
                     : _NewView(
@@ -188,15 +266,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           provider.clearJobUrlState();
                           setState(() => _addingUrl = true);
                         },
-                        onCancelJd: () {
-                          _jdController.clear();
-                          setState(() => _addingJd = false);
-                        },
-                        onCancelUrl: () {
-                          provider.clearJobUrlState();
-                          _urlController.clear();
-                          setState(() => _addingUrl = false);
-                        },
+                        onCancelJd: _cancelJdForm,
+                        onCancelUrl: _cancelUrlForm,
                         onConfirmJd: () {
                           final String jd = _jdController.text.trim();
                           if (jd.isEmpty) return;
@@ -506,7 +577,6 @@ class _NewView extends StatelessWidget {
         ),
       AsyncSuccess<AnalysisProject>(:final AnalysisProject data) => _ResultView(
         project: data,
-        onNew: provider.showNewAnalysis,
         onUpdate: () async {
           final ResumeProfile resume =
               context.read<ResumeProvider>().data ?? ResumeProfile.empty;
@@ -1432,12 +1502,10 @@ class _QuotaBar extends StatelessWidget {
 class _ResultView extends StatefulWidget {
   const _ResultView({
     required this.project,
-    required this.onNew,
     required this.onUpdate,
   });
 
   final AnalysisProject project;
-  final VoidCallback onNew;
   final VoidCallback onUpdate;
 
   @override
@@ -1463,16 +1531,11 @@ class _ResultViewState extends State<_ResultView> {
   Widget build(BuildContext context) {
     final AnalysisProject project = widget.project;
     final AnalysisResult? result = project.latestResult;
-    final AnalysisResult? previous = project.results.length >= 2
-        ? project.results[project.results.length - 2]
-        : null;
     final List<JobMatch> matches = List<JobMatch>.of(
       result?.matches ?? const <JobMatch>[],
     )..sort((JobMatch a, JobMatch b) => a.rank.compareTo(b.rank));
-    final Map<String, int> previousScores = <String, int>{
-      for (final JobMatch match in previous?.matches ?? const <JobMatch>[])
-        match.jobId: match.score,
-    };
+    // P1-01：「较上次」只读后端下发的 `JobMatch.previousScore`。
+    // 这里**不**再拿上一条结果的同 jobId 分数做差 —— 那是前端推断。
     final Map<String, Job> jobs = <String, Job>{
       for (final Job job in project.jobs) job.id: job,
     };
@@ -1484,7 +1547,9 @@ class _ResultViewState extends State<_ResultView> {
         // 标准导航栏：浅色半透明圆形返回钮 + 居中标题。
         CareerlyTopBar(
           title: '分析结果',
-          onBack: widget.onNew,
+          // 顶部返回与系统 Back 同一条 Back Action；具体回新建还是历史，
+          // 由页面 `CareerlyBackScope.onFlowBack` 统一决定（见 _handleResultBack）。
+          onBack: () => careerlyBack(context),
           style: CareerlyTopBarStyle.glassCircle,
           // 设计稿的标题比「职业资产」小一档。
           titleStyle: AppTypography.subtitle.copyWith(
@@ -1513,11 +1578,14 @@ class _ResultViewState extends State<_ResultView> {
                       match: topMatch,
                       job: jobs[topMatch.jobId],
                       snapshot: result?.snapshotFor(topMatch.jobId),
-                      previousScore: previousScores[topMatch.jobId],
                       onOpenDetail: jobs[topMatch.jobId] == null
                           ? null
                           : () => context.push(
-                              AppRoutes.analysisJob(topMatch.jobId),
+                              AppRoutes.analysisJob(
+                                topMatch.jobId,
+                                projectId: project.id,
+                                resultId: result?.id,
+                              ),
                             ),
                     ),
                   ),
@@ -1526,12 +1594,15 @@ class _ResultViewState extends State<_ResultView> {
                   _MatchList(
                     matches: matches.sublist(1),
                     jobs: jobs,
+                    // 同一岗位可能出现在多次分析里 —— 下钻必须带上
+                    // 「这次结果」的上下文，否则详情会读最新一次。
+                    projectId: project.id,
+                    resultId: result?.id,
                     snapshots: <String, JobSnapshot>{
                       for (final JobMatch m in matches.sublist(1))
                         if (result?.snapshotFor(m.jobId) != null)
                           m.jobId: result!.snapshotFor(m.jobId)!,
                     },
-                    previousScores: previousScores,
                   ),
                 ],
                 _ResultSection(
@@ -1646,7 +1717,6 @@ class _TopMatchCard extends StatelessWidget {
     required this.match,
     required this.job,
     required this.snapshot,
-    required this.previousScore,
     this.onOpenDetail,
   });
 
@@ -1656,7 +1726,6 @@ class _TopMatchCard extends StatelessWidget {
   /// 本次分析记录的岗位原文快照（P1-02）。历史记录可能为缺失态。
   final JobSnapshot? snapshot;
 
-  final int? previousScore;
   final VoidCallback? onOpenDetail;
 
   static const List<String> _checkItems = <String>[
@@ -1677,9 +1746,8 @@ class _TopMatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final int? delta = previousScore == null
-        ? null
-        : match.score - previousScore!;
+    // P1-01：后端确认可比才有 delta；不可比时 _DeltaPill 只显示「较上次 —」。
+    final int? delta = match.scoreDelta;
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -2030,14 +2098,16 @@ class _MatchList extends StatelessWidget {
   const _MatchList({
     required this.matches,
     required this.jobs,
+    required this.projectId,
+    required this.resultId,
     required this.snapshots,
-    required this.previousScores,
   });
 
   final List<JobMatch> matches;
   final Map<String, Job> jobs;
+  final String projectId;
+  final String? resultId;
   final Map<String, JobSnapshot> snapshots;
-  final Map<String, int> previousScores;
 
   @override
   Widget build(BuildContext context) {
@@ -2050,7 +2120,8 @@ class _MatchList extends StatelessWidget {
             match: matches[i],
             job: jobs[matches[i].jobId],
             snapshot: snapshots[matches[i].jobId],
-            previousScore: previousScores[matches[i].jobId],
+            projectId: projectId,
+            resultId: resultId,
           ),
         ],
       ],
@@ -2063,13 +2134,15 @@ class _MatchCard extends StatelessWidget {
     required this.match,
     required this.job,
     required this.snapshot,
-    required this.previousScore,
+    required this.projectId,
+    required this.resultId,
   });
 
   final JobMatch match;
   final Job? job;
   final JobSnapshot? snapshot;
-  final int? previousScore;
+  final String projectId;
+  final String? resultId;
 
   String get _displayTitle {
     final JobSnapshot? snap = snapshot;
@@ -2081,14 +2154,20 @@ class _MatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final int? delta = previousScore == null
-        ? null
-        : match.score - previousScore!;
+    // P1-01：全部来自后端 `previousScore`，不可比时 delta 为 null。
+    final int? previousScore = match.previousScore;
+    final int? delta = match.scoreDelta;
     // 点击 → 岗位详情页（Figma L2199：结果页岗位卡 → `a-job`）。
     // job 为空（数据缺联）时不给手势，避免推出一个 Empty 态页面。
     final VoidCallback? openDetail = job == null
         ? null
-        : () => context.push(AppRoutes.analysisJob(job!.id));
+        : () => context.push(
+            AppRoutes.analysisJob(
+              job!.id,
+              projectId: projectId,
+              resultId: resultId,
+            ),
+          );
     return _Card(
       onTap: openDetail,
       child: Row(
@@ -2270,13 +2349,9 @@ class _HistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AnalysisResult? result = project.latestResult;
-    final AnalysisResult? previous = project.results.length >= 2
-        ? project.results[project.results.length - 2]
-        : null;
     final int? topScore = project.latestTopScore;
-    final int? delta = (result?.top != null && previous?.top != null)
-        ? result!.top!.score - previous!.top!.score
-        : null;
+    // P1-01：历史卡片的「↑ +N%」也只认后端确认的可比分数。
+    final int? delta = result?.top?.scoreDelta;
     final DateTime? at = project.updatedAt ?? project.createdAt;
     final Map<String, JobMatch> matches = <String, JobMatch>{
       for (final JobMatch match in result?.matches ?? const <JobMatch>[])
